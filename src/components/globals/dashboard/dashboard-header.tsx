@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ClerkLoaded, ClerkLoading, UserButton } from "@clerk/nextjs";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -18,8 +19,12 @@ export function DashboardHeader() {
       />
       <span className="text-sm text-foreground/65">Property reports</span>
       <div className="ml-auto flex items-center gap-3">
-        {/* On a report: how hard the location makes it to sell or rent. */}
-        <MarketScoreBadge />
+        {/* On a report: how easy the location makes it to sell or rent.
+            Suspense: it reads the URL's reportId (useParams), which is only
+            known at request time, so it can't be in the prerendered shell. */}
+        <Suspense fallback={null}>
+          <MarketScoreBadge />
+        </Suspense>
         {/* Walk / cycle / car: switches every travel time in the app. */}
         <TravelModeToggle />
         {/* Client-only: the header is in the prerendered shell, where Clerk
