@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
+import { TravelModeProvider } from "@/components/globals/travel-mode";
+import { parseTravelMode, TRAVEL_MODE_COOKIE } from "@/lib/travel";
 import { QueryBoundary } from "@/components/globals/query-boundary";
 import { ReportDocument } from "@/components/globals/report/report-document";
 import { cn } from "cn";
 import { REPORT_TABS } from "@/components/globals/report/report-tabs";
 import { WIDGET } from "@/components/globals/report/widget-styles";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingSignal } from "@/components/globals/top-progress";
 import { AMENITY_CATEGORIES } from "@/lib/report-sections";
 import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 
@@ -42,10 +46,16 @@ async function ReportPrefetch({
   const { reportId } = await params;
   await connection();
   prefetch(trpc.report.byId.queryOptions({ id: reportId }));
+  // Render travel times in the agent's saved mode from the first paint.
+  const travelMode = parseTravelMode(
+    (await cookies()).get(TRAVEL_MODE_COOKIE)?.value,
+  );
 
   return (
     <HydrateClient>
-      <ReportDocument reportId={reportId} />
+      <TravelModeProvider mode={travelMode}>
+        <ReportDocument reportId={reportId} />
+      </TravelModeProvider>
     </HydrateClient>
   );
 }
@@ -58,6 +68,7 @@ function ReportSkeleton() {
       aria-busy="true"
       aria-label="Loading report"
     >
+      <LoadingSignal />
       {/* Address, home details and actions; amenity and transit shortcuts. */}
       <header className="space-y-4">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">

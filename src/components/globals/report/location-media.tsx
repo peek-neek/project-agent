@@ -1,5 +1,6 @@
 "use client";
 
+import { FadeImg } from "./fade-img";
 import { useTravelMode } from "@/components/globals/travel-mode";
 import { CameraIcon, ImagesIcon, LoaderCircleIcon } from "lucide-react";
 import { cn } from "cn";
@@ -209,8 +210,7 @@ export function LocationMedia({
                   )}
                 >
                   <span className="relative block aspect-[16/10] overflow-hidden bg-muted lg:aspect-auto lg:min-h-0 lg:flex-1">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- authenticated proxy image */}
-                    <img
+                    <FadeImg
                       src={streetSrc(a.id)}
                       alt=""
                       loading="lazy"
@@ -266,12 +266,11 @@ export function LocationMedia({
                       onClick={() => setOpen(photo)}
                       className="group relative block size-full min-h-28 overflow-hidden bg-muted text-left"
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element -- authenticated proxy image */}
-                      <img
+                      <FadeImg
                         src={photo.src}
                         alt={photo.title}
                         loading="lazy"
-                        className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        className="absolute inset-0 size-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-[1.03]"
                         onError={(e) =>
                           (e.currentTarget.style.visibility = "hidden")
                         }
@@ -328,8 +327,7 @@ export function LocationMedia({
                 )}
               </DialogHeader>
               <div className="relative aspect-[16/10] overflow-hidden bg-muted">
-                {/* eslint-disable-next-line @next/next/no-img-element -- authenticated proxy image */}
-                <img
+                <FadeImg
                   src={open.src}
                   alt={open.title}
                   className="absolute inset-0 size-full object-cover"

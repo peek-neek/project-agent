@@ -3,7 +3,9 @@
 // errands, transit, commute, schools, safety, environment and upside. It
 // deliberately ignores census facts about residents (Human Rights Code) and
 // knows nothing about price, condition or the market, which matter as much.
-// Uses walking times: location fundamentals, whatever mode is selected.
+// Errands, transit, commute and schools follow the selected travel mode,
+// judged against what's normal for it (thresholds shared with the Overview
+// section scores).
 import type {
   AmenitiesData,
   CommuteData,
@@ -12,6 +14,14 @@ import type {
   SchoolsData,
   UpsideData,
 } from "./report-sections";
+import { THRESHOLDS } from "./section-scores";
+import {
+  destinationTime,
+  TRAVEL_MODES,
+  type TravelMode,
+  type TravelTimes,
+  travelTime,
+} from "./travel";
 
 export type MarketFactor = {
   id: string;
@@ -53,17 +63,24 @@ const ERRANDS = [
   { id: "parks", label: "Park" },
 ] as const;
 
-function errands(amenities: AmenitiesData | null): MarketFactor | null {
+/** Quickest place's minutes in a mode, or undefined if none. */
+const quickest = (places: TravelTimes[], mode: TravelMode) => {
+  const times = places.map((p) => travelTime(p, mode).minutes);
+  return times.length ? Math.min(...times) : undefined;
+};
+
+function errands(
+  amenities: AmenitiesData | null,
+  mode: TravelMode,
+): MarketFactor | null {
   if (!amenities) return null;
   const nearest = ERRANDS.map((e) => ({
     ...e,
-    minutes: [...(amenities.categories[e.id] ?? [])].sort(
-      (a, b) => a.walkMinutes - b.walkMinutes,
-    )[0]?.walkMinutes,
+    minutes: quickest(amenities.categories[e.id] ?? [], mode),
   }));
   // Missing within the search radius counts as far.
   const scores = nearest.map((n) =>
-    n.minutes == null ? 0 : scale(n.minutes, 5, 25),
+    n.minutes == null ? 0 : scale(n.minutes, ...THRESHOLDS[mode].essential),
   );
   const grocery = nearest[0].minutes;
   const within15 = nearest.filter((n) => n.minutes != null && n.minutes <= 15);
@@ -75,41 +92,51 @@ function errands(amenities: AmenitiesData | null): MarketFactor | null {
     score: (scores[0] * 2 + scores.slice(1).reduce((a, b) => a + b, 0)) / 6,
     detail:
       grocery != null
-        ? `Groceries ${grocery} min walk · ${within15.length} of ${ERRANDS.length} essentials within 15 min`
+        ? `Groceries ${grocery} min ${TRAVEL_MODES[mode].verb} · ${within15.length} of ${ERRANDS.length} essentials within 15 min`
         : "No grocery store within 1.5 km",
   };
 }
 
 const RAPID = new Set(["subway", "light_rail", "train"]);
 
-function transit(commute: CommuteData | null): MarketFactor | null {
+function transit(
+  commute: CommuteData | null,
+  mode: TravelMode,
+): MarketFactor | null {
   if (!commute) return null;
-  const byTime = [...commute.stations].sort(
-    (a, b) => a.walkMinutes - b.walkMinutes,
-  );
+  const minutes = (s: TravelTimes) => travelTime(s, mode).minutes;
+  const verb = TRAVEL_MODES[mode].verb;
+  const byTime = [...commute.stations].sort((a, b) => minutes(a) - minutes(b));
   const rapid = byTime.find((s) => RAPID.has(s.kind));
   const bus = byTime.find((s) => s.kind === "bus" || s.kind === "go_bus");
-  const rapidScore = rapid ? scale(rapid.walkMinutes, 8, 40) : 0;
-  const busScore = bus ? scale(bus.walkMinutes, 4, 15) * 0.6 : 0;
+  const rapidScore = rapid
+    ? scale(minutes(rapid), ...THRESHOLDS[mode].rapid)
+    : 0;
+  const busScore = bus ? scale(minutes(bus), ...THRESHOLDS[mode].bus) * 0.6 : 0;
   return {
     id: "transit",
     label: "Transit",
     weight: 20,
     score: Math.max(rapidScore, busScore),
     detail: rapid
-      ? `${rapid.name} ${rapid.walkMinutes} min walk`
+      ? `${rapid.name} ${minutes(rapid)} min ${verb}`
       : bus
-        ? `Bus stop ${bus.walkMinutes} min walk, no rapid transit nearby`
+        ? `Bus stop ${minutes(bus)} min ${verb}, no rapid transit nearby`
         : "No transit stops nearby",
   };
 }
 
-function commuteFactor(commute: CommuteData | null): MarketFactor | null {
+const BY_MODE = { walk: "on foot", bike: "by bike", drive: "by car" } as const;
+
+function commuteFactor(
+  commute: CommuteData | null,
+  mode: TravelMode,
+): MarketFactor | null {
   const d = commute?.destinations[0];
   if (!d) return null;
-  const options = [d.transitMinutes, d.driveMinutes].filter(
-    (m): m is number => m != null,
-  );
+  // The faster of transit and the selected mode.
+  const own = destinationTime(d, mode).minutes;
+  const options = [d.transitMinutes, own].filter((m): m is number => m != null);
   if (options.length === 0) return null;
   const best = Math.min(...options);
   return {
@@ -117,7 +144,7 @@ function commuteFactor(commute: CommuteData | null): MarketFactor | null {
     label: "Commute",
     weight: 15,
     score: scale(best, 25, 75),
-    detail: `${d.label}: ${best} min by ${best === d.transitMinutes ? "transit" : "car"}`,
+    detail: `${d.label}: ${best} min ${best === d.transitMinutes ? "by transit" : BY_MODE[mode]}`,
   };
 }
 
@@ -128,7 +155,10 @@ const average = (results: School["results"]) => {
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
 };
 
-function schoolsFactor(schools: SchoolsData | null): MarketFactor | null {
+function schoolsFactor(
+  schools: SchoolsData | null,
+  mode: TravelMode,
+): MarketFactor | null {
   if (!schools) return null;
   const elementary = schools.systems
     .flatMap((s) => s.elementary)
@@ -136,15 +166,13 @@ function schoolsFactor(schools: SchoolsData | null): MarketFactor | null {
   if (!elementary) return null;
   const eqao = average(elementary.results);
   const ontario = average(schools.provincialAverage as School["results"]);
-  // Results vs Ontario (±15 points spans the scale), nudged by walkability.
+  // Results vs Ontario (±15 points spans the scale), nudged by how easy
+  // the school is to reach in the selected mode.
   const results =
     eqao != null && ontario != null ? clamp(0.5 + (eqao - ontario) / 30) : 0.5;
-  const walkable =
-    elementary.distanceMeters <= 1200
-      ? 0.15
-      : elementary.distanceMeters > 3000
-        ? -0.15
-        : 0;
+  const [best, worst] = THRESHOLDS[mode].school;
+  const minutes = travelTime(elementary, mode).minutes;
+  const walkable = minutes <= best + 5 ? 0.15 : minutes > worst ? -0.15 : 0;
   return {
     id: "schools",
     label: "Schools",
@@ -250,18 +278,21 @@ const levelFor = (ease: number): MarketScore["level"] =>
  * The score, or null until enough of the report is in (at least three
  * factors, including errands or transit).
  */
-export function marketScore(data: {
-  amenities: AmenitiesData | null;
-  commute: CommuteData | null;
-  schools: SchoolsData | null;
-  safety: SafetyData | null;
-  upside: UpsideData | null;
-}): MarketScore | null {
+export function marketScore(
+  data: {
+    amenities: AmenitiesData | null;
+    commute: CommuteData | null;
+    schools: SchoolsData | null;
+    safety: SafetyData | null;
+    upside: UpsideData | null;
+  },
+  mode: TravelMode,
+): MarketScore | null {
   const factors = [
-    errands(data.amenities),
-    transit(data.commute),
-    commuteFactor(data.commute),
-    schoolsFactor(data.schools),
+    errands(data.amenities, mode),
+    transit(data.commute, mode),
+    commuteFactor(data.commute, mode),
+    schoolsFactor(data.schools, mode),
     safetyFactor(data.safety),
     environment(data.safety),
     upsideFactor(data.upside),

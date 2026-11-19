@@ -21,10 +21,29 @@ export type IdentitySources = Partial<
   >
 >;
 
+/** Section holding the property chat thread (kept out of the report). */
+export const CHAT_SECTION = "chat";
+
+/** A saved chat: the AI SDK UI messages plus what the runtime resumes from. */
+export type ChatThread = {
+  /** Trigger.dev chat session id: `${reportId}.${suffix}`. */
+  chatId: string;
+  entries: { id: string; final: boolean; message: unknown }[];
+  /** The chat runtime's opaque state (compaction etc.). */
+  state: unknown | null;
+  cursors?: { lastOutEventId?: string; lastInEventId?: string };
+};
+
+/** Chat ids carry their report id, so access can be checked from the id. */
+export const newChatId = (reportId: string) =>
+  `${reportId}.${crypto.randomUUID().slice(0, 8)}`;
+export const reportIdOfChat = (chatId: string) => chatId.split(".")[0] ?? "";
+
 const reportInclude = {
   property: true,
   jobs: { orderBy: { createdAt: "asc" } },
-  sections: true,
+  // The chat history can grow long; it's loaded on its own (getChat).
+  sections: { where: { key: { not: CHAT_SECTION } } },
 } satisfies Prisma.ReportInclude;
 
 export type ReportWithDetails = Prisma.ReportGetPayload<{
@@ -104,6 +123,63 @@ export const reportStore = {
       where: { reportId_key: { reportId, key } },
     });
     return row?.data ?? null;
+  },
+
+  /**
+   * The report's current chat thread: its chat id (a Trigger.dev chat
+   * session), the saved transcript and the runtime's resume cursors. Older
+   * chats (a plain message array) are converted on read.
+   */
+  async getChatThread(reportId: string): Promise<ChatThread | null> {
+    const row = await db.reportSection.findUnique({
+      where: { reportId_key: { reportId, key: CHAT_SECTION } },
+    });
+    const data = row?.data as unknown;
+    if (!data) return null;
+    if (Array.isArray(data)) {
+      return {
+        chatId: newChatId(reportId),
+        entries: (data as { id: string }[]).map((message) => ({
+          id: message.id,
+          final: true,
+          message,
+        })),
+        state: null,
+      };
+    }
+    return data as ChatThread;
+  },
+
+  async saveChatThread(reportId: string, thread: ChatThread) {
+    return this.setSection(
+      reportId,
+      CHAT_SECTION,
+      thread as unknown as Prisma.InputJsonValue,
+    );
+  },
+
+  /** The current thread, creating an empty one (with a chat id) if needed. */
+  async ensureChatThread(reportId: string): Promise<ChatThread> {
+    const existing = await this.getChatThread(reportId);
+    if (existing) return existing;
+    const thread: ChatThread = {
+      chatId: newChatId(reportId),
+      entries: [],
+      state: null,
+    };
+    await this.saveChatThread(reportId, thread);
+    return thread;
+  },
+
+  /** Starts over: a fresh, empty thread under a new chat id. */
+  async resetChatThread(reportId: string): Promise<ChatThread> {
+    const thread: ChatThread = {
+      chatId: newChatId(reportId),
+      entries: [],
+      state: null,
+    };
+    await this.saveChatThread(reportId, thread);
+    return thread;
   },
 
   async setSection(reportId: string, key: string, data: Prisma.InputJsonValue) {

@@ -8,9 +8,11 @@ import {
   GraduationCapIcon,
   HardHatIcon,
   KeyRoundIcon,
+  type LucideIcon,
   PlaneIcon,
+  RouteIcon,
   ShieldCheckIcon,
-  ShoppingCartIcon,
+  StoreIcon,
   TrainFrontIcon,
   TrainTrackIcon,
   TrendingUpIcon,
@@ -25,8 +27,19 @@ import { motion } from "motion/react";
 import { Badge } from "@/components/ui/badge";
 import { useTravelMode } from "@/components/globals/travel-mode";
 import { crimeTile } from "./safety-tab";
-import type { TravelTimes } from "@/lib/travel";
-import { Skeleton } from "@/components/ui/skeleton";
+import { MARKET_LEVELS } from "@/lib/market-score";
+import {
+  amenitiesScore,
+  commuteScore,
+  eqaoMean,
+  neighbourhoodScore,
+  safetyScore,
+  type SectionScore,
+  schoolsScore,
+  upsideScore,
+} from "@/lib/section-scores";
+import { ListSkeleton, ParagraphSkeleton } from "./report-skeletons";
+import { destinationTime, type TravelTimes } from "@/lib/travel";
 import {
   AMENITY_CATEGORIES,
   type AmenitiesData,
@@ -37,28 +50,18 @@ import {
   type JobKind,
   type ListingData,
   type SafetyData,
+  type School,
   type SchoolsData,
-  TRANSIT_KINDS,
   type UpsideData,
 } from "@/lib/report-sections";
-import {
-  CompareMeter,
-  DashCard,
-  DotTrack,
-  Gauge,
-  GlanceRow,
-  KpiTile,
-} from "./dash-card";
+import { DashCard, GlanceRow, KpiTile } from "./dash-card";
 import { LocationMedia } from "./location-media";
 import { formatDistance, formatPrice, type ReportData } from "./report-format";
 import { getJob, isJobActive } from "./report-hooks";
 import {
   allSchools,
   dominantHomeType,
-  downtownCommute,
   eqaoAverage,
-  nearestPlace,
-  nearestTransit,
   versus,
 } from "./report-insights";
 import type { TabId } from "./report-tabs";
@@ -74,17 +77,26 @@ export type ReportSectionsData = {
   upside: UpsideData | null;
 };
 
-function CardSkeleton({ rows = 3 }: { rows?: number }) {
+/** Five segments filled to the score, coloured like the market score. */
+function ScoreBar({ score }: { score: number }) {
+  const color =
+    MARKET_LEVELS[
+      Math.min(5, Math.max(1, Math.round(score))) as 1 | 2 | 3 | 4 | 5
+    ].color;
   return (
-    <div className="space-y-3">
-      {Array.from({ length: rows }, (_, i) => (
-        <Skeleton
-          key={i}
-          className="h-5"
-          style={{ width: `${90 - i * 12}%` }}
-        />
-      ))}
-    </div>
+    <span className="grid h-1.5 grid-cols-5 gap-0.5" aria-hidden>
+      {[1, 2, 3, 4, 5].map((i) => {
+        const fill = Math.max(0, Math.min(1, score - (i - 1)));
+        return (
+          <span key={i} className="bg-muted">
+            <span
+              className="block h-full"
+              style={{ width: `${fill * 100}%`, backgroundColor: color }}
+            />
+          </span>
+        );
+      })}
+    </span>
   );
 }
 
@@ -119,148 +131,153 @@ export function OverviewTab({
     travel.showsTime(s)
       ? { value: mins(s), unit }
       : { value: (s.distanceMeters / 1000).toFixed(1), unit: "km" };
-  // Dot tracks span at least this many minutes.
-  const trackMin = travel.mode === "walk" ? 20 : 10;
-
-  const grocery = nearestPlace(amenities, "groceries");
-  const groceries = (amenities?.categories.groceries ?? []).slice(0, 5);
-  const transitTimes = (commute?.stations ?? []).map(mins).slice(0, 6);
-  const downtownDrive = commute?.destinations[0]?.driveMinutes ?? null;
-  const transit = nearestTransit(commute);
-  const school = allSchools(schools).find((s) => s.level === "Elementary");
-  const schoolEqao = school ? eqaoAverage(school.results) : null;
-  const ontarioEqao =
-    school && schools
-      ? eqaoAverage(
-          Object.fromEntries(
-            Object.keys(school.results).map((k) => [
-              k,
-              schools.provincialAverage[
-                k as keyof typeof schools.provincialAverage
-              ] ?? null,
-            ]),
-          ),
-        )
-      : null;
-  const downtown = downtownCommute(commute);
   const crimeKpi = safety ? crimeTile(safety) : null;
   const nearbySchools = allSchools(schools).slice(0, 4);
   const homeType = dominantHomeType(demographics);
   const area = demographics?.area.values;
   const city = demographics?.city?.values;
 
+  // Section tiles: score and caption both follow the travel mode.
+  const fastest = (places: TravelTimes[]) =>
+    places.length ? Math.min(...places.map(mins)) : null;
+  const amenityTimes = amenities
+    ? AMENITY_CATEGORIES.map((c) =>
+        fastest(amenities.categories[c.id] ?? []),
+      ).filter((m): m is number => m != null)
+    : [];
+  // Faster of transit and the selected mode, per destination.
+  const tripTimes = (commute?.destinations ?? []).flatMap((d) => {
+    const options = [
+      d.transitMinutes,
+      destinationTime(d, travel.mode).minutes,
+    ].filter((m): m is number => m != null);
+    return options.length ? [Math.min(...options)] : [];
+  });
+  const schoolEqaos = nearbySchools
+    .map((s) => eqaoMean(s.results))
+    .filter((v): v is number => v != null);
+  const ontarioEqao = schools
+    ? eqaoMean(schools.provincialAverage as School["results"])
+    : null;
+  const average = (values: number[]) =>
+    Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  const applications = upside?.development?.applications.length ?? 0;
+
+  const tiles: {
+    id: string;
+    label: string;
+    icon: LucideIcon;
+    accent: string;
+    tab: TabId;
+    job: JobKind;
+    score: SectionScore | null;
+    caption: string;
+    empty: string;
+  }[] = [
+    {
+      id: "amenities",
+      label: "Amenities",
+      icon: StoreIcon,
+      accent: "#2563eb",
+      tab: "amenities",
+      job: JOB_KINDS.amenities,
+      score: amenitiesScore(amenities, travel.mode),
+      caption: amenityTimes.length
+        ? `avg ${average(amenityTimes)} ${unit} · ${amenityTimes.filter((m) => m <= 15).length} of ${AMENITY_CATEGORIES.length} within 15`
+        : "Nothing found nearby",
+      empty: "No amenity data",
+    },
+    {
+      id: "commute",
+      label: "Commute",
+      icon: RouteIcon,
+      accent: "#0f766e",
+      tab: "commute",
+      job: JOB_KINDS.commute,
+      score: commuteScore(commute, travel.mode),
+      caption: tripTimes.length
+        ? `avg ${average(tripTimes)} min to ${tripTimes.length} destinations`
+        : "Transit access nearby",
+      empty: "No commute data",
+    },
+    {
+      id: "schools",
+      label: "Schools",
+      icon: GraduationCapIcon,
+      accent: "#7c3aed",
+      tab: "schools",
+      job: JOB_KINDS.schools,
+      score: schoolsScore(schools, travel.mode),
+      caption: schoolEqaos.length
+        ? `EQAO avg ${average(schoolEqaos)}%${ontarioEqao != null ? ` · Ontario ${Math.round(ontarioEqao)}%` : ""}`
+        : `${nearbySchools.length} schools nearby`,
+      empty: "No school data",
+    },
+    {
+      id: "safety",
+      label: "Safety",
+      icon: ShieldCheckIcon,
+      accent: "#16a34a",
+      tab: "safety",
+      job: JOB_KINDS.safety,
+      score: safetyScore(safety),
+      caption: crimeKpi
+        ? `${crimeKpi.label === "Lower crime than" ? `Less crime than ${crimeKpi.value}` : `Crime ${crimeKpi.caption.toLowerCase()}`}`
+        : "Crime, flood and noise",
+      empty: "No safety data",
+    },
+    {
+      id: "neighbourhood",
+      label: "Neighbourhood",
+      icon: UsersIcon,
+      accent: "#a16207",
+      tab: "neighbourhood",
+      job: JOB_KINDS.demographics,
+      score: neighbourhoodScore(demographics),
+      caption: [
+        area?.owners != null ? `${Math.round(area.owners)}% owners` : null,
+        homeType ? `mostly ${homeType.label.toLowerCase()}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      empty: "No census data",
+    },
+    {
+      id: "upside",
+      label: "Upside",
+      icon: TrendingUpIcon,
+      accent: "#ea580c",
+      tab: "upside",
+      job: JOB_KINDS.upside,
+      score: upsideScore(upside),
+      caption: `${upside?.projects.length ?? 0} projects · ${applications} applications`,
+      empty: "No project data",
+    },
+  ];
+
   return (
     <div className="space-y-4">
-      {/* Glance: the five things buyers ask about first. */}
+      {/* Glance: one 1–5 score per section, each an average of its parts. */}
       <motion.div
         initial="hidden"
         animate="visible"
         variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-        className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
+        className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"
       >
-        <KpiTile
-          icon={ShoppingCartIcon}
-          accent={AMENITY_CATEGORIES[0].color}
-          label="Groceries"
-          value={grocery ? mins(grocery) : "—"}
-          unit={grocery ? unit : undefined}
-          caption={grocery?.name ?? "None within 1.5 km"}
-          loading={!amenities && busy(JOB_KINDS.amenities)}
-          onClick={() => onNavigate("amenities", "groceries")}
-          visual={
-            groceries.length > 0 && (
-              <DotTrack
-                minutes={groceries.map(mins)}
-                max={Math.max(trackMin, ...groceries.map(mins))}
-                unit={unit}
-                color={AMENITY_CATEGORIES[0].color}
-              />
-            )
-          }
-        />
-        <KpiTile
-          icon={TrainFrontIcon}
-          accent={transit ? TRANSIT_KINDS[transit.kind].color : undefined}
-          label={transit ? TRANSIT_KINDS[transit.kind].label : "Transit"}
-          value={transit ? mins(transit) : "—"}
-          unit={transit ? unit : undefined}
-          caption={transit?.name ?? "No stops nearby"}
-          loading={!commute && busy(JOB_KINDS.commute)}
-          onClick={() => onNavigate("commute")}
-          visual={
-            transitTimes.length > 0 && (
-              <DotTrack
-                minutes={transitTimes}
-                max={Math.max(trackMin, ...transitTimes)}
-                unit={unit}
-                color={transit ? TRANSIT_KINDS[transit.kind].color : "#2563eb"}
-              />
-            )
-          }
-        />
-        <KpiTile
-          icon={GraduationCapIcon}
-          accent={school?.color}
-          label="Elementary school"
-          {...(school
-            ? timeOrDistance(school)
-            : { value: "—", unit: undefined })}
-          caption={school?.name ?? "No school data"}
-          loading={!schools && busy(JOB_KINDS.schools)}
-          onClick={() => onNavigate("schools")}
-          visual={
-            schoolEqao != null &&
-            school && (
-              <CompareMeter
-                area={schoolEqao}
-                city={ontarioEqao}
-                max={100}
-                color={school.color}
-                labels={["EQAO", "Ontario"]}
-              />
-            )
-          }
-        />
-        <KpiTile
-          icon={ShieldCheckIcon}
-          label={crimeKpi?.label ?? "Crime"}
-          value={crimeKpi?.value ?? "—"}
-          caption={crimeKpi?.caption}
-          loading={!safety && busy(JOB_KINDS.safety)}
-          onClick={() => onNavigate("safety")}
-          aside={
-            crimeKpi?.gauge != null && (
-              <Gauge
-                value={crimeKpi.gauge}
-                color={crimeKpi.color ?? "#16a34a"}
-              />
-            )
-          }
-        />
-        <KpiTile
-          icon={downtown?.mode === "drive" ? CarIcon : TrainFrontIcon}
-          tone={downtown ? "solid" : "default"}
-          accent={downtown ? "#1d4ed8" : undefined}
-          visual={
-            downtownDrive != null &&
-            downtown?.mode === "transit" && (
-              <span className="flex items-center gap-1.5 text-sm text-white/80 tabular-nums">
-                <CarIcon aria-hidden className="size-4" />
-                {downtownDrive} min by car
-              </span>
-            )
-          }
-          label="To downtown"
-          value={downtown ? downtown.minutes : "—"}
-          unit={downtown ? "min" : undefined}
-          caption={
-            downtown
-              ? `${downtown.mode === "transit" ? "Transit" : "Drive"} · ${downtown.label}`
-              : "Not available"
-          }
-          loading={!commute && busy(JOB_KINDS.commute)}
-          onClick={() => onNavigate("commute")}
-        />
+        {tiles.map((t) => (
+          <KpiTile
+            key={t.id}
+            icon={t.icon}
+            accent={t.accent}
+            label={t.label}
+            value={t.score ? t.score.score.toFixed(1) : "—"}
+            unit={t.score ? "/ 5" : undefined}
+            caption={t.score ? t.caption : t.empty}
+            loading={!t.score && busy(t.job)}
+            onClick={() => onNavigate(t.tab)}
+            visual={t.score && <ScoreBar score={t.score.score} />}
+          />
+        ))}
       </motion.div>
 
       <div className="grid gap-4 lg:grid-cols-12">
@@ -307,7 +324,12 @@ export function OverviewTab({
               </ul>
             </>
           ) : busy(JOB_KINDS.ai) ? (
-            <CardSkeleton rows={5} />
+            <>
+              <ParagraphSkeleton lines={2} />
+              <div className="mt-3">
+                <ListSkeleton rows={5} />
+              </div>
+            </>
           ) : (
             <Muted>Selling points appear once the AI copy is written.</Muted>
           )}
@@ -344,7 +366,7 @@ export function OverviewTab({
               ))}
             </ul>
           ) : busy(JOB_KINDS.ai) ? (
-            <CardSkeleton />
+            <ListSkeleton rows={3} />
           ) : (
             <Muted>Likely questions appear once the AI copy is written.</Muted>
           )}
@@ -395,9 +417,7 @@ export function OverviewTab({
               )}
             </div>
           ) : busy(JOB_KINDS.demographics) ? (
-            <div className="py-3">
-              <CardSkeleton rows={4} />
-            </div>
+            <ListSkeleton rows={4} trailing />
           ) : (
             <div className="py-3">
               <Muted>Census figures unavailable.</Muted>
@@ -445,9 +465,7 @@ export function OverviewTab({
               })}
             </ul>
           ) : busy(JOB_KINDS.schools) ? (
-            <div className="py-3">
-              <CardSkeleton rows={4} />
-            </div>
+            <ListSkeleton rows={4} trailing />
           ) : (
             <div className="py-3">
               <Muted>No school data yet.</Muted>
@@ -531,9 +549,7 @@ export function OverviewTab({
               )}
             </div>
           ) : busy(JOB_KINDS.safety) ? (
-            <div className="py-3">
-              <CardSkeleton rows={4} />
-            </div>
+            <ListSkeleton rows={4} trailing />
           ) : (
             <div className="py-3">
               <Muted>Environment checks unavailable.</Muted>
@@ -585,9 +601,7 @@ export function OverviewTab({
               </div>
             )
           ) : busy(JOB_KINDS.upside) ? (
-            <div className="py-3">
-              <CardSkeleton rows={4} />
-            </div>
+            <ListSkeleton rows={4} trailing />
           ) : (
             <div className="py-3">
               <Muted>Nearby projects unavailable.</Muted>

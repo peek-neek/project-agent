@@ -117,10 +117,11 @@ export const upsideTask = schemaTask({
 export const aiInsightsTask = schemaTask({
   id: JOB_KINDS.ai,
   description:
-    "Write the neighbourhood story, marketing kit and agent playbook",
+    "Write the neighbourhood story, marketing kit and agent playbook for every travel mode",
   schema: payload,
-  // Up to two parallel calls, each falling back through three providers.
-  maxDuration: 420,
+  // The agent's mode (4 parallel calls), then the other two modes (8 more),
+  // each call falling back through three providers.
+  maxDuration: 600,
   retry: { maxAttempts: 2 },
   run: async ({ reportId }) => {
     const result = await runReportJob(reportId, JOB_KINDS.ai, () =>

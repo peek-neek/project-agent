@@ -24,9 +24,15 @@ import {
   upsideSchema,
 } from "@/lib/report-sections";
 import { useTRPC } from "@/trpc/client";
+import { useHydrated, useTravelMode } from "@/components/globals/travel-mode";
 import { getSection, isJobActive } from "./report-hooks";
 
 const LEVELS = [1, 2, 3, 4, 5] as const;
+const TRAVEL_PHRASE = {
+  walk: "walking",
+  bike: "cycling",
+  drive: "driving",
+} as const;
 
 /**
  * Header badge on a report page: how easy the location makes the home to
@@ -36,19 +42,27 @@ const LEVELS = [1, 2, 3, 4, 5] as const;
 export function MarketScoreBadge() {
   const { reportId } = useParams<{ reportId?: string }>();
   const trpc = useTRPC();
+  // The score follows the walk / bike / car choice, like the Overview tiles.
+  const travel = useTravelMode();
+  // The header can't know the saved mode until the page hydrates: wait, so
+  // the badge never shows a walking score and then switches.
+  const hydrated = useHydrated();
   const { data: report } = useQuery({
     ...trpc.report.byId.queryOptions({ id: reportId ?? "" }),
     enabled: Boolean(reportId),
   });
-  if (!reportId || !report) return null;
+  if (!reportId || !report || !hydrated) return null;
 
-  const score = marketScore({
-    amenities: getSection(report, SECTION_KEYS.amenities, amenitiesSchema),
-    commute: getSection(report, SECTION_KEYS.commute, commuteSchema),
-    schools: getSection(report, SECTION_KEYS.schools, schoolsSchema),
-    safety: getSection(report, SECTION_KEYS.safety, safetySchema),
-    upside: getSection(report, SECTION_KEYS.upside, upsideSchema),
-  });
+  const score = marketScore(
+    {
+      amenities: getSection(report, SECTION_KEYS.amenities, amenitiesSchema),
+      commute: getSection(report, SECTION_KEYS.commute, commuteSchema),
+      schools: getSection(report, SECTION_KEYS.schools, schoolsSchema),
+      safety: getSection(report, SECTION_KEYS.safety, safetySchema),
+      upside: getSection(report, SECTION_KEYS.upside, upsideSchema),
+    },
+    travel.mode,
+  );
   if (!score) {
     // Still gathering data: hold the space while steps run.
     return report.jobs.some(isJobActive) ? (
@@ -77,9 +91,7 @@ export function MarketScoreBadge() {
         >
           {score.level}
         </span>
-        <span className="hidden text-xs sm:inline">
-          {score.label} to sell or rent
-        </span>
+        <span className="hidden text-xs sm:inline">{score.label}</span>
         <span className="text-xs sm:hidden">/5</span>
         <ChevronDownIcon aria-hidden className="size-3.5 text-foreground/50" />
       </PopoverTrigger>
@@ -157,9 +169,9 @@ export function MarketScoreBadge() {
         </ul>
 
         <p className="border-t pt-2 text-[11px] leading-snug text-foreground/50">
-          Location only, from walking times: price, condition, size and market
-          conditions aren&apos;t included. Census facts about residents are
-          never used.
+          Location only, using {TRAVEL_PHRASE[travel.mode]} times: price,
+          condition, size and market conditions aren&apos;t included. Census
+          facts about residents are never used.
         </p>
       </PopoverContent>
     </Popover>

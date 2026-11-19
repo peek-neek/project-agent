@@ -73,13 +73,14 @@ function Widget({
     >
       <span
         className={cn(
-          "flex items-center gap-1.5 text-[13px] font-medium",
+          "flex items-start gap-1.5 text-[13px] leading-tight font-medium xl:text-xs",
           solid ? "text-white/85" : !accent && "text-foreground/60",
         )}
         style={!solid && accent ? { color: accent } : undefined}
       >
         <Icon aria-hidden className="size-4 shrink-0" />
-        <span className="truncate">{label}</span>
+        {/* Wraps rather than cutting off with "…". */}
+        <span className="min-w-0 pt-px break-words">{label}</span>
         <span className="ml-auto flex shrink-0 items-center gap-1">
           {delta != null && Math.abs(delta) >= 0.05 && (
             <span
@@ -127,10 +128,19 @@ function Widget({
               )}
             </span>
           )}
+          {/* Loading keeps the caption's two lines so the tile doesn't grow. */}
+          {loading && (
+            <span className="mt-1.5 flex h-[2.25rem] flex-col justify-center gap-1.5">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-3 w-16" />
+            </span>
+          )}
           {caption && !loading && (
             <span
               className={cn(
-                "mt-1.5 block truncate text-[13px]",
+                // Full text, wrapped (smaller on wide grids); two lines of
+                // room reserved so tiles in a row stay the same height.
+                "mt-1.5 block min-h-[2.25rem] text-[13px] leading-snug text-pretty break-words xl:text-xs",
                 solid ? "text-white/75" : "text-foreground/55",
               )}
             >
@@ -143,6 +153,12 @@ function Widget({
 
       {visual && !loading && (
         <span className="mt-auto block pt-3">{visual}</span>
+      )}
+      {/* Room for the micro-visual most tiles show once loaded. */}
+      {loading && (
+        <span className="mt-auto block pt-3">
+          <Skeleton className="h-[1.875rem] w-full" />
+        </span>
       )}
     </Comp>
   );

@@ -15,8 +15,11 @@ import { SidebarInset } from "@/components/ui/sidebar";
 /** App shell for signed-in agents: report history on the left. */
 export default function DashboardLayout({
   children,
+  nav,
 }: {
   children: React.ReactNode;
+  /** Header navigation for the current page (the @nav slot). */
+  nav: React.ReactNode;
 }) {
   return (
     <PersistedSidebarProvider>
@@ -34,7 +37,7 @@ export default function DashboardLayout({
       {/* Must follow the sidebar: it corrects the sidebar's markup. */}
       <InlineScript html={SIDEBAR_STATE_SCRIPT} />
       <SidebarInset>
-        <DashboardHeader />
+        <DashboardHeader nav={nav} />
         {children}
       </SidebarInset>
     </PersistedSidebarProvider>

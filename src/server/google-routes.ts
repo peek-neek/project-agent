@@ -119,3 +119,35 @@ export async function routeDuration(
   const s = seconds(route?.duration);
   return s == null ? null : { seconds: s, meters: route?.distanceMeters ?? 0 };
 }
+
+/**
+ * Travel to a free-form destination (address or place name), from the
+ * property. Transit and driving use "now" unless a departure is given.
+ */
+export async function routeToAddress(
+  origin: LatLng,
+  address: string,
+  mode: "WALK" | "BICYCLE" | "DRIVE" | "TRANSIT",
+  departureTime?: string,
+) {
+  const data = await routesFetch<{
+    routes?: { duration?: string; distanceMeters?: number }[];
+  }>(
+    "https://routes.googleapis.com/directions/v2:computeRoutes",
+    "routes.duration,routes.distanceMeters",
+    {
+      origin: waypoint(origin),
+      destination: { address },
+      travelMode: mode,
+      ...(departureTime && (mode === "DRIVE" || mode === "TRANSIT")
+        ? { departureTime }
+        : {}),
+      ...(mode === "DRIVE" && departureTime
+        ? { routingPreference: "TRAFFIC_AWARE" }
+        : {}),
+    },
+  );
+  const route = data.routes?.[0];
+  const s = seconds(route?.duration);
+  return s == null ? null : { seconds: s, meters: route?.distanceMeters ?? 0 };
+}

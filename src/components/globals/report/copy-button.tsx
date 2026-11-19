@@ -9,13 +9,16 @@ export function CopyButton({
   label = "Copy",
 }: {
   text: string;
+  /** Visible text; "" for an icon-only button (still named for readers). */
   label?: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const iconOnly = label === "";
   return (
     <Button
       variant="ghost"
-      size="xs"
+      size={iconOnly ? "icon-xs" : "xs"}
+      aria-label={iconOnly ? (copied ? "Copied" : "Copy") : undefined}
       onClick={async () => {
         await navigator.clipboard.writeText(text);
         setCopied(true);
@@ -28,7 +31,7 @@ export function CopyButton({
       ) : (
         <CopyIcon data-icon="inline-start" />
       )}
-      {copied ? "Copied" : label}
+      {!iconOnly && (copied ? "Copied" : label)}
     </Button>
   );
 }

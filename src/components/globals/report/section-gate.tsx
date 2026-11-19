@@ -19,12 +19,15 @@ export function SectionGate<T>({
   kind,
   data,
   labels,
+  skeleton,
   children,
 }: {
   report: ReportData;
   kind: JobKind;
   data: T | null;
   labels: SectionLabels;
+  /** Placeholder shaped like the section, shown while it's prepared. */
+  skeleton?: React.ReactNode;
   children: (data: T) => React.ReactNode;
 }) {
   const job = getJob(report, kind);
@@ -36,7 +39,9 @@ export function SectionGate<T>({
   // While a step re-runs, keep showing what we have; the tab and progress
   // strip already show that it's updating.
   if (isJobActive(job)) {
-    return data ? children(data) : <SectionPending label={labels.pending} />;
+    return data
+      ? children(data)
+      : (skeleton ?? <SectionPending label={labels.pending} />);
   }
   if (job?.status === "failed" && !data) {
     return (

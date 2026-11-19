@@ -17,11 +17,12 @@ import {
   TrendingUpIcon,
   UsersIcon,
 } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -40,6 +41,8 @@ import {
   type JobKind,
   listingSchema,
   marketingSchema,
+  campaignSchema,
+  showingSchema,
   SECTION_KEYS,
   safetySchema,
   TRANSIT_KINDS,
@@ -56,16 +59,49 @@ import { HomeFacts } from "./home-facts";
 import { OverviewTab, type ReportSectionsData } from "./overview-tab";
 import { PlaybookTab } from "./playbook-tab";
 import { formatDate, type ReportData } from "./report-format";
-import { getJob, getSection, isJobActive, useRerunJob } from "./report-hooks";
-import { nearestPlace } from "./report-insights";
-import { CORE_TRANSIT_KINDS, TRANSIT_ICONS } from "./transit-icons";
+import {
+  getCopySection,
+  getJob,
+  getSection,
+  hasCopyForMode,
+  isJobActive,
+  useRerunJob,
+} from "./report-hooks";
+import { TRANSIT_ICONS } from "./transit-icons";
 import { useTravelMode } from "@/components/globals/travel-mode";
+import type { TravelTimes } from "@/lib/travel";
 import { parseTab, REPORT_TABS, type TabId } from "./report-tabs";
 import { SafetyTab } from "./safety-tab";
 import { UpsideTab } from "./upside-tab";
 import { SchoolsTab } from "./schools-tab";
 import { SectionGate } from "./section-gate";
+import {
+  AmenitiesSkeleton,
+  CommuteSkeleton,
+  MarketingSkeleton,
+  NeighbourhoodSkeleton,
+  PlaybookSkeleton,
+  SafetySkeleton,
+  SchoolsSkeleton,
+  UpsideSkeleton,
+} from "./report-skeletons";
 import { WIDGET } from "./widget-styles";
+
+/** Header shortcuts show places reachable within this many minutes. */
+const REACH_MINUTES = 15;
+const REACH_PHRASE = {
+  walk: "walk",
+  bike: "by bike",
+  drive: "by car",
+} as const;
+/** Shortcut icons ease in and out as the travel mode changes. */
+const SHORTCUT_MOTION = {
+  layout: "position",
+  initial: { opacity: 0, scale: 0.85 },
+  animate: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 0.85 },
+  transition: { duration: 0.2, ease: "easeOut" },
+} as const;
 
 const MODE_GERUND = {
   walk: "walking",
@@ -134,10 +170,33 @@ export function ReportDashboard({ report }: { report: ReportData }) {
     ),
     safety: getSection(report, SECTION_KEYS.safety, safetySchema),
     upside: getSection(report, SECTION_KEYS.upside, upsideSchema),
-    insights: getSection(report, SECTION_KEYS.insights, insightsSchema),
+    // AI copy follows the travel mode (each mode has its own copy).
+    insights: getCopySection(
+      report,
+      SECTION_KEYS.insights,
+      insightsSchema,
+      travel.mode,
+    ),
     listing: getSection(report, SECTION_KEYS.listing, listingSchema),
   };
-  const marketing = getSection(report, SECTION_KEYS.marketing, marketingSchema);
+  const marketing = getCopySection(
+    report,
+    SECTION_KEYS.marketing,
+    marketingSchema,
+    travel.mode,
+  );
+  const campaign = getCopySection(
+    report,
+    SECTION_KEYS.campaign,
+    campaignSchema,
+    travel.mode,
+  );
+  const showing = getCopySection(
+    report,
+    SECTION_KEYS.showing,
+    showingSchema,
+    travel.mode,
+  );
 
   const jobs = Object.values(JOB_KINDS).map((kind) => ({
     kind,
@@ -203,18 +262,40 @@ export function ReportDashboard({ report }: { report: ReportData }) {
   };
   const regenerating = isJobActive(aiJob) || rerun.isPending;
   // AI copy written for another travel mode (older copy: walk).
+  // Older copy written for one mode only: offer to write it for this one.
   const copyMeta = getSection(report, SECTION_KEYS.marketing, aiMetaSchema);
   const copyModeStale =
-    copyMeta != null && (copyMeta.travelMode ?? "walk") !== travel.mode;
+    copyMeta != null &&
+    !hasCopyForMode(report, SECTION_KEYS.marketing, travel.mode) &&
+    (copyMeta.travelMode ?? "walk") !== travel.mode;
 
-  // Nearest stop of each kind, for the header shortcuts.
-  const nearestStop = (kind: TransitKind) =>
-    data.commute?.stations
-      .filter((s) => s.kind === kind)
-      .sort((a, b) => a.distanceMeters - b.distanceMeters)[0];
-  const headerTransitKinds = (
+  // Header shortcuts: only what's reachable within REACH_MINUTES in the
+  // selected mode, so walking shows a few, cycling more, driving most.
+  const quickest = <T extends TravelTimes>(places: T[]) =>
+    places.reduce<T | undefined>(
+      (best, p) =>
+        !best || travel.time(p).minutes < travel.time(best).minutes ? p : best,
+      undefined,
+    );
+  const reachable = <T extends TravelTimes>(places: T[]) => {
+    const best = quickest(places);
+    return best && travel.time(best).minutes <= REACH_MINUTES ? best : null;
+  };
+  const amenityShortcuts = AMENITY_CATEGORIES.flatMap((category) => {
+    const nearest = reachable(data.amenities?.categories[category.id] ?? []);
+    return nearest ? [{ category, nearest }] : [];
+  });
+  const transitShortcuts = (
     Object.keys(TRANSIT_KINDS) as TransitKind[]
-  ).filter((k) => CORE_TRANSIT_KINDS.includes(k) || nearestStop(k));
+  ).flatMap((kind) => {
+    const nearest = reachable(
+      data.commute?.stations.filter((s) => s.kind === kind) ?? [],
+    );
+    return nearest ? [{ kind, nearest }] : [];
+  });
+  const shortcutsLoading =
+    (!data.amenities && isJobActive(getJob(report, JOB_KINDS.amenities))) ||
+    (!data.commute && isJobActive(getJob(report, JOB_KINDS.commute)));
 
   const full = report.property?.formattedAddress ?? report.inputAddress;
   const [street, ...rest] = full.split(",").map((s) => s.trim());
@@ -294,144 +375,175 @@ export function ReportDashboard({ report }: { report: ReportData }) {
         </div>
 
         <ul
-          aria-label="Nearest amenities and transit"
-          className="flex flex-wrap gap-1.5"
+          aria-label={`Reachable within ${REACH_MINUTES} minutes ${REACH_PHRASE[travel.mode]}`}
+          className="flex min-h-9 flex-wrap items-center gap-1.5"
         >
-          {AMENITY_CATEGORIES.map((category) => {
-            const Icon = AMENITY_ICONS[category.id];
-            const nearest = nearestPlace(data.amenities, category.id);
-            const tip = nearest
-              ? `${category.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`
-              : data.amenities
-                ? `${category.label} · none nearby`
-                : category.label;
-            return (
-              <li key={category.id}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        aria-label={tip}
-                        onClick={() => goTo("amenities", category.id)}
-                        className="relative size-9 bg-card"
-                      />
-                    }
-                  >
-                    <Icon aria-hidden style={{ color: category.color }} />
-                    {nearest && (
+          <AnimatePresence initial={false} mode="popLayout">
+            {amenityShortcuts.map(({ category, nearest }) => {
+              const Icon = AMENITY_ICONS[category.id];
+              const tip = `${category.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`;
+              return (
+                <motion.li key={category.id} {...SHORTCUT_MOTION}>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          aria-label={tip}
+                          onClick={() => goTo("amenities", category.id)}
+                          className="relative size-9 bg-card"
+                        />
+                      }
+                    >
+                      <Icon aria-hidden style={{ color: category.color }} />
                       <span className="absolute right-0.5 bottom-0 text-[9px] font-semibold text-foreground/60 tabular-nums">
                         {travel.time(nearest).minutes}′
                       </span>
-                    )}
-                  </TooltipTrigger>
-                  <TooltipContent>{tip}</TooltipContent>
-                </Tooltip>
-              </li>
-            );
-          })}
+                    </TooltipTrigger>
+                    <TooltipContent>{tip}</TooltipContent>
+                  </Tooltip>
+                </motion.li>
+              );
+            })}
 
-          {/* Transit overview; the Commute tab has the detail. */}
-          <li aria-hidden className="flex px-1">
-            <Separator orientation="vertical" />
-          </li>
-          {headerTransitKinds.map((kind) => {
-            const meta = TRANSIT_KINDS[kind];
-            const Icon = TRANSIT_ICONS[kind];
-            const nearest = nearestStop(kind);
-            const tip = nearest
-              ? `${meta.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`
-              : data.commute
-                ? `${meta.label} · none nearby`
-                : meta.label;
-            return (
-              <li key={kind}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        aria-label={tip}
-                        onClick={() => goTo("commute", nearest ? kind : "all")}
-                        className="relative size-9 bg-card"
-                      />
-                    }
-                  >
-                    <Icon aria-hidden style={{ color: meta.color }} />
-                    {nearest && (
+            {/* Transit overview; the Commute tab has the detail. */}
+            {amenityShortcuts.length > 0 && transitShortcuts.length > 0 && (
+              <motion.li
+                key="divider"
+                aria-hidden
+                className="flex h-9 px-1"
+                {...SHORTCUT_MOTION}
+              >
+                <Separator orientation="vertical" />
+              </motion.li>
+            )}
+            {transitShortcuts.map(({ kind, nearest }) => {
+              const meta = TRANSIT_KINDS[kind];
+              const Icon = TRANSIT_ICONS[kind];
+              const tip = `${meta.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`;
+              return (
+                <motion.li key={kind} {...SHORTCUT_MOTION}>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          aria-label={tip}
+                          onClick={() => goTo("commute", kind)}
+                          className="relative size-9 bg-card"
+                        />
+                      }
+                    >
+                      <Icon aria-hidden style={{ color: meta.color }} />
                       <span className="absolute right-0.5 bottom-0 text-[9px] font-semibold text-foreground/60 tabular-nums">
                         {travel.time(nearest).minutes}′
                       </span>
-                    )}
-                  </TooltipTrigger>
-                  <TooltipContent>{tip}</TooltipContent>
-                </Tooltip>
-              </li>
-            );
-          })}
+                    </TooltipTrigger>
+                    <TooltipContent>{tip}</TooltipContent>
+                  </Tooltip>
+                </motion.li>
+              );
+            })}
+
+            <motion.li
+              key="reach"
+              layout="position"
+              className="pl-1 text-xs text-foreground/50"
+            >
+              {shortcutsLoading &&
+              amenityShortcuts.length + transitShortcuts.length === 0 ? (
+                <span
+                  className="flex gap-1.5"
+                  aria-label="Finding places nearby"
+                >
+                  {Array.from({ length: 8 }, (_, i) => (
+                    <Skeleton key={i} className="size-9" />
+                  ))}
+                </span>
+              ) : amenityShortcuts.length + transitShortcuts.length === 0 ? (
+                `Nothing within ${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`
+              ) : (
+                `Within ${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`
+              )}
+            </motion.li>
+          </AnimatePresence>
         </ul>
       </header>
 
       {/* Generation progress, as icons. */}
-      {working && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className={cn(WIDGET, "flex flex-wrap items-center gap-3 px-4 py-3")}
-          aria-live="polite"
-        >
-          <span className="flex items-center gap-2 text-sm font-medium">
-            <LoaderCircleIcon
-              aria-hidden
-              className="size-4 animate-spin text-primary"
-            />
-            Preparing report · {done}/{jobs.length}
-          </span>
-          <ul className="flex flex-wrap gap-1.5">
-            {jobs.map(({ kind, job }) => {
-              const { icon: Icon, label } = STEP_ICONS[kind];
-              const active = isJobActive(job);
-              const failed = job?.status === "failed";
-              const complete = job?.status === "completed";
-              return (
-                <li
-                  key={kind}
-                  title={`${label}: ${job?.status ?? "not started"}`}
-                  className={
-                    "relative grid size-8 place-items-center border " +
-                    (complete
-                      ? "border-emerald-600/30 bg-emerald-500/10 text-emerald-700"
-                      : failed
-                        ? "border-destructive/30 bg-destructive/10 text-destructive"
-                        : active
-                          ? "border-primary/40 text-primary"
-                          : "text-foreground/35")
-                  }
-                >
-                  <Icon aria-hidden className="size-4" />
-                  {complete && (
-                    <CheckIcon
-                      aria-hidden
-                      className="absolute -top-1.5 -right-1.5 size-3.5 bg-emerald-600 p-0.5 text-white"
-                    />
-                  )}
-                  {failed && (
-                    <AlertCircleIcon
-                      aria-hidden
-                      className="absolute -top-1.5 -right-1.5 size-3.5 bg-card text-destructive"
-                    />
-                  )}
-                  <span className="sr-only">
-                    {label}: {job?.status ?? "not started"}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </motion.div>
-      )}
+      {/* Opens and closes smoothly (height and the gap below it), so the
+          page eases instead of jumping when generation starts or ends. */}
+      <AnimatePresence initial={false}>
+        {working && (
+          <motion.div
+            key="progress"
+            initial={{ height: 0, opacity: 0, marginBottom: 0 }}
+            animate={{ height: "auto", opacity: 1, marginBottom: "1rem" }}
+            exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+            transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+            className="overflow-hidden"
+          >
+            <div
+              className={cn(
+                WIDGET,
+                "flex flex-wrap items-center gap-3 px-4 py-3",
+              )}
+              aria-live="polite"
+            >
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <LoaderCircleIcon
+                  aria-hidden
+                  className="size-4 animate-spin text-primary"
+                />
+                Preparing report · {done}/{jobs.length}
+              </span>
+              <ul className="flex flex-wrap gap-1.5">
+                {jobs.map(({ kind, job }) => {
+                  const { icon: Icon, label } = STEP_ICONS[kind];
+                  const active = isJobActive(job);
+                  const failed = job?.status === "failed";
+                  const complete = job?.status === "completed";
+                  return (
+                    <li
+                      key={kind}
+                      title={`${label}: ${job?.status ?? "not started"}`}
+                      className={
+                        "relative grid size-8 place-items-center border " +
+                        (complete
+                          ? "border-emerald-600/30 bg-emerald-500/10 text-emerald-700"
+                          : failed
+                            ? "border-destructive/30 bg-destructive/10 text-destructive"
+                            : active
+                              ? "border-primary/40 text-primary"
+                              : "text-foreground/35")
+                      }
+                    >
+                      <Icon aria-hidden className="size-4" />
+                      {complete && (
+                        <CheckIcon
+                          aria-hidden
+                          className="absolute -top-1.5 -right-1.5 size-3.5 bg-emerald-600 p-0.5 text-white"
+                        />
+                      )}
+                      {failed && (
+                        <AlertCircleIcon
+                          aria-hidden
+                          className="absolute -top-1.5 -right-1.5 size-3.5 bg-card text-destructive"
+                        />
+                      )}
+                      <span className="sr-only">
+                        {label}: {job?.status ?? "not started"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* The ref marks where the tab bar starts (for scroll-on-switch). */}
       <div ref={tabsTopRef}>
@@ -441,7 +553,9 @@ export function ReportDashboard({ report }: { report: ReportData }) {
           className="gap-4"
         >
           {/* Sticky, so every section stays one click away. */}
-          <div className="sticky top-14 z-10 -mx-4 bg-background sm:-mx-8">
+          {/* z-[15]: above page content (focused chips and map pins use
+              z-10) as it scrolls under, below the app header (z-20). */}
+          <div className="sticky top-14 z-[15] -mx-4 bg-background sm:-mx-8">
             {/* Same tint as the page behind, so the bar doesn't show as a band. */}
             <div className="border-b bg-muted/50 px-4 pt-1 sm:px-8">
               <TabsList className="relative h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden bg-transparent p-0 group-data-horizontal/tabs:h-auto">
@@ -503,6 +617,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                     <SectionGate
                       report={report}
                       kind={JOB_KINDS.amenities}
+                      skeleton={<AmenitiesSkeleton />}
                       data={data.amenities}
                       labels={{
                         pending: "Finding nearby amenities…",
@@ -532,6 +647,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                     <SectionGate
                       report={report}
                       kind={JOB_KINDS.schools}
+                      skeleton={<SchoolsSkeleton />}
                       data={data.schools}
                       labels={{
                         pending: "Finding nearby schools…",
@@ -560,6 +676,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                     <SectionGate
                       report={report}
                       kind={JOB_KINDS.safety}
+                      skeleton={<SafetySkeleton />}
                       data={data.safety}
                       labels={{
                         pending:
@@ -580,6 +697,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                     <SectionGate
                       report={report}
                       kind={JOB_KINDS.demographics}
+                      skeleton={<NeighbourhoodSkeleton />}
                       data={data.demographics}
                       labels={{
                         pending: "Reading the census profile…",
@@ -601,6 +719,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                     <SectionGate
                       report={report}
                       kind={JOB_KINDS.commute}
+                      skeleton={<CommuteSkeleton />}
                       data={data.commute}
                       labels={{
                         pending: "Calculating commute times…",
@@ -630,6 +749,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                     <SectionGate
                       report={report}
                       kind={JOB_KINDS.upside}
+                      skeleton={<UpsideSkeleton />}
                       data={data.upside}
                       labels={{
                         pending: "Checking projects and development nearby…",
@@ -657,6 +777,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                     <SectionGate
                       report={report}
                       kind={JOB_KINDS.ai}
+                      skeleton={<MarketingSkeleton />}
                       data={
                         data.insights && marketing
                           ? { insights: data.insights, marketing }
@@ -671,8 +792,12 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                     >
                       {(ai) => (
                         <MarketingTab
+                          reportId={report.id}
                           insights={ai.insights}
                           marketing={ai.marketing}
+                          campaign={campaign}
+                          campaignPending={regenerating}
+                          onGenerate={regenerate}
                         />
                       )}
                     </SectionGate>
@@ -684,6 +809,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                     <SectionGate
                       report={report}
                       kind={JOB_KINDS.ai}
+                      skeleton={<PlaybookSkeleton />}
                       data={marketing}
                       labels={{
                         pending: "Writing the agent playbook…",
@@ -697,6 +823,19 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                           reportId={report.id}
                           insights={data.insights}
                           playbook={m.playbook}
+                          showing={showing}
+                          showingPending={regenerating}
+                          onGenerate={regenerate}
+                          data={data}
+                          home={
+                            report.property?.latitude != null &&
+                            report.property.longitude != null
+                              ? {
+                                  lat: report.property.latitude,
+                                  lng: report.property.longitude,
+                                }
+                              : null
+                          }
                         />
                       )}
                     </SectionGate>

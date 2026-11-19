@@ -1,5 +1,6 @@
 "use client";
 
+import { FadeImg } from "./fade-img";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
   ArrowUpRightIcon,
@@ -11,6 +12,7 @@ import { cn } from "cn";
 import { getVersion, setWorkerUrl } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Popup as MaplibrePopup, StyleSpecification } from "maplibre-gl";
+import { Skeleton } from "@/components/ui/skeleton";
 import { loadMapStyle } from "./map-style";
 import Map, {
   type MapRef,
@@ -22,6 +24,9 @@ import Map, {
 // Same-origin copy of MapLibre's worker (scripts/copy-maplibre-worker.mjs):
 // the default URL breaks once Turbopack bundles maplibre-gl into a chunk.
 setWorkerUrl(`/vendor/maplibre-gl-worker-${getVersion()}.mjs`);
+
+// Start fetching the app-themed style as soon as the map code loads.
+if (typeof window !== "undefined") void loadMapStyle();
 
 export type MapPin = {
   id: string;
@@ -94,8 +99,7 @@ function PinCard({ pin, hidePhoto }: { pin: MapPin; hidePhoto?: boolean }) {
         <Icon aria-hidden className="size-6" />
         {showPhoto && (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element -- authenticated proxy image */}
-            <img
+            <FadeImg
               src={pin.photo!}
               alt=""
               className="absolute inset-0 size-full bg-muted object-cover"
@@ -219,7 +223,9 @@ export function PlacesMap({
     return () => observer.disconnect();
   }, [shownId]);
 
-  // The app-themed map style (fetched once, then cached for every map).
+  // True once the style and first tiles are drawn (the map fades in).
+  const [loaded, setLoaded] = useState(false);
+  // The app-themed style (fetched once, then cached for every map).
   const [mapStyle, setMapStyle] = useState<StyleSpecification | string | null>(
     null,
   );
@@ -253,6 +259,15 @@ export function PlacesMap({
         className,
       )}
     >
+      {/* Shimmer until the style and first tiles are in, then fade the map
+          (pins included) in over it: no blank box, no pop. */}
+      <Skeleton
+        aria-hidden
+        className={cn(
+          "absolute inset-0 transition-opacity duration-300",
+          loaded && "opacity-0",
+        )}
+      />
       {mapStyle && (
         <Map
           ref={ref}
@@ -269,9 +284,15 @@ export function PlacesMap({
                 ".maplibregl-cooperative-gesture-screen",
               );
             if (screen) screen.style.display = "none";
+            setLoaded(true);
           }}
           onClick={() => onSelect(null)}
-          style={{ width: "100%", height: "100%" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            opacity: loaded ? 1 : 0,
+            transition: "opacity 300ms ease-out",
+          }}
         >
           <NavigationControl position="top-right" showCompass={false} />
 

@@ -2,7 +2,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { z } from "zod";
-import type { JobKind } from "@/lib/report-sections";
+import { copySectionKey, type JobKind } from "@/lib/report-sections";
+import type { TravelMode } from "@/lib/travel";
 import { useTravelMode } from "@/components/globals/travel-mode";
 import { useTRPC } from "@/trpc/client";
 import type { ReportData, ReportJob } from "./report-format";
@@ -20,6 +21,29 @@ export function getSection<S extends z.ZodType>(
   const parsed = schema.safeParse(row.data);
   return parsed.success ? parsed.data : null;
 }
+
+/**
+ * AI copy for a travel mode: its own copy ("marketing:bike"), else the
+ * report's single copy (older reports, or a mode that failed to generate).
+ */
+export function getCopySection<S extends z.ZodType>(
+  report: ReportData,
+  key: string,
+  schema: S,
+  mode: TravelMode,
+): z.infer<S> | null {
+  return (
+    getSection(report, copySectionKey(key, mode), schema) ??
+    getSection(report, key, schema)
+  );
+}
+
+/** Whether the report has copy written specifically for this mode. */
+export const hasCopyForMode = (
+  report: ReportData,
+  key: string,
+  mode: TravelMode,
+) => report.sections.some((s) => s.key === copySectionKey(key, mode));
 
 export function getJob(report: ReportData, kind: JobKind) {
   return report.jobs.find((j) => j.kind === kind);

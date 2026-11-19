@@ -16,10 +16,3 @@ export const TRANSIT_ICONS: Record<TransitKind, LucideIcon> = {
   go_bus: BusFrontIcon,
   bus: BusIcon,
 };
-
-/** Always shown in the header; the others only when the area has them. */
-export const CORE_TRANSIT_KINDS: readonly TransitKind[] = [
-  "train",
-  "go_bus",
-  "bus",
-];

@@ -1,5 +1,6 @@
 "use client";
 
+import { FadeImg } from "./fade-img";
 import {
   ExternalLinkIcon,
   LayoutGridIcon,
@@ -82,8 +83,7 @@ export function Thumb({
         <Icon aria-hidden className="size-6" style={{ color }} />
       </span>
       {src && (
-        // eslint-disable-next-line @next/next/no-img-element -- authenticated proxy image
-        <img
+        <FadeImg
           src={src}
           alt=""
           loading="lazy"

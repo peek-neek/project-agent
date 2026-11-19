@@ -6,12 +6,15 @@ import {
   CENSUS_FIELDS,
   CRIME_TYPES,
   commuteSchema,
+  copySectionKey,
   copySettingsSchema,
   demographicsSchema,
   EQAO_FIELDS,
   insightsSchema,
   listingSchema,
   marketingSchema,
+  campaignSchema,
+  showingSchema,
   SCHOOL_SYSTEMS,
   type School,
   SECTION_KEYS,
@@ -20,8 +23,10 @@ import {
   upsideSchema,
 } from "../../lib/report-sections";
 import {
+  destinationTime,
   TRAVEL_MODES,
   type TravelMode,
+  travelModes,
   type TravelTimes,
   travelTime,
 } from "../../lib/travel";
@@ -110,11 +115,22 @@ function buildFactSheet(
   if (commute) {
     facts.commute = {
       calculatedFor: commute.departureLabel,
-      destinations: commute.destinations.map((d) => ({
-        to: d.label,
-        drive: d.driveMinutes ? `${d.driveMinutes} min` : "not available",
-        transit: d.transitMinutes ? `${d.transitMinutes} min` : "not available",
-      })),
+      destinations: commute.destinations.map((d) => {
+        const trip = destinationTime(d, mode);
+        return {
+          to: d.label,
+          drive: d.driveMinutes ? `${d.driveMinutes} min` : "not available",
+          transit: d.transitMinutes
+            ? `${d.transitMinutes} min`
+            : "not available",
+          // The agent's mode too, when it isn't driving.
+          ...(mode !== "drive" && trip.minutes != null
+            ? {
+                [verb]: `${trip.minutes} min${trip.estimated ? " (estimated)" : ""}`,
+              }
+            : {}),
+        };
+      }),
       nearestTransit: commute.stations.map((s) => ({
         name: s.name,
         type: s.kind,
@@ -266,6 +282,67 @@ async function generate<S extends z.ZodType>(
   });
 }
 
+const TASKS = {
+  insights:
+    "Write the neighbourhood story for this property: a headline, a short summary, a 'day in this neighbourhood' paragraph, exactly 5 data-backed highlights and exactly 3 honest watch-outs, each with a way for the agent to address it.",
+  marketing:
+    "Write the agent's marketing kit and showing playbook: MLS-ready listing descriptions in professional, warm and luxury tones; one social post each for Instagram, Facebook and LinkedIn with hashtags; a short email to the agent's buyer list; talking points for showings; likely buyer objections with suggested responses; the likely buyer profile described by needs and lifestyle; and a showing preparation checklist.",
+  campaign:
+    "Write the full listing campaign: 5 headline options; a compact MLS public-remarks version; one social post for each campaign stage (coming soon, just listed, open house, price improved, sold); a 30-second Reel/TikTok script with a hook, 5–7 scenes (what to film, voiceover, on-screen text), caption and call to action; 6 Instagram carousel slides; Google/Meta ad headlines and descriptions within their character limits; an open house invitation email; and a short 'just listed' letter to neighbours.",
+  showing:
+    "Write the agent's showing-day toolkit: 3 distinct needs-based buyer personas (what each needs, the 3 facts to lead with, and which nearby place to show first); 5 tough buyer questions answered with a specific number from the fact sheet as proof; an open house plan (before, day of, after); a same-evening follow-up text to visitors; and a next-day follow-up email.",
+} as const;
+
+/**
+ * All four AI sections for one travel mode, saved under mode keys
+ * ("insights:bike"…). The agent's own mode is also saved under the plain
+ * keys, which older readers and older reports use. The core (story and
+ * marketing kit) must succeed; the campaign and showing kits are extras.
+ */
+async function writeCopyForMode(
+  report: NonNullable<Awaited<ReturnType<typeof reportStore.findWithDetails>>>,
+  mode: TravelMode,
+  primary: boolean,
+) {
+  const facts = buildFactSheet(report, mode);
+  const [insights, marketing, campaign, showing] = await Promise.allSettled([
+    generate(insightsSchema, facts, TASKS.insights),
+    generate(marketingSchema, facts, TASKS.marketing),
+    generate(campaignSchema, facts, TASKS.campaign),
+    generate(showingSchema, facts, TASKS.showing),
+  ]);
+  const generatedAt = new Date().toISOString();
+  const saved: string[] = [];
+  for (const [key, result] of [
+    [SECTION_KEYS.insights, insights],
+    [SECTION_KEYS.marketing, marketing],
+    [SECTION_KEYS.campaign, campaign],
+    [SECTION_KEYS.showing, showing],
+  ] as const) {
+    if (result.status !== "fulfilled") {
+      console.error(`[ai] ${key} (${mode}) failed`, result.reason);
+      continue;
+    }
+    const data = {
+      ...result.value.output,
+      generatedAt,
+      travelMode: mode,
+      generatedBy: result.value.generatedBy,
+    };
+    await reportStore.setSection(report.id, copySectionKey(key, mode), data);
+    if (primary) await reportStore.setSection(report.id, key, data);
+    saved.push(key);
+  }
+  if (insights.status === "rejected" || marketing.status === "rejected") {
+    const reason =
+      insights.status === "rejected"
+        ? insights.reason
+        : (marketing as PromiseRejectedResult).reason;
+    if (primary) throw reason;
+  }
+  return saved;
+}
+
 export async function extractAiInsights(reportId: string) {
   const report = await reportStore.findWithDetails(reportId);
   if (!report) throw new Error(`Report ${reportId} not found`);
@@ -276,36 +353,23 @@ export async function extractAiInsights(reportId: string) {
   const travelMode: TravelMode = settings.success
     ? settings.data.travelMode
     : "walk";
-  const facts = buildFactSheet(report, travelMode);
 
-  const [insights, marketing] = await Promise.all([
-    generate(
-      insightsSchema,
-      facts,
-      "Write the neighbourhood story for this property: a headline, a short summary, a 'day in this neighbourhood' paragraph, exactly 5 data-backed highlights and exactly 3 honest watch-outs, each with a way for the agent to address it.",
-    ),
-    generate(
-      marketingSchema,
-      facts,
-      "Write the agent's marketing kit and showing playbook: MLS-ready listing descriptions in professional, warm and luxury tones; one social post each for Instagram, Facebook and LinkedIn with hashtags; a short email to the agent's buyer list; talking points for showings; likely buyer objections with suggested responses; the likely buyer profile described by needs and lifestyle; and a showing preparation checklist.",
-    ),
-  ]);
-
-  const generatedAt = new Date().toISOString();
-  await reportStore.setSection(reportId, SECTION_KEYS.insights, {
-    ...insights.output,
-    generatedAt,
-    travelMode,
-    generatedBy: insights.generatedBy,
-  });
-  await reportStore.setSection(reportId, SECTION_KEYS.marketing, {
-    ...marketing.output,
-    generatedAt,
-    travelMode,
-    generatedBy: marketing.generatedBy,
-  });
+  // The agent's mode first (saved as soon as it's written, so the tabs fill
+  // in quickly), then the other two modes side by side, so switching modes
+  // is instant.
+  const primary = await writeCopyForMode(report, travelMode, true);
+  const others = await Promise.allSettled(
+    travelModes
+      .filter((m) => m !== travelMode)
+      .map(async (mode) => ({
+        mode,
+        saved: await writeCopyForMode(report, mode, false),
+      })),
+  );
   return {
-    insightsBy: insights.generatedBy,
-    marketingBy: marketing.generatedBy,
+    primary: { mode: travelMode, saved: primary },
+    others: others.map((o) =>
+      o.status === "fulfilled" ? o.value : { failed: String(o.reason) },
+    ),
   };
 }

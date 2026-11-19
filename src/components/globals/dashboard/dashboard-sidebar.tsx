@@ -19,6 +19,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, use, useRef, useState } from "react";
 import { Logo } from "@/components/globals/homepage/logo";
+import { startNavigationProgress } from "@/components/globals/top-progress";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,7 @@ import {
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarHeader,
@@ -54,6 +56,7 @@ import {
   RenameReportDialog,
   type ReportToRename,
 } from "./rename-report-dialog";
+import { SidebarUser } from "./sidebar-user";
 
 // Motion versions of the shadcn pieces (React 19 passes `ref` through props).
 const MotionSidebarGroup = motion.create(SidebarGroup);
@@ -235,7 +238,12 @@ export function ReportHistory() {
                         size="lg"
                         isActive={pathname === href}
                         render={
-                          <Link href={href} title={full} onClick={onNavigate} />
+                          <Link
+                            href={href}
+                            title={full}
+                            onClick={onNavigate}
+                            onNavigate={startNavigationProgress}
+                          />
                         }
                         className="h-auto py-2"
                       >
@@ -337,8 +345,14 @@ export function DashboardSidebar({ history }: { history: React.ReactNode }) {
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="New report"
-              render={<Link href="/dashboard" onClick={closeOnMobile} />}
-              className="h-10 bg-primary px-4 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+              render={
+                <Link
+                  href="/dashboard"
+                  onClick={closeOnMobile}
+                  onNavigate={startNavigationProgress}
+                />
+              }
+              className="h-10 flex items-center justify-center bg-primary px-4 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
             >
               <PlusIcon />
               <span>New report</span>
@@ -380,6 +394,13 @@ export function DashboardSidebar({ history }: { history: React.ReactNode }) {
           {history}
         </HistoryContext>
       </SidebarContent>
+
+      {/* The signed-in agent: name, email, account and sign out. mt-auto
+          keeps it at the bottom when collapsed (the history list is hidden
+          then, so nothing else fills the space). */}
+      <SidebarFooter className="mt-auto border-t p-2">
+        <SidebarUser />
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );

@@ -15,6 +15,10 @@ export const SECTION_KEYS = {
   marketing: "marketing",
   /** Agent choices that shape the AI copy (e.g. travel mode). */
   copySettings: "copySettings",
+  /** Full listing campaign (AI): headlines, stage posts, Reel, ads, emails. */
+  campaign: "campaign",
+  /** Showing-day toolkit (AI): personas, proven answers, open house plan. */
+  showing: "showing",
 } as const;
 
 export const JOB_KINDS = {
@@ -330,6 +334,11 @@ export const commuteSchema = z.object({
       driveMinutes: z.number().nullable(),
       driveKm: z.number().nullable(),
       transitMinutes: z.number().nullable(),
+      /** Walking and cycling routes; older reports lack them (estimated). */
+      walkMinutes: z.number().nullable().optional(),
+      walkKm: z.number().nullable().optional(),
+      bikeMinutes: z.number().nullable().optional(),
+      bikeKm: z.number().nullable().optional(),
     }),
   ),
   stations: z.array(
@@ -956,6 +965,152 @@ export const marketingSchema = z.object({
   }),
 });
 export type MarketingData = z.infer<typeof marketingSchema>;
+
+/**
+ * AI copy is written for every travel mode: "insights:walk", "marketing:bike"…
+ * The plain key holds the agent's own mode (and all copy on older reports).
+ */
+export const copySectionKey = (key: string, mode: "walk" | "bike" | "drive") =>
+  `${key}:${mode}`;
+
+export const CAMPAIGN_STAGES = {
+  comingSoon: "Coming soon",
+  justListed: "Just listed",
+  openHouse: "Open house",
+  priceImproved: "Price improved",
+  sold: "Sold",
+} as const;
+export type CampaignStage = keyof typeof CAMPAIGN_STAGES;
+
+const emailSchema = z.object({ subject: z.string(), body: z.string() });
+
+/**
+ * The full listing campaign. Limits live in descriptions (some providers'
+ * structured output rejects length constraints); the UI counts against them.
+ */
+export const campaignSchema = z.object({
+  headlines: z
+    .array(z.string())
+    .describe(
+      "Exactly 5 headline options for signs, feature sheets and ads, each under 60 characters.",
+    ),
+  mlsShort: z
+    .string()
+    .describe(
+      "A compact MLS public-remarks version of the listing, under 450 characters including spaces.",
+    ),
+  stagePosts: z
+    .array(
+      z.object({
+        stage: z.enum([
+          "comingSoon",
+          "justListed",
+          "openHouse",
+          "priceImproved",
+          "sold",
+        ]),
+        caption: z.string(),
+        hashtags: z.array(z.string()),
+      }),
+    )
+    .describe(
+      "One social post per stage, in this order: comingSoon, justListed, openHouse, priceImproved, sold. Use [date] and [time] placeholders for the open house and [new price] for the price change.",
+    ),
+  reel: z.object({
+    hook: z
+      .string()
+      .describe("The opening line, spoken in the first 3 seconds."),
+    scenes: z
+      .array(
+        z.object({
+          shot: z.string().describe("What to film."),
+          voiceover: z.string(),
+          onScreenText: z.string().describe("Under 40 characters."),
+        }),
+      )
+      .describe("5–7 scenes for a 30-second Instagram Reel or TikTok."),
+    caption: z.string(),
+    callToAction: z.string(),
+  }),
+  carousel: z
+    .array(
+      z.object({
+        title: z.string().describe("Under 40 characters."),
+        body: z.string().describe("Under 120 characters."),
+      }),
+    )
+    .describe(
+      "Exactly 6 Instagram carousel slides: a cover, 4 location facts, and a call to action.",
+    ),
+  ads: z.object({
+    headlines: z
+      .array(z.string())
+      .describe("Exactly 5 ad headlines, each 30 characters or fewer."),
+    descriptions: z
+      .array(z.string())
+      .describe("Exactly 3 ad descriptions, each 90 characters or fewer."),
+  }),
+  openHouseEmail: emailSchema.describe(
+    "An open house invitation to the agent's buyer list, with [date] and [time] placeholders.",
+  ),
+  neighbourLetter: emailSchema.describe(
+    "A short 'just listed in your neighbourhood' letter to nearby homeowners, inviting them to the open house and to pass it on.",
+  ),
+});
+export type CampaignData = z.infer<typeof campaignSchema>;
+
+/** The showing-day toolkit: who to pitch to, proof for tough questions, plan. */
+export const showingSchema = z.object({
+  personas: z
+    .array(
+      z.object({
+        title: z
+          .string()
+          .describe(
+            "Needs-based, e.g. 'Transit commuters' or 'Remote workers who want space'. Never age, family status, ethnicity or religion.",
+          ),
+        needs: z.string().describe("One sentence on what they're looking for."),
+        emphasize: z
+          .array(z.string())
+          .describe("Exactly 3 facts from the fact sheet to lead with."),
+        tourFocus: z
+          .string()
+          .describe("Which nearby place to show them first, and why."),
+      }),
+    )
+    .describe("Exactly 3 distinct buyer personas."),
+  provenAnswers: z
+    .array(
+      z.object({
+        question: z.string(),
+        answer: z.string(),
+        proof: z
+          .string()
+          .describe(
+            "The exact fact from the fact sheet that backs the answer.",
+          ),
+      }),
+    )
+    .describe(
+      "Exactly 5 tough buyer questions, each answered with a number from the fact sheet.",
+    ),
+  openHousePlan: z
+    .object({
+      before: z.array(z.string()),
+      dayOf: z.array(z.string()),
+      after: z.array(z.string()),
+    })
+    .describe("4–6 short steps for each phase."),
+  followUpText: z
+    .string()
+    .describe(
+      "A text message to open house visitors the same evening, under 300 characters.",
+    ),
+  followUpEmail: emailSchema.describe(
+    "A follow-up email to open house visitors the next day.",
+  ),
+});
+export type ShowingData = z.infer<typeof showingSchema>;
 
 const travelModeSchema = z.enum(["walk", "bike", "drive"]);
 

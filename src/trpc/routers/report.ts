@@ -1,4 +1,6 @@
 import { TRPCError } from "@trpc/server";
+import { auth as triggerAuth } from "@trigger.dev/sdk";
+import type { UIMessage } from "ai";
 import { z } from "zod";
 import {
   JOB_KINDS,
@@ -17,6 +19,14 @@ import {
   reportStore,
 } from "@/server/report-store";
 import { travelModes } from "@/lib/travel";
+import {
+  LANGUAGES,
+  REWRITE_ACTIONS,
+  REWRITE_MAX_CHARS,
+  type RewriteAction,
+} from "@/lib/copy-actions";
+import { rewriteCopy } from "@/server/ai/rewrite-copy";
+import { createRateLimiter } from "@/server/rate-limit";
 import { createTRPCRouter, protectedProcedure } from "../init";
 
 const token = (max: number) =>
@@ -36,6 +46,12 @@ export const createReportInput = z.object({
   placeId: token(300),
   sessionToken: token(64),
 });
+
+/** AI rewrites per agent: generous for real use, a ceiling on runaway cost. */
+const rewriteLimiter = createRateLimiter("report:rewrite", [
+  { limit: 30, windowMs: 10 * 60_000 },
+  { limit: 300, windowMs: 24 * 60 * 60_000 },
+]);
 
 const jobKind = z.enum(Object.values(JOB_KINDS) as [JobKind, ...JobKind[]]);
 
@@ -60,6 +76,34 @@ export const reportRouter = createTRPCRouter({
   byId: protectedProcedure
     .input(z.object({ id: z.string().min(1).max(100) }))
     .query(({ ctx, input }) => reportStore.findForUser(input.id, ctx.userId)),
+
+  /**
+   * The report's chat thread for the chat page: its chat id and messages,
+   * plus a session token when the conversation exists, so the browser can
+   * reconnect to an answer still being written (e.g. after a reload).
+   */
+  chatThread: protectedProcedure
+    .input(z.object({ id: z.string().min(1).max(100) }))
+    .query(async ({ ctx, input }) => {
+      const report = await reportStore.findForUser(input.id, ctx.userId);
+      if (!report) throw new TRPCError({ code: "NOT_FOUND" });
+      const thread = await reportStore.ensureChatThread(report.id);
+      const messages = thread.entries.map((e) => e.message) as UIMessage[];
+      const session =
+        messages.length > 0
+          ? {
+              publicAccessToken: await triggerAuth.createPublicToken({
+                scopes: {
+                  read: { sessions: thread.chatId },
+                  write: { sessions: thread.chatId },
+                },
+                expirationTime: "1h",
+              }),
+              lastEventId: thread.cursors?.lastOutEventId,
+            }
+          : null;
+      return { chatId: thread.chatId, messages, session };
+    }),
 
   /** The agent's quick details: unit number plus inputs for the AI copy. */
   updateListing: protectedProcedure
@@ -110,6 +154,39 @@ export const reportRouter = createTRPCRouter({
       await cancelReportRuns(report.jobs);
       await reportStore.deleteForUser(report.id, ctx.userId);
       return { id: report.id };
+    }),
+
+  /** One-click rewrite or translation of a piece of generated copy. */
+  rewriteCopy: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        text: z.string().trim().min(1).max(REWRITE_MAX_CHARS),
+        action: z.enum(
+          Object.keys(REWRITE_ACTIONS) as [RewriteAction, ...RewriteAction[]],
+        ),
+        language: z.enum(LANGUAGES).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const report = await reportStore.findForUser(input.id, ctx.userId);
+      if (!report) throw new TRPCError({ code: "NOT_FOUND" });
+      const limit = rewriteLimiter.check(ctx.userId);
+      if (!limit.success) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: `Too many rewrites. Try again in ${Math.ceil(limit.retryAfterMs / 60_000)} min.`,
+        });
+      }
+      try {
+        return await rewriteCopy(input);
+      } catch (error) {
+        console.error("[report.rewriteCopy]", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Couldn't rewrite that right now. Try again shortly.",
+        });
+      }
     }),
 
   /** Re-runs one step: a failed section, or regenerating the AI copy. */

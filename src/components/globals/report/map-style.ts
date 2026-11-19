@@ -1,37 +1,37 @@
 import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
 
 /**
- * OpenFreeMap "bright" (OpenStreetMap data, no API key): it has buildings,
- * street names, road casings and POIs. We recolour it to the app's palette:
- * warm off-white ground, white streets, red for the major roads.
+ * OpenFreeMap "bright" (OpenStreetMap data, no API key): buildings, street
+ * names, road casings and POIs. Recoloured to the app's warm neutrals so it
+ * reads as ours. Roads use greys only (no reds, oranges or yellows, which
+ * look like traffic); major roads stand out by weight and edge contrast.
  */
 export const BASE_MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
 
 const C = {
-  ground: "#faf8f6",
-  landuse: "rgba(233, 229, 224, 0.4)",
-  commercial: "rgba(209, 0, 1, 0.018)",
-  hospital: "#fbecea",
-  school: "#f3f0ee",
-  green: "#e2ebd8",
-  water: "#d4e1ea",
-  waterLine: "#b5cad8",
-  waterText: "#56707f",
-  building: "#e2dbd3",
-  buildingTop: "#efeae4",
-  buildingEdge: "#d6ccc2",
-  // Roads, by class: [fill, casing].
-  minor: ["#ffffff", "#d9d0c7"],
-  secondary: ["#ffffff", "#c6bab0"],
-  primary: ["#fde6e1", "#e89a8f"],
-  motorway: ["#f7b0a5", "#d1372a"],
-  path: "#c2b5a9",
-  rail: "#b3a9a0",
-  boundary: "#c6bab0",
-  roadText: "#3b3632",
-  placeText: "#1c1a18",
-  poiText: "#7a716a",
-  transitText: "#a3261c",
+  // The app background (oklch 0.97 warm) and border tones.
+  ground: "#f6f5f4",
+  landuse: "rgba(233, 229, 224, 0.45)",
+  hospital: "#f1ecea",
+  school: "#f0eeeb",
+  green: "#e3e9dc",
+  water: "#d9e2e8",
+  waterLine: "#bccbd5",
+  waterText: "#5f7280",
+  building: "#e4ded8",
+  buildingTop: "#eeeae5",
+  buildingEdge: "#d5ccc3",
+  // Roads by class: [fill, casing]. Heavier roads, darker edges.
+  minor: ["#ffffff", "#e0d9d2"],
+  secondary: ["#ffffff", "#cdc4bb"],
+  primary: ["#ffffff", "#b6aca2"],
+  motorway: ["#ebe6e0", "#9a9088"],
+  path: "#cbc1b7",
+  rail: "#b3aaa2",
+  boundary: "#c9c0b7",
+  roadText: "#3d3935",
+  placeText: "#1f1d1b",
+  poiText: "#7c746d",
   halo: "#ffffff",
 } as const;
 
@@ -62,10 +62,9 @@ function paintFor(layer: LayerSpecification): Record<string, unknown> | null {
     return { "line-color": id.endsWith("-casing") ? casing : fill };
   }
 
-  if (/^(landuse-(residential|suburb|railway|industrial))$/.test(id)) {
+  if (/^landuse-(residential|suburb|railway|industrial|commercial)$/.test(id)) {
     return { "fill-color": C.landuse };
   }
-  if (id === "landuse-commercial") return { "fill-color": C.commercial };
   if (id === "landuse-hospital") return { "fill-color": C.hospital };
   if (id === "landuse-school") return { "fill-color": C.school };
   if (
@@ -73,8 +72,10 @@ function paintFor(layer: LayerSpecification): Record<string, unknown> | null {
   ) {
     return { "fill-color": C.green };
   }
-  if (id === "landcover-wood")
-    return { "fill-color": "#7f9a70", "fill-opacity": 0.08 };
+  if (id === "landcover-wood") {
+    return { "fill-color": "#8a9a80", "fill-opacity": 0.08 };
+  }
+  if (id === "landcover-sand") return { "fill-color": "#eee8dc" };
   if (id === "water" || id === "water-intermittent") {
     return { "fill-color": C.water };
   }
@@ -93,7 +94,7 @@ function paintFor(layer: LayerSpecification): Record<string, unknown> | null {
   }
   if (id.startsWith("boundary")) return { "line-color": C.boundary };
 
-  // Labels: dark text on a white halo so street names stay readable.
+  // Labels: dark warm text on a white halo, so street names stay readable.
   if (id === "highway-name-path") {
     return { "text-color": C.poiText, "text-halo-color": C.halo };
   }
@@ -104,9 +105,6 @@ function paintFor(layer: LayerSpecification): Record<string, unknown> | null {
       "text-halo-width": 1.5,
       "text-halo-blur": 0,
     };
-  }
-  if (id === "poi_transit") {
-    return { "text-color": C.transitText, "text-halo-color": C.halo };
   }
   if (id.startsWith("poi_") || id === "airport") {
     return {

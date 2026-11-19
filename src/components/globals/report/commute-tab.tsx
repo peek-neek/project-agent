@@ -26,6 +26,7 @@ import { TileGrid } from "./dash-card";
 import { InteractiveMap, type MapPin } from "./interactive-map";
 import { formatDistance, formatMinutes, googleMapsUrl } from "./report-format";
 import { useTravelMode } from "@/components/globals/travel-mode";
+import { destinationTime, TRAVEL_MODES } from "@/lib/travel";
 import { TRANSIT_ICONS } from "./transit-icons";
 import { WIDGET, WIDGET_SELECTED } from "./widget-styles";
 
@@ -102,11 +103,15 @@ function DestinationTile({
   solid?: boolean;
 }) {
   const Icon = DESTINATION_ICONS[destinationKind(destination)];
+  // Transit always; the second figure follows the walk / bike / car choice.
+  const travel = useTravelMode();
+  const trip = destinationTime(destination, travel.mode);
   const stat = (
     icon: typeof CarIcon,
     label: string,
     minutes: number | null,
     extra?: string,
+    estimated = false,
   ) => {
     const StatIcon = icon;
     return (
@@ -120,7 +125,9 @@ function DestinationTile({
           <StatIcon aria-hidden className="size-3.5" /> {label}
         </span>
         <span className="mt-1 block text-[1.75rem] leading-none font-semibold tracking-tight tabular-nums">
-          {minutes != null ? formatMinutes(minutes) : "—"}
+          {minutes != null
+            ? `${estimated ? "~" : ""}${formatMinutes(minutes)}`
+            : "—"}
         </span>
         {extra && (
           <span
@@ -153,21 +160,24 @@ function DestinationTile({
     >
       <span
         className={cn(
-          "flex items-center gap-1.5 text-[13px] font-medium",
+          "flex items-start gap-1.5 text-[13px] font-medium",
           solid ? "text-white/85" : "text-primary",
         )}
         title={destination.label}
       >
         <Icon aria-hidden className="size-4 shrink-0" />
-        <span className="truncate">{destination.label}</span>
+        <span className="min-w-0 pt-px leading-tight break-words">
+          {destination.label}
+        </span>
       </span>
       <span className="mt-auto grid grid-cols-2 gap-4 pt-3">
         {stat(TrainFrontIcon, "Transit", destination.transitMinutes)}
         {stat(
-          CarIcon,
-          "Drive",
-          destination.driveMinutes,
-          destination.driveKm != null ? `${destination.driveKm} km` : undefined,
+          travel.icon,
+          TRAVEL_MODES[travel.mode].label,
+          trip.minutes,
+          trip.km != null ? `${trip.km} km` : undefined,
+          trip.estimated,
         )}
       </span>
     </motion.div>

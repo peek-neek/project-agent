@@ -365,7 +365,8 @@ export async function searchTextNearby({
   lat: number;
   lng: number;
   query: string;
-  type: string;
+  /** Restrict to one place type; omit for any place matching the query. */
+  type?: string;
   radius: number;
   maxResults?: number;
 }): Promise<NearbyResult[]> {
@@ -380,8 +381,7 @@ export async function searchTextNearby({
       },
       body: JSON.stringify({
         textQuery: query,
-        includedType: type,
-        strictTypeFiltering: true,
+        ...(type ? { includedType: type, strictTypeFiltering: true } : {}),
         rankPreference: "DISTANCE",
         pageSize: maxResults,
         regionCode: "CA",

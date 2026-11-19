@@ -6,7 +6,13 @@ import {
   FootprintsIcon,
   type LucideIcon,
 } from "lucide-react";
-import { useCallback, useSyncExternalStore } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useSyncExternalStore,
+} from "react";
+import { cn } from "cn";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Tooltip,
@@ -14,6 +20,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  parseTravelMode,
+  TRAVEL_MODE_COOKIE,
   TRAVEL_MODES,
   type TravelMode,
   travelModes,
@@ -35,13 +43,21 @@ const STORAGE_KEY = "travel-mode";
 const listeners = new Set<() => void>();
 let current: TravelMode | null = null;
 
+/** Mirror the mode into a cookie so the server renders the same times. */
+function writeCookie(mode: TravelMode) {
+  document.cookie = `${TRAVEL_MODE_COOKIE}=${mode}; path=/; max-age=31536000; samesite=lax`;
+}
+
 function read(): TravelMode {
   if (current) return current;
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    current = saved && saved in TRAVEL_MODES ? (saved as TravelMode) : "walk";
+    current = parseTravelMode(localStorage.getItem(STORAGE_KEY));
   } catch {
     current = "walk";
+  }
+  // Saved before the cookie existed: add it, so the next load matches.
+  if (!document.cookie.includes(`${TRAVEL_MODE_COOKIE}=${current}`)) {
+    writeCookie(current);
   }
   return current;
 }
@@ -53,8 +69,35 @@ export function setTravelMode(mode: TravelMode) {
   } catch {
     // Private mode / blocked storage: still works for this page view.
   }
+  writeCookie(mode);
   listeners.forEach((l) => l());
 }
+
+/**
+ * The mode the server rendered with (from the cookie), so hydration uses
+ * the same times and the page doesn't flash walk times first. Outside a
+ * provider (the static app shell) it's "walk".
+ */
+const ServerModeContext = createContext<TravelMode>("walk");
+
+export function TravelModeProvider({
+  mode,
+  children,
+}: {
+  mode: TravelMode;
+  children: React.ReactNode;
+}) {
+  return <ServerModeContext value={mode}>{children}</ServerModeContext>;
+}
+
+const subscribeNothing = () => () => {};
+/** False during server render and hydration, true after. */
+export const useHydrated = () =>
+  useSyncExternalStore(
+    subscribeNothing,
+    () => true,
+    () => false,
+  );
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
@@ -73,10 +116,11 @@ function subscribe(listener: () => void) {
 
 /**
  * The selected travel mode, plus helpers to show any place's time in it.
- * Server render (and hydration) uses "walk"; the saved mode applies after.
+ * Server render and hydration use the cookie's mode (via TravelModeProvider).
  */
 export function useTravelMode() {
-  const mode = useSyncExternalStore(subscribe, read, () => "walk" as const);
+  const serverMode = useContext(ServerModeContext);
+  const mode = useSyncExternalStore(subscribe, read, () => serverMode);
   const time = useCallback(
     (place: TravelTimes) => travelTime(place, mode),
     [mode],
@@ -109,9 +153,16 @@ export function useTravelMode() {
 /** Walk / Cycle / Car switch for the app header. */
 export function TravelModeToggle() {
   const { mode } = useTravelMode();
+  // The header is prerendered without the saved mode: fade in once known,
+  // rather than showing "Walk" pressed and then switching.
+  const hydrated = useHydrated();
   return (
     <ToggleGroup
       aria-label="Show travel times for"
+      className={cn(
+        "transition-opacity duration-200",
+        hydrated ? "opacity-100" : "opacity-0",
+      )}
       value={[mode]}
       onValueChange={(value) => {
         const next = value[0] as TravelMode | undefined;

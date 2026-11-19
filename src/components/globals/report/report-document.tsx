@@ -49,7 +49,14 @@ import {
   type ReportData,
   shortId,
 } from "./report-format";
-import { getJob, getSection, isJobActive, useRerunJob } from "./report-hooks";
+import { useTravelMode } from "@/components/globals/travel-mode";
+import {
+  getCopySection,
+  getJob,
+  getSection,
+  isJobActive,
+  useRerunJob,
+} from "./report-hooks";
 import { ReportDashboard } from "./report-dashboard";
 import { ReportSection } from "./report-layout";
 import { SafetySection } from "./safety-section";
@@ -93,6 +100,7 @@ export function ReportDocument({ reportId }: { reportId: string }) {
 
 /** Presentational report, also used for print/PDF rendering. */
 export function ReportView({ report }: { report: ReportData }) {
+  const travel = useTravelMode();
   const [detailsChanged, setDetailsChanged] = useState(false);
   const rerun = useRerunJob(report.id);
 
@@ -111,12 +119,23 @@ export function ReportView({ report }: { report: ReportData }) {
     demographicsSchema,
   );
   const safety = getSection(report, SECTION_KEYS.safety, safetySchema);
-  const insights = getSection(report, SECTION_KEYS.insights, insightsSchema);
-  const marketing = getSection(report, SECTION_KEYS.marketing, marketingSchema);
+  // The printed copy matches the travel mode on screen.
+  const insights = getCopySection(
+    report,
+    SECTION_KEYS.insights,
+    insightsSchema,
+    travel.mode,
+  );
+  const marketing = getCopySection(
+    report,
+    SECTION_KEYS.marketing,
+    marketingSchema,
+    travel.mode,
+  );
   const aiModels = [
     ...new Set(
       [SECTION_KEYS.insights, SECTION_KEYS.marketing].flatMap((key) => {
-        const meta = getSection(report, key, aiMetaSchema);
+        const meta = getCopySection(report, key, aiMetaSchema, travel.mode);
         return meta
           ? [
               `${AI_PROVIDER_LABELS[meta.generatedBy.provider]} ${meta.generatedBy.model}`,

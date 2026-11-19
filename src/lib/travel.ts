@@ -9,6 +9,14 @@ export const TRAVEL_MODES = {
 export type TravelMode = keyof typeof TRAVEL_MODES;
 export const travelModes = Object.keys(TRAVEL_MODES) as TravelMode[];
 
+/** Cookie mirroring the saved mode, so server renders use it too. */
+export const TRAVEL_MODE_COOKIE = "travel-mode";
+
+export const parseTravelMode = (value: unknown): TravelMode =>
+  typeof value === "string" && value in TRAVEL_MODES
+    ? (value as TravelMode)
+    : "walk";
+
 /**
  * Minutes estimated from distance, when the Routes API has no time (or the
  * report predates bike/drive times). `meters` is the walking route distance
@@ -24,6 +32,39 @@ export function estimateMinutes(meters: number, mode: TravelMode) {
     case "drive":
       return Math.max(1, Math.round((meters * 1.4) / 500) + 1);
   }
+}
+
+/** A trip to a commute destination, as stored (walk/bike may be absent). */
+export type DestinationTimes = {
+  driveMinutes: number | null;
+  driveKm: number | null;
+  walkMinutes?: number | null;
+  walkKm?: number | null;
+  bikeMinutes?: number | null;
+  bikeKm?: number | null;
+};
+
+/**
+ * A destination's trip in one mode. Walk/bike missing (older reports or no
+ * route): estimated from the driving distance, flagged as estimated.
+ */
+export function destinationTime(
+  d: DestinationTimes,
+  mode: TravelMode,
+): { minutes: number | null; km: number | null; estimated: boolean } {
+  if (mode === "drive") {
+    return { minutes: d.driveMinutes, km: d.driveKm, estimated: false };
+  }
+  const minutes = mode === "walk" ? d.walkMinutes : d.bikeMinutes;
+  const km = mode === "walk" ? d.walkKm : d.bikeKm;
+  if (minutes != null) return { minutes, km: km ?? null, estimated: false };
+  if (d.driveKm == null) return { minutes: null, km: null, estimated: false };
+  // The driving route already includes detours: undo estimateMinutes' own.
+  return {
+    minutes: estimateMinutes((d.driveKm * 1000) / 1.3, mode),
+    km: d.driveKm,
+    estimated: true,
+  };
 }
 
 /** Stored travel times on a place (bike/drive are absent on older reports). */

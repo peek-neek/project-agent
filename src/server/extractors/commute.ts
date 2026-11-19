@@ -11,7 +11,11 @@ import {
   searchNearby,
   searchTextNearby,
 } from "../google-places";
-import { routeDuration, RoutesUnavailableError } from "../google-routes";
+import {
+  routeDuration,
+  routeMatrix,
+  RoutesUnavailableError,
+} from "../google-routes";
 import { reportStore } from "../report-store";
 import { withTravelTimes } from "./amenities";
 
@@ -233,6 +237,28 @@ export async function extractCommute(reportId: string) {
       driveMinutes: drive ? Math.round(drive.seconds / 60) : null,
       driveKm: drive ? Math.round(drive.meters / 100) / 10 : null,
       transitMinutes: transit ? Math.round(transit.seconds / 60) : null,
+    });
+  }
+
+  // Walking and cycling to each destination: one matrix call per mode.
+  // A failure only means those times are estimated in the UI.
+  if (routesAvailable && destinations.length) {
+    const hubs = pickDestinations(origin);
+    const [walk, bike] = await Promise.all(
+      (["WALK", "BICYCLE"] as const).map((mode) =>
+        routeMatrix(origin, hubs, mode).catch((error) => {
+          console.error(`[commute] ${mode} to destinations`, error);
+          return null;
+        }),
+      ),
+    );
+    destinations.forEach((d, i) => {
+      const w = walk?.[i];
+      const b = bike?.[i];
+      d.walkMinutes = w ? Math.round(w.seconds / 60) : null;
+      d.walkKm = w ? Math.round(w.meters / 100) / 10 : null;
+      d.bikeMinutes = b ? Math.round(b.seconds / 60) : null;
+      d.bikeKm = b ? Math.round(b.meters / 100) / 10 : null;
     });
   }
 

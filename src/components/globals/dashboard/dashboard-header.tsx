@@ -1,12 +1,11 @@
 import { Suspense } from "react";
-import { ClerkLoaded, ClerkLoading, UserButton } from "@clerk/nextjs";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Skeleton } from "@/components/ui/skeleton";
 import { MarketScoreBadge } from "@/components/globals/report/market-score-badge";
 import { TravelModeToggle } from "@/components/globals/travel-mode";
+import { TopProgressBar } from "@/components/globals/top-progress";
 
-export function DashboardHeader() {
+export function DashboardHeader({ nav }: { nav: React.ReactNode }) {
   return (
     <header
       data-slot="dashboard-header"
@@ -17,7 +16,8 @@ export function DashboardHeader() {
         orientation="vertical"
         className="mx-1 h-5 data-vertical:self-center"
       />
-      <span className="text-sm text-foreground/65">Property reports</span>
+      {/* "Property reports", or Report | Chat on a report (the @nav slot). */}
+      {nav}
       <div className="ml-auto flex items-center gap-3">
         {/* On a report: how easy the location makes it to sell or rent.
             Suspense: it reads the URL's reportId (useParams), which is only
@@ -27,16 +27,11 @@ export function DashboardHeader() {
         </Suspense>
         {/* Walk / cycle / car: switches every travel time in the app. */}
         <TravelModeToggle />
-        {/* Client-only: the header is in the prerendered shell, where Clerk
-            can't know the user, so rendering UserButton there causes a
-            hydration mismatch. ClerkLoaded renders nothing until Clerk loads. */}
-        <ClerkLoading>
-          <Skeleton className="size-7" />
-        </ClerkLoading>
-        <ClerkLoaded>
-          <UserButton />
-        </ClerkLoaded>
       </div>
+      {/* Loading bar along the bottom edge (pages, reports, chat). */}
+      <Suspense fallback={null}>
+        <TopProgressBar />
+      </Suspense>
     </header>
   );
 }
