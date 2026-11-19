@@ -1,0 +1,196 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ReportMode {
+  single
+  compare
+  bulk
+}
+
+enum JobStatus {
+  queued
+  running
+  completed
+  failed
+}
+
+model Report {
+  id           String     @id @default(uuid())
+  /// Clerk user ID of the agent who created the report.
+  userId       String
+  mode         ReportMode @default(single)
+  /// Address exactly as the agent typed or selected it.
+  inputAddress String
+  /// Google place ID when the address was picked from autocomplete.
+  placeId      String?
+  /// Agent's own label for the report (sidebar); null shows the address.
+  name         String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  property PropertyIdentity?
+  jobs     ReportJob[]
+  sections ReportSection[]
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+/// Property basics: identification (address, unit, legal description, PIN, roll).
+model PropertyIdentity {
+  reportId String @id
+  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  formattedAddress String?
+  streetNumber     String?
+  streetName       String?
+  unitNumber       String?
+  city             String?
+  province         String?
+  postalCode       String?
+  country          String?
+  latitude         Float?
+  longitude        Float?
+
+  legalDescription String?
+  /// Land Registry Property Identifier Number (9 digits, e.g. 21234-0567).
+  pin              String?
+  /// MPAC assessment roll number.
+  rollNumber       String?
+
+  /// Per-field provenance: { [field]: { source, asOf } }.
+  sources Json @default("{}")
+
+  updatedAt DateTime @updatedAt
+}
+
+/// One background extraction job (Trigger.dev run) for a report.
+model ReportJob {
+  id           String    @id @default(uuid())
+  reportId     String
+  report       Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  /// Which extractor this is, e.g. "property-identity".
+  kind         String
+  status       JobStatus @default(queued)
+  triggerRunId String?
+  error        String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([reportId, kind])
+}
+
+/// Generated or agent-entered data for one report section, validated in code
+/// with the zod schemas in src/lib/report-sections.ts.
+model ReportSection {
+  reportId  String
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  /// e.g. "listing", "amenities", "commute", "insights", "marketing".
+  key       String
+  data      Json
+  updatedAt DateTime @updatedAt
+
+  @@id([reportId, key])
+}
+
+/// Ontario public schools, imported from the Ministry of Education's
+/// "School information and student demographics" dataset
+/// (npm run data:schools). EQAO columns are % of students meeting the
+/// provincial standard; null when not reported.
+model School {
+  /// Ministry school number.
+  id           String  @id
+  name         String
+  boardName    String
+  boardWebsite String?
+  /// "Public" or "Catholic".
+  type         String
+  /// "Elementary" or "Secondary".
+  level        String
+  /// "English" or "French".
+  language     String
+  gradeRange   String?
+  street       String?
+  city         String?
+  postalCode   String?
+  phone        String?
+  website      String?
+  enrolment    Int?
+  latitude     Float
+  longitude    Float
+
+  g3Reading Int?
+  g3Writing Int?
+  g3Math    Int?
+  g6Reading Int?
+  g6Writing Int?
+  g6Math    Int?
+  g9Math    Int?
+  /// Grade 10 literacy test (OSSLT), first-time eligible students passing.
+  osslt     Int?
+
+  /// School year of the source data, e.g. "2024-25".
+  dataYear  String
+  updatedAt DateTime @updatedAt
+
+  @@index([latitude, longitude])
+}
+
+/// Provincial infrastructure projects in planning or under construction,
+/// from Ontario's "Ontario Builds" open data. Refreshed weekly by the
+/// refresh-ontario-builds Trigger.dev schedule (or npm run data:projects).
+model InfrastructureProject {
+  /// Stable hash of name + location (the source has no IDs).
+  id               String   @id
+  /// e.g. "Transit", "Health care", "Education".
+  category         String
+  name             String
+  /// "Planning" or "Under construction".
+  status           String
+  /// Display label, e.g. "Mar 2027", "2028–2029"; null when to be determined.
+  targetCompletion String?
+  community        String?
+  address          String?
+  transitLine      String?
+  budget           Float?
+  website          String?
+  description      String?
+  latitude         Float
+  longitude        Float
+  updatedAt        DateTime @updatedAt
+
+  @@index([latitude, longitude])
+}
+
+/// City of Toronto community planning applications (rezonings, site plans,
+/// subdivisions, condos), one row per application. Refreshed daily by the
+/// refresh-toronto-development Trigger.dev schedule (or npm run data:development).
+model DevelopmentApplication {
+  /// City application number, e.g. "15 177458 WET 03 OZ".
+  id          String    @id
+  /// OZ, SA, SB, CD or PL.
+  type        String
+  status      String
+  submittedAt DateTime?
+  address     String
+  description String?
+  url         String?
+  /// Parsed from the description when stated.
+  units       Int?
+  storeys     Int?
+  latitude    Float
+  longitude   Float
+  updatedAt   DateTime  @updatedAt
+
+  @@index([latitude, longitude])
+}

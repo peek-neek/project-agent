@@ -1,0 +1,416 @@
+// Runs inside the Trigger.dev "safety" task: crime rates, flood/erosion
+// regulation, noise sources and air quality. Crime severity (StatCan, by
+// police service) covers all of Ontario; Toronto adds neighbourhood rates
+// from Toronto Police. Highways come from the Ontario Road Network and rail
+// lines from the Ontario Railway Network (both province-wide); flood
+// regulation from TRCA; air quality from Google.
+import {
+  CRIME_TYPES,
+  type SafetyData,
+  SECTION_KEYS,
+} from "../../lib/report-sections";
+import { atPoint, queryLayer } from "../arcgis";
+import { areaCrimeAt } from "../crime-severity";
+import { distanceMeters, distanceToPathsMeters, type LatLng } from "../geo";
+import { reportStore } from "../report-store";
+
+const SOURCES = {
+  crime:
+    "https://services.arcgis.com/S9th0jAJ7bqgIRjw/arcgis/rest/services/Neighbourhood_Crime_Rates_Open_Data/FeatureServer/0",
+  conservationAuthorities:
+    "https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open03/MapServer/11",
+  trcaRegulated:
+    "https://services1.arcgis.com/d0ZCwU7eGKVeNiEE/arcgis/rest/services/TRCA_Regulation_2025/FeatureServer/37",
+  /** Ontario Road Network segments (province-wide, with road class). */
+  roads:
+    "https://services1.arcgis.com/TJH5KDher0W13Kgo/arcgis/rest/services/Ontario_Road_Network_Composite_Service/FeatureServer/5",
+  /** Ontario Railway Network track (province-wide). */
+  rail: "https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open04/MapServer/18",
+} as const;
+
+const TRCA = "Toronto and Region Conservation Authority";
+/** Distance at which a highway or rail line is worth mentioning. */
+const NOISE_RADIUS_M = 500;
+const FLOOD_NEARBY_M = 100;
+
+/** `radiusKm`: rough distance within which aircraft noise may be noticeable. */
+const AIRPORTS = [
+  { name: "Toronto Pearson", lat: 43.6777, lng: -79.6248, radiusKm: 15 },
+  {
+    name: "Billy Bishop Toronto City",
+    lat: 43.6275,
+    lng: -79.3962,
+    radiusKm: 4,
+  },
+  { name: "Ottawa International", lat: 45.3225, lng: -75.6692, radiusKm: 10 },
+  { name: "Hamilton International", lat: 43.1736, lng: -79.935, radiusKm: 8 },
+  {
+    name: "Region of Waterloo International",
+    lat: 43.4605,
+    lng: -80.3786,
+    radiusKm: 6,
+  },
+  { name: "London International", lat: 43.0356, lng: -81.1539, radiusKm: 6 },
+  { name: "Oshawa Executive", lat: 43.9228, lng: -78.895, radiusKm: 4 },
+] as const;
+
+// ---------------------------------------------------------------------------
+// Crime (Toronto Police Service, neighbourhood crime rates)
+// ---------------------------------------------------------------------------
+
+type Attrs = Record<string, string | number | null>;
+
+async function crimeAt(point: LatLng): Promise<SafetyData["crime"]> {
+  const [hood] = await queryLayer<Attrs>(SOURCES.crime, {
+    ...atPoint(point),
+    outFields: "*",
+    returnGeometry: false,
+  });
+  if (!hood) return null;
+  const a = hood.attributes;
+
+  // Years present in the dataset, e.g. ASSAULT_2020 … ASSAULT_2025.
+  const years = Object.keys(a)
+    .map((k) => k.match(/^ASSAULT_(\d{4})$/)?.[1])
+    .filter(Boolean)
+    .map(Number)
+    .sort();
+  const year = years[years.length - 1];
+  // Six-year trend: enough to show direction without stale history.
+  const trendYears = years.slice(-6);
+  const firstYear = trendYears[0];
+  const num = (v: unknown) => (typeof v === "number" ? v : null);
+
+  // Every neighbourhood's latest counts, for city rates and the ranking.
+  const popField = `POPULATION_${year}`;
+  const all = await queryLayer<Attrs>(SOURCES.crime, {
+    where: "1=1",
+    outFields: [popField, ...CRIME_TYPES.map((t) => `${t.id}_${year}`)].join(
+      ",",
+    ),
+    returnGeometry: false,
+  });
+  const cityPop = all.reduce(
+    (sum, f) => sum + (num(f.attributes[popField]) ?? 0),
+    0,
+  );
+  const cityCount = (type: string) =>
+    all.reduce(
+      (sum, f) => sum + (num(f.attributes[`${type}_${year}`]) ?? 0),
+      0,
+    );
+  const totalRate = (attrs: Attrs) => {
+    const pop = num(attrs[popField]);
+    if (!pop) return null;
+    const total = CRIME_TYPES.reduce(
+      (sum, t) => sum + (num(attrs[`${t.id}_${year}`]) ?? 0),
+      0,
+    );
+    return (total / pop) * 100_000;
+  };
+
+  const ownRate = totalRate(a);
+  const rates = all
+    .map((f) => totalRate(f.attributes))
+    .filter((r) => r != null);
+  const population = num(a[popField]);
+
+  return {
+    source: "Toronto Police Service",
+    neighbourhood: String(a.AREA_NAME ?? "This neighbourhood"),
+    population,
+    year,
+    firstYear,
+    types: CRIME_TYPES.map((t) => {
+      const count = num(a[`${t.id}_${year}`]) ?? 0;
+      const rate =
+        num(a[`${t.id}_RATE_${year}`]) ??
+        (population ? (count / population) * 100_000 : null);
+      return {
+        id: t.id,
+        count,
+        rate: rate == null ? null : Math.round(rate),
+        cityRate: cityPop
+          ? Math.round((cityCount(t.id) / cityPop) * 100_000)
+          : null,
+        trend: trendYears.map((y) => num(a[`${t.id}_${y}`])),
+      };
+    }),
+    lowerRateThanShare:
+      ownRate == null || rates.length === 0
+        ? null
+        : rates.filter((r) => r > ownRate).length / rates.length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Flood & erosion hazards (conservation authority regulated areas)
+// ---------------------------------------------------------------------------
+
+/** Plain-language names for TRCA's regulation criteria layers. */
+const CRITERIA_LABELS: [RegExp, string][] = [
+  [/flood/i, "Flood hazard"],
+  [/erosion/i, "Erosion hazard"],
+  [/crest|slope|valley/i, "Valley slope"],
+  [/meander/i, "Stream meander belt"],
+  [/wetland/i, "Wetland"],
+  [/shoreline|lake/i, "Shoreline hazard"],
+  [/watercourse|stream/i, "Watercourse"],
+];
+
+/** "Total Criteria Layers: 2\nCrest of Slope\nFlood Hazard Engineered" → labels */
+function parseCriteria(value: unknown) {
+  return String(value ?? "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((s) => s && !s.startsWith("Total Criteria"))
+    .map((s) => CRITERIA_LABELS.find(([re]) => re.test(s))?.[1] ?? s);
+}
+
+async function floodAt(point: LatLng): Promise<SafetyData["flood"]> {
+  const [ca] = await queryLayer<{ COMMON_NAME?: string; LEGAL_NAME?: string }>(
+    SOURCES.conservationAuthorities,
+    {
+      ...atPoint(point),
+      outFields: "COMMON_NAME,LEGAL_NAME",
+      returnGeometry: false,
+    },
+  );
+  const authority =
+    ca?.attributes.COMMON_NAME ?? ca?.attributes.LEGAL_NAME ?? null;
+
+  if (authority !== TRCA) {
+    return {
+      authority,
+      status: "unknown",
+      criteria: [],
+      note: authority
+        ? `Regulation mapping for ${authority} isn't connected yet. Check the authority's online mapping or ask them directly.`
+        : "This property isn't within a conservation authority's area.",
+    };
+  }
+
+  const query = (distance?: number) =>
+    queryLayer<Attrs>(SOURCES.trcaRegulated, {
+      ...atPoint(point, distance),
+      outFields: "criteria_layers_contribution",
+      returnGeometry: false,
+    });
+
+  const inside = await query();
+  if (inside.length > 0) {
+    return {
+      authority,
+      status: "inside",
+      criteria: [
+        ...new Set(
+          inside.flatMap((f) =>
+            parseCriteria(f.attributes.criteria_layers_contribution),
+          ),
+        ),
+      ],
+      note: "Inside TRCA's regulated area. Additions, pools, grading or new structures may need a TRCA permit; it doesn't mean the home floods. Confirm with TRCA.",
+    };
+  }
+  const near = await query(FLOOD_NEARBY_M);
+  if (near.length > 0) {
+    return {
+      authority,
+      status: "nearby",
+      criteria: [
+        ...new Set(
+          near.flatMap((f) =>
+            parseCriteria(f.attributes.criteria_layers_contribution),
+          ),
+        ),
+      ],
+      note: `Within ${FLOOD_NEARBY_M} m of TRCA's regulated area (valley, stream or hazard land). Check whether any part of the lot is regulated.`,
+    };
+  }
+  return {
+    authority,
+    status: "clear",
+    criteria: [],
+    note: "Outside TRCA's regulated area for flood and erosion hazards.",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Noise sources
+// ---------------------------------------------------------------------------
+
+async function nearestLine(layerUrl: string, point: LatLng, where = "1=1") {
+  const features = await queryLayer(layerUrl, {
+    ...atPoint(point, NOISE_RADIUS_M),
+    where,
+    outFields: "OBJECTID",
+    returnGeometry: true,
+  });
+  // Polylines have paths; polygon layers (Toronto's road edges) have rings.
+  const paths = features.flatMap(
+    (f) => f.geometry?.paths ?? f.geometry?.rings ?? [],
+  );
+  if (paths.length === 0) return null;
+  const meters = distanceToPathsMeters(point, paths);
+  return Number.isFinite(meters)
+    ? { meters: Math.round(meters / 10) * 10 }
+    : null;
+}
+
+function nearestAirport(point: LatLng) {
+  const nearest = AIRPORTS.map((a) => ({
+    ...a,
+    km: distanceMeters(point, a) / 1000,
+  }))
+    .filter((a) => a.km <= a.radiusKm)
+    .sort((a, b) => a.km - b.km)[0];
+  return nearest
+    ? { name: nearest.name, km: Math.round(nearest.km * 10) / 10 }
+    : null;
+}
+
+async function noiseAt(point: LatLng): Promise<SafetyData["noise"]> {
+  try {
+    const [highway, railway] = await Promise.all([
+      // 400-series and other provincial highways (centre lines).
+      nearestLine(
+        SOURCES.roads,
+        point,
+        "ROAD_CLASS IN ('Freeway','Expressway / Highway')",
+      ),
+      // Operating main lines; yards, sidings and spurs see little traffic.
+      nearestLine(
+        SOURCES.rail,
+        point,
+        "STATUS = 'Operational' AND TRACKCLASS = 'Main'",
+      ),
+    ]);
+    return {
+      highway,
+      railway,
+      airport: nearestAirport(point),
+      roadsCovered: true,
+    };
+  } catch (error) {
+    console.error("[safety] highway/rail lookup", error);
+    return {
+      highway: null,
+      railway: null,
+      airport: nearestAirport(point),
+      roadsCovered: false,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Air quality (Google Air Quality API, current conditions)
+// ---------------------------------------------------------------------------
+
+type AirQualityResponse = {
+  dateTime?: string;
+  indexes?: {
+    code: string;
+    aqi: number;
+    category: string;
+    dominantPollutant?: string;
+    color?: { red?: number; green?: number; blue?: number };
+  }[];
+};
+
+const toHex = (c?: { red?: number; green?: number; blue?: number }) =>
+  c
+    ? `#${[c.red, c.green, c.blue]
+        .map((v) =>
+          Math.round((v ?? 0) * 255)
+            .toString(16)
+            .padStart(2, "0"),
+        )
+        .join("")}`
+    : null;
+
+async function airQualityAt(point: LatLng) {
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key)
+    return { data: null, note: "Air quality needs a Google Maps API key." };
+
+  const res = await fetch(
+    `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${key}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: { latitude: point.lat, longitude: point.lng },
+        universalAqi: true,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (res.status === 403) {
+    return {
+      data: null,
+      note: "Enable the Air Quality API for your Google key to show air quality.",
+    };
+  }
+  if (!res.ok) throw new Error(`Air Quality API failed (HTTP ${res.status})`);
+  const json = (await res.json()) as AirQualityResponse;
+  const index =
+    json.indexes?.find((i) => i.code === "uaqi") ?? json.indexes?.[0];
+  if (!index)
+    return { data: null, note: "No air quality reading for this location." };
+  return {
+    data: {
+      aqi: index.aqi,
+      category: index.category,
+      dominantPollutant:
+        index.dominantPollutant?.toUpperCase().replace("PM25", "PM2.5") ?? null,
+      color: toHex(index.color),
+      observedAt: json.dateTime ?? new Date().toISOString(),
+    },
+    note: null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+
+export async function extractSafety(reportId: string) {
+  const report = await reportStore.findWithDetails(reportId);
+  const { latitude: lat, longitude: lng } = report?.property ?? {};
+  if (lat == null || lng == null) {
+    throw new Error("The property's location isn't available yet.");
+  }
+  const point = { lat, lng };
+
+  const [crime, areaCrime, flood, air, noise] = await Promise.all([
+    crimeAt(point),
+    // Area figures are a bonus next to Toronto's neighbourhood detail, and
+    // the only crime data elsewhere: never fail the step over them.
+    areaCrimeAt(point).catch((error) => {
+      console.error("[safety] crime severity", error);
+      return null;
+    }),
+    floodAt(point),
+    airQualityAt(point),
+    noiseAt(point),
+  ]);
+
+  const data: SafetyData = {
+    crime,
+    crimeNote: crime
+      ? null
+      : areaCrime
+        ? "Neighbourhood-level rates are published for Toronto only; this shows the local police service's crime severity."
+        : "Crime data couldn't be loaded for this address. Try again shortly.",
+    areaCrime,
+    flood,
+    noise,
+    airQuality: air.data,
+    airQualityNote: air.note,
+    fetchedAt: new Date().toISOString(),
+  };
+  await reportStore.setSection(reportId, SECTION_KEYS.safety, data);
+  return {
+    crime: crime?.neighbourhood ?? null,
+    flood: flood.status,
+    airQuality: air.data != null,
+  };
+}

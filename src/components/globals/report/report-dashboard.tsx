@@ -1,0 +1,719 @@
+"use client";
+
+import { cn } from "cn";
+import {
+  AlertCircleIcon,
+  CheckIcon,
+  DownloadIcon,
+  GraduationCapIcon,
+  LoaderCircleIcon,
+  type LucideIcon,
+  MapPinIcon,
+  RefreshCwIcon,
+  RouteIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
+  StoreIcon,
+  TrendingUpIcon,
+  UsersIcon,
+} from "lucide-react";
+import { motion } from "motion/react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  aiMetaSchema,
+  AMENITY_CATEGORIES,
+  amenitiesSchema,
+  commuteSchema,
+  demographicsSchema,
+  insightsSchema,
+  JOB_KINDS,
+  type JobKind,
+  listingSchema,
+  marketingSchema,
+  SECTION_KEYS,
+  safetySchema,
+  TRANSIT_KINDS,
+  type TransitKind,
+  schoolsSchema,
+  upsideSchema,
+} from "@/lib/report-sections";
+import { type AmenityFilter, AmenitiesTab } from "./amenities-tab";
+import { AMENITY_ICONS } from "./amenity-icons";
+import { CommuteTab, type StopFilter } from "./commute-tab";
+import { NeighbourhoodTab } from "./neighbourhood-tab";
+import { MarketingTab } from "./marketing-tab";
+import { HomeFacts } from "./home-facts";
+import { OverviewTab, type ReportSectionsData } from "./overview-tab";
+import { PlaybookTab } from "./playbook-tab";
+import { formatDate, type ReportData } from "./report-format";
+import { getJob, getSection, isJobActive, useRerunJob } from "./report-hooks";
+import { nearestPlace } from "./report-insights";
+import { CORE_TRANSIT_KINDS, TRANSIT_ICONS } from "./transit-icons";
+import { useTravelMode } from "@/components/globals/travel-mode";
+import { parseTab, REPORT_TABS, type TabId } from "./report-tabs";
+import { SafetyTab } from "./safety-tab";
+import { UpsideTab } from "./upside-tab";
+import { SchoolsTab } from "./schools-tab";
+import { SectionGate } from "./section-gate";
+import { WIDGET } from "./widget-styles";
+
+const MODE_GERUND = {
+  walk: "walking",
+  bike: "cycling",
+  drive: "driving",
+} as const;
+
+/** Height of the sticky dashboard header the tab bar sits under. */
+const STICKY_OFFSET = 56;
+
+const STEP_ICONS: Record<JobKind, { icon: LucideIcon; label: string }> = {
+  [JOB_KINDS.identity]: { icon: MapPinIcon, label: "Address" },
+  [JOB_KINDS.amenities]: { icon: StoreIcon, label: "Amenities" },
+  [JOB_KINDS.commute]: { icon: RouteIcon, label: "Commute" },
+  [JOB_KINDS.schools]: { icon: GraduationCapIcon, label: "Schools" },
+  [JOB_KINDS.demographics]: { icon: UsersIcon, label: "Census" },
+  [JOB_KINDS.safety]: { icon: ShieldCheckIcon, label: "Safety" },
+  [JOB_KINDS.upside]: { icon: TrendingUpIcon, label: "Upside" },
+  [JOB_KINDS.ai]: { icon: SparklesIcon, label: "AI copy" },
+};
+
+export function ReportDashboard({ report }: { report: ReportData }) {
+  const searchParams = useSearchParams();
+  const tab = parseTab(searchParams.get("tab"));
+  const [amenityFilter, setAmenityFilter] = useState<AmenityFilter>("all");
+  const [stopFilter, setStopFilter] = useState<StopFilter>("all");
+  const travel = useTravelMode();
+  const [detailsChanged, setDetailsChanged] = useState(false);
+  const tabsTopRef = useRef<HTMLDivElement>(null);
+  const rerun = useRerunJob(report.id);
+
+  // Native history API: Next keeps useSearchParams in sync, with no
+  // server round trip (the report data is already on the client).
+  const goTo = (next: TabId, focus?: string) => {
+    const url = new URL(window.location.href);
+    if (next === "overview") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", next);
+    window.history.replaceState(null, "", url);
+
+    if (focus) {
+      // Header shortcut: open that amenity category or transit stop kind.
+      if (next === "commute") setStopFilter(focus as StopFilter);
+      else setAmenityFilter(focus as AmenityFilter);
+      return;
+    }
+    // Plain tab switch: only scroll if the reader is already past the tab
+    // bar, back to where the content starts.
+    const marker = tabsTopRef.current;
+    if (marker && marker.getBoundingClientRect().top < STICKY_OFFSET) {
+      window.scrollTo({
+        top:
+          window.scrollY + marker.getBoundingClientRect().top - STICKY_OFFSET,
+        behavior: "instant",
+      });
+    }
+  };
+
+  const data: ReportSectionsData = {
+    amenities: getSection(report, SECTION_KEYS.amenities, amenitiesSchema),
+    commute: getSection(report, SECTION_KEYS.commute, commuteSchema),
+    schools: getSection(report, SECTION_KEYS.schools, schoolsSchema),
+    demographics: getSection(
+      report,
+      SECTION_KEYS.demographics,
+      demographicsSchema,
+    ),
+    safety: getSection(report, SECTION_KEYS.safety, safetySchema),
+    upside: getSection(report, SECTION_KEYS.upside, upsideSchema),
+    insights: getSection(report, SECTION_KEYS.insights, insightsSchema),
+    listing: getSection(report, SECTION_KEYS.listing, listingSchema),
+  };
+  const marketing = getSection(report, SECTION_KEYS.marketing, marketingSchema);
+
+  const jobs = Object.values(JOB_KINDS).map((kind) => ({
+    kind,
+    job: getJob(report, kind),
+  }));
+  const working = jobs.some(({ job }) => isJobActive(job));
+  const done = jobs.filter(({ job }) => job?.status === "completed").length;
+  const aiJob = getJob(report, JOB_KINDS.ai);
+
+  // Reports from before place photos existed: refresh amenities once in the
+  // background so the photo gallery fills in on its own. (New data always has
+  // a `photo` key, null when Google has none.)
+  const amenitiesJob = getJob(report, JOB_KINDS.amenities);
+  const backfilled = useRef(false);
+  const amenityPlaces = data.amenities
+    ? Object.values(data.amenities.categories).flat()
+    : [];
+  // Also refresh reports made before newer categories existed (every
+  // fetched category is stored, even when empty).
+  const needsPhotos =
+    (amenityPlaces.length > 0 &&
+      amenityPlaces.every((p) => p.photo === undefined)) ||
+    (data.amenities != null &&
+      AMENITY_CATEGORIES.some((c) => !(c.id in data.amenities!.categories)));
+  useEffect(() => {
+    if (!needsPhotos || backfilled.current || isJobActive(amenitiesJob)) return;
+    backfilled.current = true;
+    rerun.mutate({ id: report.id, kind: JOB_KINDS.amenities });
+  }, [needsPhotos, amenitiesJob, rerun, report.id]);
+
+  // Reports from before Ontario-wide crime and noise data: refresh safety once.
+  const safetyJob = getJob(report, JOB_KINDS.safety);
+  const safetyBackfilled = useRef(false);
+  // Also older reports without province-wide highway/rail distances.
+  const needsAreaCrime =
+    data.safety != null &&
+    (data.safety.areaCrime === undefined || !data.safety.noise.roadsCovered);
+  useEffect(() => {
+    if (!needsAreaCrime || safetyBackfilled.current || isJobActive(safetyJob))
+      return;
+    safetyBackfilled.current = true;
+    rerun.mutate({ id: report.id, kind: JOB_KINDS.safety });
+  }, [needsAreaCrime, safetyJob, rerun, report.id]);
+
+  // Reports from when development applications were Toronto-only: refresh
+  // upside once so connected municipalities fill in.
+  const upsideJob = getJob(report, JOB_KINDS.upside);
+  const upsideBackfilled = useRef(false);
+  const needsDevelopment =
+    data.upside != null &&
+    data.upside.development == null &&
+    /Toronto only/i.test(data.upside.developmentNote ?? "");
+  useEffect(() => {
+    if (!needsDevelopment || upsideBackfilled.current || isJobActive(upsideJob))
+      return;
+    upsideBackfilled.current = true;
+    rerun.mutate({ id: report.id, kind: JOB_KINDS.upside });
+  }, [needsDevelopment, upsideJob, rerun, report.id]);
+
+  const regenerate = () => {
+    setDetailsChanged(false);
+    rerun.mutate({ id: report.id, kind: JOB_KINDS.ai });
+  };
+  const regenerating = isJobActive(aiJob) || rerun.isPending;
+  // AI copy written for another travel mode (older copy: walk).
+  const copyMeta = getSection(report, SECTION_KEYS.marketing, aiMetaSchema);
+  const copyModeStale =
+    copyMeta != null && (copyMeta.travelMode ?? "walk") !== travel.mode;
+
+  // Nearest stop of each kind, for the header shortcuts.
+  const nearestStop = (kind: TransitKind) =>
+    data.commute?.stations
+      .filter((s) => s.kind === kind)
+      .sort((a, b) => a.distanceMeters - b.distanceMeters)[0];
+  const headerTransitKinds = (
+    Object.keys(TRANSIT_KINDS) as TransitKind[]
+  ).filter((k) => CORE_TRANSIT_KINDS.includes(k) || nearestStop(k));
+
+  const full = report.property?.formattedAddress ?? report.inputAddress;
+  const [street, ...rest] = full.split(",").map((s) => s.trim());
+  const place = rest.filter((s) => s !== "Canada").join(", ");
+
+  const tabState = (kinds: readonly JobKind[]) => {
+    const states = kinds.map((k) => getJob(report, k));
+    if (states.some((j) => isJobActive(j))) return "active";
+    if (states.some((j) => j?.status === "failed")) return "failed";
+    return null;
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-[90rem] space-y-4">
+      {/* Address with the home's details, actions; amenities underneath. */}
+      <header className="space-y-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
+              {street}
+            </h1>
+            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-foreground/60">
+              <MapPinIcon aria-hidden className="size-3.5" />
+              {place || "Ontario"}
+              <span aria-hidden>·</span>
+              {formatDate(report.createdAt)}
+            </p>
+          </div>
+
+          <HomeFacts
+            report={report}
+            listing={data.listing}
+            onSaved={() => setDetailsChanged(true)}
+          />
+          <div className="ml-auto flex items-center gap-2">
+            {detailsChanged || (copyModeStale && !regenerating) ? (
+              <Button
+                onClick={regenerate}
+                disabled={regenerating}
+                className="h-10 px-4"
+              >
+                <RefreshCwIcon data-icon="inline-start" />
+                {detailsChanged
+                  ? "Regenerate copy"
+                  : `Rewrite copy for ${MODE_GERUND[travel.mode]}`}
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={regenerate}
+                      disabled={regenerating}
+                      aria-label="Regenerate AI copy"
+                      className="size-10 bg-card"
+                    />
+                  }
+                >
+                  <RefreshCwIcon
+                    className={regenerating ? "animate-spin" : undefined}
+                  />
+                </TooltipTrigger>
+                <TooltipContent>Regenerate AI copy</TooltipContent>
+              </Tooltip>
+            )}
+            <Button
+              onClick={() => window.print()}
+              disabled={working}
+              className="h-10 px-4"
+            >
+              <DownloadIcon data-icon="inline-start" />
+              PDF
+            </Button>
+          </div>
+        </div>
+
+        <ul
+          aria-label="Nearest amenities and transit"
+          className="flex flex-wrap gap-1.5"
+        >
+          {AMENITY_CATEGORIES.map((category) => {
+            const Icon = AMENITY_ICONS[category.id];
+            const nearest = nearestPlace(data.amenities, category.id);
+            const tip = nearest
+              ? `${category.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`
+              : data.amenities
+                ? `${category.label} · none nearby`
+                : category.label;
+            return (
+              <li key={category.id}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label={tip}
+                        onClick={() => goTo("amenities", category.id)}
+                        className="relative size-9 bg-card"
+                      />
+                    }
+                  >
+                    <Icon aria-hidden style={{ color: category.color }} />
+                    {nearest && (
+                      <span className="absolute right-0.5 bottom-0 text-[9px] font-semibold text-foreground/60 tabular-nums">
+                        {travel.time(nearest).minutes}′
+                      </span>
+                    )}
+                  </TooltipTrigger>
+                  <TooltipContent>{tip}</TooltipContent>
+                </Tooltip>
+              </li>
+            );
+          })}
+
+          {/* Transit overview; the Commute tab has the detail. */}
+          <li aria-hidden className="flex px-1">
+            <Separator orientation="vertical" />
+          </li>
+          {headerTransitKinds.map((kind) => {
+            const meta = TRANSIT_KINDS[kind];
+            const Icon = TRANSIT_ICONS[kind];
+            const nearest = nearestStop(kind);
+            const tip = nearest
+              ? `${meta.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`
+              : data.commute
+                ? `${meta.label} · none nearby`
+                : meta.label;
+            return (
+              <li key={kind}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label={tip}
+                        onClick={() => goTo("commute", nearest ? kind : "all")}
+                        className="relative size-9 bg-card"
+                      />
+                    }
+                  >
+                    <Icon aria-hidden style={{ color: meta.color }} />
+                    {nearest && (
+                      <span className="absolute right-0.5 bottom-0 text-[9px] font-semibold text-foreground/60 tabular-nums">
+                        {travel.time(nearest).minutes}′
+                      </span>
+                    )}
+                  </TooltipTrigger>
+                  <TooltipContent>{tip}</TooltipContent>
+                </Tooltip>
+              </li>
+            );
+          })}
+        </ul>
+      </header>
+
+      {/* Generation progress, as icons. */}
+      {working && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className={cn(WIDGET, "flex flex-wrap items-center gap-3 px-4 py-3")}
+          aria-live="polite"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <LoaderCircleIcon
+              aria-hidden
+              className="size-4 animate-spin text-primary"
+            />
+            Preparing report · {done}/{jobs.length}
+          </span>
+          <ul className="flex flex-wrap gap-1.5">
+            {jobs.map(({ kind, job }) => {
+              const { icon: Icon, label } = STEP_ICONS[kind];
+              const active = isJobActive(job);
+              const failed = job?.status === "failed";
+              const complete = job?.status === "completed";
+              return (
+                <li
+                  key={kind}
+                  title={`${label}: ${job?.status ?? "not started"}`}
+                  className={
+                    "relative grid size-8 place-items-center border " +
+                    (complete
+                      ? "border-emerald-600/30 bg-emerald-500/10 text-emerald-700"
+                      : failed
+                        ? "border-destructive/30 bg-destructive/10 text-destructive"
+                        : active
+                          ? "border-primary/40 text-primary"
+                          : "text-foreground/35")
+                  }
+                >
+                  <Icon aria-hidden className="size-4" />
+                  {complete && (
+                    <CheckIcon
+                      aria-hidden
+                      className="absolute -top-1.5 -right-1.5 size-3.5 bg-emerald-600 p-0.5 text-white"
+                    />
+                  )}
+                  {failed && (
+                    <AlertCircleIcon
+                      aria-hidden
+                      className="absolute -top-1.5 -right-1.5 size-3.5 bg-card text-destructive"
+                    />
+                  )}
+                  <span className="sr-only">
+                    {label}: {job?.status ?? "not started"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </motion.div>
+      )}
+
+      {/* The ref marks where the tab bar starts (for scroll-on-switch). */}
+      <div ref={tabsTopRef}>
+        <Tabs
+          value={tab}
+          onValueChange={(value) => goTo(value as TabId)}
+          className="gap-4"
+        >
+          {/* Sticky, so every section stays one click away. */}
+          <div className="sticky top-14 z-10 -mx-4 bg-background sm:-mx-8">
+            {/* Same tint as the page behind, so the bar doesn't show as a band. */}
+            <div className="border-b bg-muted/50 px-4 pt-1 sm:px-8">
+              <TabsList className="relative h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden bg-transparent p-0 group-data-horizontal/tabs:h-auto">
+                {REPORT_TABS.map((t) => {
+                  const state = tabState(t.kinds);
+                  return (
+                    <TabsTrigger
+                      key={t.id}
+                      value={t.id}
+                      className="relative h-11 flex-none gap-2 border-0 px-3 text-foreground/60 transition-colors after:hidden hover:bg-transparent hover:text-foreground data-active:bg-transparent data-active:text-foreground data-active:shadow-none group-data-[variant=default]/tabs-list:data-active:shadow-none"
+                    >
+                      <t.icon aria-hidden />
+                      <span className="hidden sm:inline">{t.label}</span>
+                      <span className="sr-only sm:hidden">{t.label}</span>
+                      {state === "active" && (
+                        <LoaderCircleIcon
+                          aria-label="Preparing"
+                          className="size-3.5 animate-spin"
+                        />
+                      )}
+                      {state === "failed" && (
+                        <span
+                          aria-label="Needs attention"
+                          className="size-1.5 bg-destructive"
+                        />
+                      )}
+                    </TabsTrigger>
+                  );
+                })}
+                {/* Underline: Base UI positions it with CSS variables, so it
+                    only slides sideways. It stays inside the list (the
+                    hairline is on the wrapper). Nothing may poke out below
+                    the list (hence after:hidden on the triggers: shadcn's
+                    unused line-variant underline sits 5px under each tab).
+                    A list that can scroll vertically, even by a few px,
+                    jumps when the browser scrolls a focused tab into view. */}
+                <TabsPrimitive.Indicator
+                  renderBeforeHydration
+                  className="absolute bottom-0 left-0 h-[3px] w-[calc(var(--active-tab-width)-16px)] translate-x-[calc(var(--active-tab-left)+8px)] bg-primary transition-[translate,width] duration-300 ease-out motion-reduce:transition-none"
+                />
+              </TabsList>
+            </div>
+          </div>
+
+          {REPORT_TABS.map((t) => (
+            <TabsContent key={t.id} value={t.id}>
+              {/* Enter-only: Base UI unmounts inactive panels immediately. */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+              >
+                {t.id === "overview" && (
+                  <OverviewTab report={report} data={data} onNavigate={goTo} />
+                )}
+
+                {t.id === "amenities" && (
+                  <>
+                    <SectionGate
+                      report={report}
+                      kind={JOB_KINDS.amenities}
+                      data={data.amenities}
+                      labels={{
+                        pending: "Finding nearby amenities…",
+                        failed: "We couldn't load nearby amenities",
+                        empty:
+                          "Nearby amenities will appear once the address is resolved.",
+                      }}
+                    >
+                      {(amenities) => (
+                        <AmenitiesTab
+                          reportId={report.id}
+                          amenities={amenities}
+                          home={{
+                            lat: report.property!.latitude!,
+                            lng: report.property!.longitude!,
+                          }}
+                          filter={amenityFilter}
+                          onFilterChange={setAmenityFilter}
+                        />
+                      )}
+                    </SectionGate>
+                  </>
+                )}
+
+                {t.id === "schools" && (
+                  <>
+                    <SectionGate
+                      report={report}
+                      kind={JOB_KINDS.schools}
+                      data={data.schools}
+                      labels={{
+                        pending: "Finding nearby schools…",
+                        failed: "We couldn't load nearby schools",
+                        empty:
+                          "Nearby schools will appear once the address is resolved.",
+                        missing: "school results",
+                      }}
+                    >
+                      {(schools) => (
+                        <SchoolsTab
+                          reportId={report.id}
+                          schools={schools}
+                          home={{
+                            lat: report.property!.latitude!,
+                            lng: report.property!.longitude!,
+                          }}
+                        />
+                      )}
+                    </SectionGate>
+                  </>
+                )}
+
+                {t.id === "safety" && (
+                  <>
+                    <SectionGate
+                      report={report}
+                      kind={JOB_KINDS.safety}
+                      data={data.safety}
+                      labels={{
+                        pending:
+                          "Checking crime, flood, noise and air quality…",
+                        failed: "We couldn't load safety and environment data",
+                        empty:
+                          "Safety data will appear once the address is resolved.",
+                        missing: "safety and environment checks",
+                      }}
+                    >
+                      {(safety) => <SafetyTab safety={safety} />}
+                    </SectionGate>
+                  </>
+                )}
+
+                {t.id === "neighbourhood" && (
+                  <>
+                    <SectionGate
+                      report={report}
+                      kind={JOB_KINDS.demographics}
+                      data={data.demographics}
+                      labels={{
+                        pending: "Reading the census profile…",
+                        failed: "We couldn't load census data",
+                        empty:
+                          "Census figures will appear once the address is resolved.",
+                        missing: "census figures",
+                      }}
+                    >
+                      {(demographics) => (
+                        <NeighbourhoodTab data={demographics} />
+                      )}
+                    </SectionGate>
+                  </>
+                )}
+
+                {t.id === "commute" && (
+                  <>
+                    <SectionGate
+                      report={report}
+                      kind={JOB_KINDS.commute}
+                      data={data.commute}
+                      labels={{
+                        pending: "Calculating commute times…",
+                        failed: "We couldn't calculate commute times",
+                        empty:
+                          "Commute times will appear once the address is resolved.",
+                      }}
+                    >
+                      {(commute) => (
+                        <CommuteTab
+                          reportId={report.id}
+                          commute={commute}
+                          home={{
+                            lat: report.property!.latitude!,
+                            lng: report.property!.longitude!,
+                          }}
+                          stopFilter={stopFilter}
+                          onStopFilterChange={setStopFilter}
+                        />
+                      )}
+                    </SectionGate>
+                  </>
+                )}
+
+                {t.id === "upside" && (
+                  <>
+                    <SectionGate
+                      report={report}
+                      kind={JOB_KINDS.upside}
+                      data={data.upside}
+                      labels={{
+                        pending: "Checking projects and development nearby…",
+                        failed: "We couldn't load nearby projects",
+                        empty:
+                          "Nearby projects will appear once the address is resolved.",
+                        missing: "nearby projects and development",
+                      }}
+                    >
+                      {(upside) => (
+                        <UpsideTab
+                          upside={upside}
+                          home={{
+                            lat: report.property!.latitude!,
+                            lng: report.property!.longitude!,
+                          }}
+                        />
+                      )}
+                    </SectionGate>
+                  </>
+                )}
+
+                {t.id === "marketing" && (
+                  <>
+                    <SectionGate
+                      report={report}
+                      kind={JOB_KINDS.ai}
+                      data={
+                        data.insights && marketing
+                          ? { insights: data.insights, marketing }
+                          : null
+                      }
+                      labels={{
+                        pending: "Writing the marketing kit…",
+                        failed: "We couldn't write the marketing kit",
+                        empty:
+                          "The marketing kit appears once the location data is ready.",
+                      }}
+                    >
+                      {(ai) => (
+                        <MarketingTab
+                          insights={ai.insights}
+                          marketing={ai.marketing}
+                        />
+                      )}
+                    </SectionGate>
+                  </>
+                )}
+
+                {t.id === "playbook" && (
+                  <>
+                    <SectionGate
+                      report={report}
+                      kind={JOB_KINDS.ai}
+                      data={marketing}
+                      labels={{
+                        pending: "Writing the agent playbook…",
+                        failed: "We couldn't write the agent playbook",
+                        empty:
+                          "The playbook appears once the location data is ready.",
+                      }}
+                    >
+                      {(m) => (
+                        <PlaybookTab
+                          reportId={report.id}
+                          insights={data.insights}
+                          playbook={m.playbook}
+                        />
+                      )}
+                    </SectionGate>
+                  </>
+                )}
+              </motion.div>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+
+      <p className="pb-6 text-xs leading-relaxed text-foreground/50">
+        Data from Google Maps, Statistics Canada, Ontario Ministry of Education,
+        Ontario Builds, the Ontario Road and Railway Networks, municipal open
+        data, Toronto Police Service and TRCA. AI copy may contain errors:
+        review before sharing. Full sources are listed in the PDF.
+      </p>
+    </div>
+  );
+}
