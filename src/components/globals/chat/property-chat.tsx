@@ -19,8 +19,7 @@ import {
   SquareIcon,
   SquarePenIcon,
 } from "lucide-react";
-import { cn } from "cn";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   InputGroup,
@@ -365,6 +364,9 @@ function ChatSession({
     clientData: { travelMode: travel.mode },
     // An existing conversation: resume from where the browser left off.
     sessions: session ? { [chatId]: session } : undefined,
+    // First message of a new chat: step 1 runs in our warm server while
+    // the agent boots (Head Start). Later messages go to the agent direct.
+    headStart: `/api/reports/${chatId.split(".")[0]}/chat`,
   });
   const {
     messages,
@@ -382,6 +384,7 @@ function ChatSession({
   });
 
   const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const busy = status === "submitted" || status === "streaming";
   const send = (text: string) => {
     const t = text.trim();
@@ -491,7 +494,9 @@ function ChatSession({
           }}
           className="mx-auto w-full max-w-3xl"
         >
-          <InputGroup className="bg-card">
+          {/* Clearly live: firm border and soft lift, darker on hover, brand
+              red on focus; readable placeholder. */}
+          <InputGroup className="border-foreground/20 bg-card shadow-[0_1px_2px_rgb(0_0_0/0.05),0_8px_24px_-12px_rgb(0_0_0/0.18)] transition-[border-color,box-shadow] hover:border-foreground/35 has-[[data-slot=input-group-control]:focus-visible]:border-primary has-[[data-slot=input-group-control]:focus-visible]:ring-primary/15">
             <InputGroupTextarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -505,13 +510,15 @@ function ChatSession({
                   send(input);
                 }
               }}
-              placeholder={`Ask about ${street}…`}
+              ref={inputRef}
+              autoFocus
+              placeholder={`Ask anything about ${street}…`}
               aria-label="Message"
               rows={1}
-              className="max-h-40 min-h-11"
+              className="max-h-40 min-h-12 px-3.5 pt-3 text-[15px] text-foreground placeholder:text-foreground/50"
             />
             <InputGroupAddon align="block-end" className="justify-between">
-              <span className="text-xs text-foreground/45">
+              <span className="text-xs text-foreground/55">
                 Uses the report, Google Maps and the web · check before sharing
               </span>
               {busy ? (
@@ -530,8 +537,13 @@ function ChatSession({
                   variant="default"
                   size="icon-sm"
                   aria-label="Send"
-                  disabled={!input.trim()}
-                  className={cn(!input.trim() && "opacity-50")}
+                  onClick={(e) => {
+                    // Nothing typed yet: put the cursor in the box instead.
+                    if (!input.trim()) {
+                      e.preventDefault();
+                      inputRef.current?.focus();
+                    }
+                  }}
                 >
                   <ArrowUpIcon />
                 </InputGroupButton>

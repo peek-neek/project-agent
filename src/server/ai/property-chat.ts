@@ -5,7 +5,11 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { google } from "@ai-sdk/google";
 import { openai } from "@ai-sdk/openai";
 import { type LanguageModel, tool } from "ai";
-import { z } from "zod";
+import {
+  chatToolSchemas,
+  findPlacesSchema,
+  travelTimeSchema,
+} from "../../lib/chat-tools";
 import { copySectionKey, SECTION_KEYS } from "../../lib/report-sections";
 import {
   estimateMinutes,
@@ -146,17 +150,7 @@ ${reportContext(report, mode)}
 export function chatTools(origin: { lat: number; lng: number }) {
   return {
     find_places: tool({
-      description:
-        "Search Google Maps for businesses or places near the property that aren't in the report (e.g. 'Costco', 'Montessori school', 'EV charger', 'dog groomer'). Returns the nearest matches with straight-line distance and estimated walk and drive times.",
-      inputSchema: z.object({
-        query: z.string().describe("What to look for, in plain words."),
-        radiusKm: z
-          .number()
-          .min(0.5)
-          .max(50)
-          .default(10)
-          .describe("Search radius around the property in km."),
-      }),
+      ...findPlacesSchema,
       execute: async ({ query, radiusKm }) => {
         const places = await searchTextNearby({
           ...origin,
@@ -183,20 +177,7 @@ export function chatTools(origin: { lat: number; lng: number }) {
       },
     }),
     travel_time: tool({
-      description:
-        "Get a real route time and distance from the property to any address or named place (e.g. 'Square One Mississauga', 'Toronto General Hospital'), by walk, bike, drive or transit.",
-      inputSchema: z.object({
-        destination: z
-          .string()
-          .describe("Address or place name, ideally with the city."),
-        mode: z.enum(["walk", "bike", "drive", "transit"]),
-        weekdayMorning: z
-          .boolean()
-          .default(false)
-          .describe(
-            "True for a typical weekday 8 a.m. departure (rush hour); false for now.",
-          ),
-      }),
+      ...travelTimeSchema,
       execute: async ({ destination, mode, weekdayMorning }) => {
         const routesMode = (
           {
@@ -236,6 +217,21 @@ export function chatTools(origin: { lat: number; lng: number }) {
         }
       },
     }),
+  };
+}
+
+/**
+ * Tools for the Head Start route (a chat's first step, run in the warm
+ * Next.js server): schemas only, plus OpenAI's provider-run web search.
+ * The agent executes any Maps or route call after the handover.
+ */
+export function headStartTools(
+  city: string | null | undefined,
+  webSearch: boolean,
+) {
+  return {
+    ...chatToolSchemas,
+    ...(webSearch ? { web_search: webSearchTool(city) } : {}),
   };
 }
 

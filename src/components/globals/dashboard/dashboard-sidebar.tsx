@@ -236,7 +236,10 @@ export function ReportHistory() {
                     >
                       <SidebarMenuButton
                         size="lg"
-                        isActive={pathname === href}
+                        // The report and its sub-pages (e.g. /chat).
+                        isActive={
+                          pathname === href || pathname.startsWith(`${href}/`)
+                        }
                         render={
                           <Link
                             href={href}

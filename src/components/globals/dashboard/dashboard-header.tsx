@@ -25,6 +25,10 @@ export function DashboardHeader({ nav }: { nav: React.ReactNode }) {
         <Suspense fallback={null}>
           <MarketScoreBadge />
         </Suspense>
+        <Separator
+          orientation="vertical"
+          className="mx-1 h-5 data-vertical:self-center"
+        />
         {/* Walk / cycle / car: switches every travel time in the app. */}
         <TravelModeToggle />
       </div>
