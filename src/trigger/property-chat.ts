@@ -6,9 +6,11 @@ import { propertyChatStorage } from "../server/ai/chat-storage";
 import {
   chatInstructions,
   chatModel,
+  chatProviderOptions,
   chatTools,
   webSearchTool,
 } from "../server/ai/property-chat";
+import { calculatorTools, financeContext } from "../server/ai/calculator-tools";
 import { reportIdOfChat, reportStore } from "../server/report-store";
 
 /** The report a chat belongs to (chat ids carry it). Fresh every turn. */
@@ -33,14 +35,16 @@ export const propertyChat = chat
   .agent({
     id: "property-chat",
     storage: propertyChatStorage,
-    // Places and routes are around this chat's property; web search needs
-    // OpenAI. Resolved per turn from the chat id.
+    // Places and routes are around this chat's property; calculators use its
+    // list price and the agent's saved figures; web search needs OpenAI.
+    // Resolved per turn from the chat id.
     tools: async ({ chatId }) => {
       const report = await chatReport(chatId);
       const lat = report.property?.latitude;
       const lng = report.property?.longitude;
       return {
         ...(lat != null && lng != null ? chatTools({ lat, lng }) : {}),
+        ...calculatorTools(financeContext(report)),
         ...(chatModel()?.provider === "openai"
           ? { web_search: webSearchTool(report.property?.city) }
           : {}),
@@ -81,6 +85,7 @@ export const propertyChat = chat
         tools,
         abortSignal: signal,
         stopWhen: isStepCount(6),
+        providerOptions: chatProviderOptions(picked.provider, report.id),
       });
     },
   });

@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { cn } from "cn";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +43,9 @@ type Values = {
   features: string;
 };
 type FieldName = keyof Values;
+
+/** Matches listingInputSchema's limit. */
+const FEATURES_MAX = 600;
 
 export function EditListingDialog({
   reportId,
@@ -201,15 +205,33 @@ export function EditListingDialog({
               <FieldLabel htmlFor="features">Standout features</FieldLabel>
               <Textarea
                 id="features"
-                rows={3}
+                rows={4}
+                maxLength={FEATURES_MAX}
                 value={values.features}
                 onChange={(e) => set("features")(e.target.value)}
                 placeholder="e.g. Renovated kitchen, south-facing backyard, finished basement with separate entrance"
                 aria-invalid={Boolean(errors.features)}
+                aria-describedby="features-count"
+                // Fixed height: long text scrolls inside instead of growing
+                // the dialog past the screen.
+                className="field-sizing-fixed h-24 resize-none overflow-y-auto"
               />
-              <FieldDescription>
-                Used only to make the marketing copy specific.
-              </FieldDescription>
+              <div className="flex items-start justify-between gap-3">
+                <FieldDescription>
+                  Used only to make the marketing copy specific.
+                </FieldDescription>
+                <span
+                  id="features-count"
+                  aria-live="polite"
+                  className={cn(
+                    "shrink-0 text-xs text-muted-foreground tabular-nums",
+                    values.features.length >= FEATURES_MAX &&
+                      "text-destructive-foreground",
+                  )}
+                >
+                  {values.features.length}/{FEATURES_MAX}
+                </span>
+              </div>
               {error("features")}
             </Field>
           </FieldGroup>

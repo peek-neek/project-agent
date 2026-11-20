@@ -4,7 +4,6 @@ import { cn } from "cn";
 import {
   AlertCircleIcon,
   CheckIcon,
-  DownloadIcon,
   GraduationCapIcon,
   LoaderCircleIcon,
   type LucideIcon,
@@ -13,6 +12,7 @@ import {
   RouteIcon,
   ShieldCheckIcon,
   SparklesIcon,
+  StarIcon,
   StoreIcon,
   TrendingUpIcon,
   UsersIcon,
@@ -20,6 +20,13 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
@@ -58,7 +66,8 @@ import { MarketingTab } from "./marketing-tab";
 import { HomeFacts } from "./home-facts";
 import { OverviewTab, type ReportSectionsData } from "./overview-tab";
 import { PlaybookTab } from "./playbook-tab";
-import { formatDate, type ReportData } from "./report-format";
+import { DownloadPdfButton } from "./download-pdf-button";
+import { formatDate, formatDistance, type ReportData } from "./report-format";
 import {
   getCopySection,
   getJob,
@@ -73,6 +82,8 @@ import type { TravelTimes } from "@/lib/travel";
 import { parseTab, REPORT_TABS, type TabId } from "./report-tabs";
 import { SafetyTab } from "./safety-tab";
 import { UpsideTab } from "./upside-tab";
+import { CalculatorsTab } from "./calculators/calculators-tab";
+import { savedCalculatorsSchema } from "@/lib/finance/scenario";
 import { SchoolsTab } from "./schools-tab";
 import { SectionGate } from "./section-gate";
 import {
@@ -205,6 +216,9 @@ export function ReportDashboard({ report }: { report: ReportData }) {
   const working = jobs.some(({ job }) => isJobActive(job));
   const done = jobs.filter(({ job }) => job?.status === "completed").length;
   const aiJob = getJob(report, JOB_KINDS.ai);
+  const identityJob = getJob(report, JOB_KINDS.identity);
+  const unlocated =
+    identityJob?.status === "failed" && report.property?.latitude == null;
 
   // Reports from before place photos existed: refresh amenities once in the
   // background so the photo gallery fills in on its own. (New data always has
@@ -281,17 +295,20 @@ export function ReportDashboard({ report }: { report: ReportData }) {
     const best = quickest(places);
     return best && travel.time(best).minutes <= REACH_MINUTES ? best : null;
   };
+  /** How many of these places are within REACH_MINUTES (for the tooltip). */
+  const countInReach = (places: TravelTimes[]) =>
+    places.filter((p) => travel.time(p).minutes <= REACH_MINUTES).length;
   const amenityShortcuts = AMENITY_CATEGORIES.flatMap((category) => {
-    const nearest = reachable(data.amenities?.categories[category.id] ?? []);
-    return nearest ? [{ category, nearest }] : [];
+    const places = data.amenities?.categories[category.id] ?? [];
+    const nearest = reachable(places);
+    return nearest ? [{ category, nearest, count: countInReach(places) }] : [];
   });
   const transitShortcuts = (
     Object.keys(TRANSIT_KINDS) as TransitKind[]
   ).flatMap((kind) => {
-    const nearest = reachable(
-      data.commute?.stations.filter((s) => s.kind === kind) ?? [],
-    );
-    return nearest ? [{ kind, nearest }] : [];
+    const places = data.commute?.stations.filter((s) => s.kind === kind) ?? [];
+    const nearest = reachable(places);
+    return nearest ? [{ kind, nearest, count: countInReach(places) }] : [];
   });
   const shortcutsLoading =
     (!data.amenities && isJobActive(getJob(report, JOB_KINDS.amenities))) ||
@@ -363,114 +380,160 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                 <TooltipContent>Regenerate AI copy</TooltipContent>
               </Tooltip>
             )}
-            <Button
-              onClick={() => window.print()}
+            {/* Fixed width: "PDF" / "Preparing…" / "Try again" don't shift the row. */}
+            <DownloadPdfButton
+              reportId={report.id}
               disabled={working}
-              className="h-10 px-4"
-            >
-              <DownloadIcon data-icon="inline-start" />
-              PDF
-            </Button>
+              className="h-10 w-32 px-4"
+            />
           </div>
         </div>
 
-        <ul
-          aria-label={`Reachable within ${REACH_MINUTES} minutes ${REACH_PHRASE[travel.mode]}`}
-          className="flex min-h-9 flex-wrap items-center gap-1.5"
-        >
-          <AnimatePresence initial={false} mode="popLayout">
-            {amenityShortcuts.map(({ category, nearest }) => {
-              const Icon = AMENITY_ICONS[category.id];
-              const tip = `${category.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`;
-              return (
-                <motion.li key={category.id} {...SHORTCUT_MOTION}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          aria-label={tip}
-                          onClick={() => goTo("amenities", category.id)}
-                          className="relative size-9 bg-card"
+        {/* Instant tooltips; moving along the row switches them at once. */}
+        <TooltipProvider delay={0} closeDelay={0}>
+          <ul
+            aria-label={`Reachable within ${REACH_MINUTES} minutes ${REACH_PHRASE[travel.mode]}`}
+            className="flex min-h-9 flex-wrap items-center gap-1.5"
+          >
+            <AnimatePresence initial={false} mode="popLayout">
+              {amenityShortcuts.map(({ category, nearest, count }) => {
+                const Icon = AMENITY_ICONS[category.id];
+                const tip = `${category.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`;
+                return (
+                  <motion.li key={category.id} {...SHORTCUT_MOTION}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            aria-label={tip}
+                            onClick={() => goTo("amenities", category.id)}
+                            className="relative size-9 bg-card"
+                          />
+                        }
+                      >
+                        <Icon aria-hidden style={{ color: category.color }} />
+                        <span className="absolute right-0.5 bottom-0 text-[9px] font-semibold text-foreground/60 tabular-nums">
+                          {travel.time(nearest).minutes}′
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="p-0">
+                        <ShortcutTip
+                          icon={Icon}
+                          color={category.color}
+                          label={category.label}
+                          place={nearest}
+                          time={`${travel.minutes(nearest)} ${travel.verb}`}
+                          count={count}
+                          reach={`${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`}
+                          rating={nearest.rating}
+                          action="See all on the Amenities tab"
                         />
-                      }
-                    >
-                      <Icon aria-hidden style={{ color: category.color }} />
-                      <span className="absolute right-0.5 bottom-0 text-[9px] font-semibold text-foreground/60 tabular-nums">
-                        {travel.time(nearest).minutes}′
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>{tip}</TooltipContent>
-                  </Tooltip>
-                </motion.li>
-              );
-            })}
+                      </TooltipContent>
+                    </Tooltip>
+                  </motion.li>
+                );
+              })}
 
-            {/* Transit overview; the Commute tab has the detail. */}
-            {amenityShortcuts.length > 0 && transitShortcuts.length > 0 && (
-              <motion.li
-                key="divider"
-                aria-hidden
-                className="flex h-9 px-1"
-                {...SHORTCUT_MOTION}
-              >
-                <Separator orientation="vertical" />
-              </motion.li>
-            )}
-            {transitShortcuts.map(({ kind, nearest }) => {
-              const meta = TRANSIT_KINDS[kind];
-              const Icon = TRANSIT_ICONS[kind];
-              const tip = `${meta.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`;
-              return (
-                <motion.li key={kind} {...SHORTCUT_MOTION}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          aria-label={tip}
-                          onClick={() => goTo("commute", kind)}
-                          className="relative size-9 bg-card"
-                        />
-                      }
-                    >
-                      <Icon aria-hidden style={{ color: meta.color }} />
-                      <span className="absolute right-0.5 bottom-0 text-[9px] font-semibold text-foreground/60 tabular-nums">
-                        {travel.time(nearest).minutes}′
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>{tip}</TooltipContent>
-                  </Tooltip>
-                </motion.li>
-              );
-            })}
-
-            <motion.li
-              key="reach"
-              layout="position"
-              className="pl-1 text-xs text-foreground/50"
-            >
-              {shortcutsLoading &&
-              amenityShortcuts.length + transitShortcuts.length === 0 ? (
-                <span
-                  className="flex gap-1.5"
-                  aria-label="Finding places nearby"
+              {/* Transit overview; the Commute tab has the detail. */}
+              {amenityShortcuts.length > 0 && transitShortcuts.length > 0 && (
+                <motion.li
+                  key="divider"
+                  aria-hidden
+                  className="flex h-9 px-1"
+                  {...SHORTCUT_MOTION}
                 >
-                  {Array.from({ length: 8 }, (_, i) => (
-                    <Skeleton key={i} className="size-9" />
-                  ))}
-                </span>
-              ) : amenityShortcuts.length + transitShortcuts.length === 0 ? (
-                `Nothing within ${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`
-              ) : (
-                `Within ${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`
+                  <Separator orientation="vertical" />
+                </motion.li>
               )}
-            </motion.li>
-          </AnimatePresence>
-        </ul>
+              {transitShortcuts.map(({ kind, nearest, count }) => {
+                const meta = TRANSIT_KINDS[kind];
+                const Icon = TRANSIT_ICONS[kind];
+                const tip = `${meta.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`;
+                return (
+                  <motion.li key={kind} {...SHORTCUT_MOTION}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            aria-label={tip}
+                            onClick={() => goTo("commute", kind)}
+                            className="relative size-9 bg-card"
+                          />
+                        }
+                      >
+                        <Icon aria-hidden style={{ color: meta.color }} />
+                        <span className="absolute right-0.5 bottom-0 text-[9px] font-semibold text-foreground/60 tabular-nums">
+                          {travel.time(nearest).minutes}′
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent className="p-0">
+                        <ShortcutTip
+                          icon={Icon}
+                          color={meta.color}
+                          label={meta.label}
+                          place={nearest}
+                          time={`${travel.minutes(nearest)} ${travel.verb}`}
+                          count={count}
+                          reach={`${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`}
+                          action="See all on the Commute tab"
+                        />
+                      </TooltipContent>
+                    </Tooltip>
+                  </motion.li>
+                );
+              })}
+
+              <motion.li
+                key="reach"
+                layout="position"
+                className="pl-1 text-xs text-foreground/50"
+              >
+                {shortcutsLoading &&
+                amenityShortcuts.length + transitShortcuts.length === 0 ? (
+                  <span
+                    className="flex gap-1.5"
+                    aria-label="Finding places nearby"
+                  >
+                    {Array.from({ length: 8 }, (_, i) => (
+                      <Skeleton key={i} className="size-9" />
+                    ))}
+                  </span>
+                ) : amenityShortcuts.length + transitShortcuts.length === 0 ? (
+                  `Nothing within ${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`
+                ) : (
+                  `Within ${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`
+                )}
+              </motion.li>
+            </AnimatePresence>
+          </ul>
+        </TooltipProvider>
       </header>
+
+      {/* The address couldn't be placed: say so once, with the way forward,
+          rather than leaving every tab to fail on its own. */}
+      {unlocated && (
+        <Alert className="border-destructive/30 px-4 py-3">
+          <AlertCircleIcon className="text-destructive" />
+          <AlertTitle>We couldn&apos;t locate this address</AlertTitle>
+          <AlertDescription>
+            {identityJob?.error ??
+              "Check the street number and town, or drop a pin on the map."}
+          </AlertDescription>
+          <AlertAction className="top-1/2 right-3 -translate-y-1/2">
+            <Button
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/dashboard" />}
+            >
+              New search
+            </Button>
+          </AlertAction>
+        </Alert>
+      )}
 
       {/* Generation progress, as icons. */}
       {/* Opens and closes smoothly (height and the gap below it), so the
@@ -558,7 +621,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
           <div className="sticky top-14 z-[15] -mx-4 bg-background sm:-mx-8">
             {/* Same tint as the page behind, so the bar doesn't show as a band. */}
             <div className="border-b bg-muted/50 px-4 pt-1 sm:px-8">
-              <TabsList className="relative h-auto w-full justify-start gap-1 overflow-x-auto overflow-y-hidden bg-transparent p-0 group-data-horizontal/tabs:h-auto">
+              <TabsList className="relative h-auto w-full scroll-fade-x no-scrollbar justify-start gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-transparent p-0 group-data-horizontal/tabs:h-auto">
                 {REPORT_TABS.map((t) => {
                   const state = tabState(t.kinds);
                   return (
@@ -772,6 +835,20 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                   </>
                 )}
 
+                {t.id === "calculators" && (
+                  <CalculatorsTab
+                    reportId={report.id}
+                    listPrice={data.listing?.listPrice ?? null}
+                    city={report.property?.city ?? null}
+                    propertyType={data.listing?.propertyType ?? null}
+                    saved={getSection(
+                      report,
+                      SECTION_KEYS.calculators,
+                      savedCalculatorsSchema,
+                    )}
+                  />
+                )}
+
                 {t.id === "marketing" && (
                   <>
                     <SectionGate
@@ -853,6 +930,67 @@ export function ReportDashboard({ report }: { report: ReportData }) {
         data, Toronto Police Service and TRCA. AI copy may contain errors:
         review before sharing. Full sources are listed in the PDF.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Hover card for a header shortcut: the nearest place, how far it is in the
+ * selected mode, and how many more are within reach.
+ */
+function ShortcutTip({
+  icon: Icon,
+  color,
+  label,
+  place,
+  time,
+  count,
+  reach,
+  rating,
+  action,
+}: {
+  icon: LucideIcon;
+  color: string;
+  label: string;
+  place: { name: string; distanceMeters: number };
+  /** "~5 min walk" */
+  time: string;
+  count: number;
+  /** "15 min walk" */
+  reach: string;
+  rating?: number | null;
+  action: string;
+}) {
+  return (
+    <div className="w-60 space-y-1.5 px-3 py-2.5 text-left">
+      <p className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-background/60 uppercase">
+        <Icon aria-hidden className="size-3.5" style={{ color }} />
+        {label}
+        <span className="ml-auto font-normal tracking-normal normal-case tabular-nums">
+          {count} within {reach}
+        </span>
+      </p>
+      <p className="text-sm leading-snug font-semibold text-pretty">
+        {place.name}
+      </p>
+      <p className="flex items-center gap-1.5 text-xs text-background/75 tabular-nums">
+        {time}
+        <span aria-hidden>·</span>
+        {formatDistance(place.distanceMeters)}
+        {rating != null && (
+          <>
+            <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-0.5">
+              {rating.toFixed(1)}
+              <StarIcon
+                aria-hidden
+                className="size-3 fill-amber-400 text-amber-400"
+              />
+            </span>
+          </>
+        )}
+      </p>
+      <p className="text-[11px] text-background/50">{action}</p>
     </div>
   );
 }

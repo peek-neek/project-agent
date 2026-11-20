@@ -27,6 +27,7 @@ import {
 } from "@/lib/copy-actions";
 import { rewriteCopy } from "@/server/ai/rewrite-copy";
 import { createRateLimiter } from "@/server/rate-limit";
+import { savedCalculatorsSchema } from "@/lib/finance/scenario";
 import { createTRPCRouter, protectedProcedure } from "../init";
 
 const token = (max: number) =>
@@ -38,6 +39,9 @@ const token = (max: number) =>
 
 const travelMode = z.enum(travelModes);
 
+/** Roughly Ontario, so a pin can't land somewhere we have no data. */
+const ONTARIO_BOX = { south: 41.6, north: 57, west: -95.2, east: -74.3 };
+
 export const createReportInput = z.object({
   address: z.string().trim().min(3).max(500),
   mode: z.enum(reportModes).catch("single"),
@@ -45,6 +49,19 @@ export const createReportInput = z.object({
   travelMode: travelMode.catch("walk"),
   placeId: token(300),
   sessionToken: token(64),
+  /** A pin the agent dropped (new builds, rural lots): skips the lookup. */
+  lat: z.coerce
+    .number()
+    .min(ONTARIO_BOX.south)
+    .max(ONTARIO_BOX.north)
+    .optional()
+    .catch(undefined),
+  lng: z.coerce
+    .number()
+    .min(ONTARIO_BOX.west)
+    .max(ONTARIO_BOX.east)
+    .optional()
+    .catch(undefined),
 });
 
 /** AI rewrites per agent: generous for real use, a ceiling on runaway cost. */
@@ -59,11 +76,35 @@ export const reportRouter = createTRPCRouter({
   create: protectedProcedure
     .input(createReportInput)
     .mutation(async ({ ctx, input }) => {
-      const { sessionToken, travelMode, ...data } = input;
-      const report = await reportStore.create({ userId: ctx.userId, ...data });
+      const { sessionToken, travelMode, lat, lng, ...data } = input;
+      const pin = lat != null && lng != null ? { lat, lng } : null;
+      // A double submit returns the report it already started.
+      const { report, created } = await reportStore.createUnlessRecent({
+        userId: ctx.userId,
+        ...data,
+      });
+      if (!created) return report;
       await reportStore.setSection(report.id, SECTION_KEYS.copySettings, {
         travelMode,
       });
+      if (pin) {
+        // The identity step sees the pin and fills in the town from it.
+        const asOf = new Date().toISOString();
+        await reportStore.saveIdentity(
+          report.id,
+          {
+            formattedAddress: data.address,
+            latitude: pin.lat,
+            longitude: pin.lng,
+            province: "ON",
+            country: "CA",
+          },
+          {
+            formattedAddress: { source: "agent", asOf },
+            location: { source: "pin", asOf },
+          },
+        );
+      }
       await queueReportGeneration(report.id, { sessionToken });
       return report;
     }),
@@ -121,6 +162,31 @@ export const reportRouter = createTRPCRouter({
       }
       await reportStore.setSection(id, SECTION_KEYS.listing, listing);
       return { ok: true };
+    }),
+
+  /**
+   * The agent's calculator inputs, autosaved from the Calculators tab. The
+   * PDF's financial scenarios and the chat's calculator tools use them.
+   * An empty object clears them (back to the defaults).
+   */
+  saveCalculators: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        inputs: savedCalculatorsSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const report = await reportStore.findById(input.id);
+      if (!report || report.userId !== ctx.userId) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      const savedAt = new Date().toISOString();
+      await reportStore.setSection(input.id, SECTION_KEYS.calculators, {
+        ...input.inputs,
+        savedAt,
+      });
+      return { savedAt };
     }),
 
   /** Renames a report in the history. An empty name restores the address. */

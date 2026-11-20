@@ -4,6 +4,7 @@ import { parseTravelMode } from "@/lib/travel";
 import {
   chatInstructions,
   chatModel,
+  chatProviderOptions,
   headStartTools,
 } from "@/server/ai/property-chat";
 import { createRateLimiter } from "@/server/rate-limit";
@@ -82,6 +83,7 @@ export async function POST(
         model: picked.model,
         instructions: chatInstructions(report, mode, webSearch),
         tools: headStartTools(report.property?.city, webSearch),
+        providerOptions: chatProviderOptions(picked.provider, reportId),
       }),
   });
   return handler(req);

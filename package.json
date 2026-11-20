@@ -15,7 +15,8 @@
     "data:projects": "tsx scripts/import-datasets.mts projects",
     "data:development": "tsx scripts/import-datasets.mts development",
     "data:crime": "tsx scripts/import-crime-severity.mts",
-    "postinstall": "node scripts/copy-maplibre-worker.mjs"
+    "postinstall": "node scripts/copy-maplibre-worker.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.106",
@@ -28,6 +29,7 @@
     "@clerk/ui": "^1.42.6",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
+    "@react-pdf/renderer": "^4.3.2",
     "@shadcn/react": "^0.3.1",
     "@tanstack/react-query": "^5.107.1",
     "@trigger.dev/sdk": "^4.8.5",
@@ -82,6 +84,7 @@
     "tailwindcss": "4.3.3",
     "trigger.dev": "^4.8.5",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

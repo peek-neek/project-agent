@@ -31,6 +31,7 @@ export const sourceLabels: Record<FieldSource, string> = {
   google: "Google Maps",
   search: "Address as searched",
   agent: "Entered by agent",
+  pin: "Pin dropped by agent",
 };
 
 export function formatCoordinates(lat: number, lng: number) {

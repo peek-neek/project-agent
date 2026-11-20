@@ -41,17 +41,24 @@ const TRAVEL_PHRASE = {
  */
 export function MarketScoreBadge() {
   const { reportId } = useParams<{ reportId?: string }>();
+  // The header can't know the saved mode until the page hydrates: wait, so
+  // the badge never shows a walking score and then switches. Waiting also
+  // keeps this query out of the server render: the header renders before the
+  // page, and an empty entry here would stop the page's prefetched report
+  // from hydrating (it would then refetch without cookies: UNAUTHORIZED).
+  const hydrated = useHydrated();
+  if (!reportId || !hydrated) return null;
+  return <Badge reportId={reportId} />;
+}
+
+function Badge({ reportId }: { reportId: string }) {
   const trpc = useTRPC();
   // The score follows the walk / bike / car choice, like the Overview tiles.
   const travel = useTravelMode();
-  // The header can't know the saved mode until the page hydrates: wait, so
-  // the badge never shows a walking score and then switches.
-  const hydrated = useHydrated();
-  const { data: report } = useQuery({
-    ...trpc.report.byId.queryOptions({ id: reportId ?? "" }),
-    enabled: Boolean(reportId),
-  });
-  if (!reportId || !report || !hydrated) return null;
+  const { data: report } = useQuery(
+    trpc.report.byId.queryOptions({ id: reportId }),
+  );
+  if (!report) return null;
 
   const score = marketScore(
     {

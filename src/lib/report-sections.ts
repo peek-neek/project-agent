@@ -19,6 +19,8 @@ export const SECTION_KEYS = {
   campaign: "campaign",
   /** Showing-day toolkit (AI): personas, proven answers, open house plan. */
   showing: "showing",
+  /** The agent's calculator inputs (partial; merged over the defaults). */
+  calculators: "calculators",
 } as const;
 
 export const JOB_KINDS = {
@@ -264,6 +266,13 @@ export const amenityCategoryIds = AMENITY_CATEGORIES.map((c) => c.id) as [
   ...AmenityCategoryId[],
 ];
 
+const placePhotoSchema = z.object({
+  /** Places photo resource name, served via our place-photo route. */
+  name: z.string(),
+  author: z.string().nullable(),
+  authorUri: z.string().nullable(),
+});
+
 export const nearbyPlaceSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -283,15 +292,9 @@ export const nearbyPlaceSchema = z.object({
   driveEstimated: z.boolean().nullable().optional(),
 
   /** First Google Places photo; older reports don't have one. */
-  photo: z
-    .object({
-      /** Places photo resource name, served via our place-photo route. */
-      name: z.string(),
-      author: z.string().nullable(),
-      authorUri: z.string().nullable(),
-    })
-    .nullable()
-    .optional(),
+  photo: placePhotoSchema.nullable().optional(),
+  /** Up to 4 photos (the first is `photo`); older reports have only `photo`. */
+  photos: z.array(placePhotoSchema).optional(),
 });
 export type NearbyPlace = z.infer<typeof nearbyPlaceSchema>;
 

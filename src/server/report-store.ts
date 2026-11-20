@@ -8,11 +8,12 @@ export type ReportMode = (typeof reportModes)[number];
 
 export const PROPERTY_IDENTITY_JOB = JOB_KINDS.identity;
 
-export type FieldSource = "search" | "google" | "agent";
+export type FieldSource = "search" | "google" | "agent" | "pin";
 export type FieldProvenance = { source: FieldSource; asOf: string };
 export type IdentitySources = Partial<
   Record<
     | "formattedAddress"
+    | "location"
     | "unitNumber"
     | "legalDescription"
     | "pin"
@@ -67,6 +68,50 @@ export const reportStore = {
           create: Object.values(JOB_KINDS).map((kind) => ({ kind })),
         },
       },
+    });
+  },
+
+  /**
+   * Creates the report unless this agent asked for the same address within
+   * `windowMs` (a double-click or a resubmit), in which case it returns that
+   * report instead. A per-agent advisory lock makes check-and-create atomic,
+   * so two near-simultaneous requests can't both create one.
+   */
+  async createUnlessRecent(
+    input: {
+      userId: string;
+      address: string;
+      mode: ReportMode;
+      placeId?: string;
+    },
+    windowMs = 60_000,
+  ) {
+    return db.$transaction(async (tx) => {
+      await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${input.userId}))`;
+      const recent = await tx.report.findFirst({
+        where: {
+          userId: input.userId,
+          createdAt: { gte: new Date(Date.now() - windowMs) },
+          OR: [
+            { inputAddress: input.address },
+            ...(input.placeId ? [{ placeId: input.placeId }] : []),
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (recent) return { report: recent, created: false };
+      const report = await tx.report.create({
+        data: {
+          userId: input.userId,
+          inputAddress: input.address,
+          mode: input.mode,
+          placeId: input.placeId,
+          jobs: {
+            create: Object.values(JOB_KINDS).map((kind) => ({ kind })),
+          },
+        },
+      });
+      return { report, created: true };
     });
   },
 
@@ -187,6 +232,19 @@ export const reportStore = {
       where: { reportId_key: { reportId, key } },
       create: { reportId, key, data },
       update: { data },
+    });
+  },
+
+  /** The stored identity (address, coordinates and where each came from). */
+  async getIdentity(reportId: string) {
+    return db.propertyIdentity.findUnique({ where: { reportId } });
+  },
+
+  /** Marks every step that hasn't finished as failed, with one message. */
+  async failUnfinishedJobs(reportId: string, error: string) {
+    return db.reportJob.updateMany({
+      where: { reportId, status: { in: ["queued", "running"] } },
+      data: { status: "failed", finishedAt: new Date(), error },
     });
   },
 

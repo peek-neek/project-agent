@@ -68,12 +68,12 @@ export function HomeFacts({
     listing?.bedrooms != null && {
       icon: BedDoubleIcon,
       label: "Bedrooms",
-      value: `${listing.bedrooms} bd`,
+      value: String(listing.bedrooms),
     },
     listing?.bathrooms != null && {
       icon: BathIcon,
       label: "Bathrooms",
-      value: `${listing.bathrooms} ba`,
+      value: String(listing.bathrooms),
     },
     unit && { icon: DoorOpenIcon, label: "Unit", value: `Unit ${unit}` },
   ].filter(Boolean) as { icon: LucideIcon; label: string; value: string }[];

@@ -1,5 +1,6 @@
 import { batch, logger, schemaTask } from "@trigger.dev/sdk";
 import { z } from "zod";
+import { reportStore } from "../server/report-store";
 import { propertyIdentityTask } from "./property-identity";
 import {
   aiInsightsTask,
@@ -32,6 +33,12 @@ export const reportGenerateTask = schemaTask({
     });
     if (!identity.ok) {
       logger.error("Identity failed; skipping location sections", { reportId });
+      // Every other step needs the location: end them now with one clear
+      // reason instead of leaving the report loading forever.
+      await reportStore.failUnfinishedJobs(
+        reportId,
+        "Skipped: this address couldn't be located.",
+      );
       return { identity: false };
     }
 

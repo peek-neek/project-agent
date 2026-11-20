@@ -47,6 +47,28 @@ export function chatModel(): {
   return null;
 }
 
+/**
+ * Speed settings for chat answers (both Head Start and the agent).
+ * - Low reasoning effort: the model answers instead of deliberating; the
+ *   report data and tools do the heavy lifting. Override with
+ *   OPENAI_REASONING_EFFORT (none, low, medium, high).
+ * - A prompt cache key per report: the long system prompt (the whole
+ *   report) is the same every turn, so OpenAI serves it from cache, which
+ *   cuts the wait before the first word.
+ */
+export function chatProviderOptions(
+  provider: "openai" | "anthropic" | "google",
+  reportId: string,
+) {
+  if (provider !== "openai") return undefined;
+  return {
+    openai: {
+      reasoningEffort: process.env.OPENAI_REASONING_EFFORT || "low",
+      promptCacheKey: `report-chat:${reportId}`,
+    },
+  };
+}
+
 /** Fields that add tokens but nothing the model can use. */
 const DROP = new Set([
   "photo",
@@ -67,6 +89,10 @@ function compact(value: unknown): unknown {
         .filter(
           ([k, v]) =>
             !DROP.has(k) &&
+            // Coordinates of nearby places: tools route from the home and
+            // distances are already given. "Estimated" only matters if true.
+            !(k === "lat" || k === "lng") &&
+            !(k.endsWith("Estimated") && v === false) &&
             !(k === "id" && typeof v === "string" && v.length > 20) &&
             v != null &&
             v !== "",
@@ -130,6 +156,7 @@ How to answer:
 - Start from the report data below. It covers amenities and travel times (walk, bike and drive), commute and transit, schools with EQAO results, safety (crime, flood regulation, noise, air quality), census figures, future projects and development applications, and the AI-written marketing copy and showing playbook. Use the exact names and numbers from it.
 - The agent's preferred travel mode is ${TRAVEL_MODES[mode].label.toLowerCase()} ("${mode}"). Quote times in that mode unless asked otherwise; times marked estimated are approximate.
 - For anything the report doesn't cover, use your tools instead of guessing: find_places for businesses or places near the home, travel_time for trips to any address, ${canSearchWeb ? "and web_search for current or local facts (property taxes, zoning by-laws, news, market conditions, municipal services, recent sales commentary)" : "and say plainly when something can't be checked"}. Say which source an answer came from ("from the report", "from Google Maps", "from the web") and link web sources.
+- For money questions (mortgage payments, how much someone can afford, closing costs and land transfer tax, a seller's net proceeds, rental cash flow, rent versus buy, property tax, commission), call the calculator tools rather than doing the maths yourself. Leave out inputs the agent didn't give: the tools fill them from the agent's saved Calculators tab figures and the list price. State the key assumptions (price, down payment, rate) with the result, and say the figures are estimates that a lender, insurer or lawyer confirms. Never present rental or rent-versus-buy results as promised returns.
 - If you don't know and can't check, say so. Never invent facts, prices, sales, distances or features.
 - Be concise and practical: lead with the answer, then the supporting detail. Use short paragraphs, bullet lists and tables in Markdown when they help. Write in Canadian English.
 - You can draft marketing copy, emails, scripts and talking points on request, using only facts from the report or your tools.

@@ -36,7 +36,10 @@ export default function DashboardLayout({
       />
       {/* Must follow the sidebar: it corrects the sidebar's markup. */}
       <InlineScript html={SIDEBAR_STATE_SCRIPT} />
-      <SidebarInset>
+      {/* min-w-0: as a flex item it would otherwise grow to its widest
+          child (the report tab bar) and push the page sideways when the
+          sidebar opens, instead of letting that bar scroll. */}
+      <SidebarInset className="min-w-0">
         <DashboardHeader nav={nav} />
         {children}
       </SidebarInset>

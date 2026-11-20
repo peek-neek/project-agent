@@ -3,11 +3,20 @@
 // Metadata lookups are free; only the image request is billed.
 import { bearingDegrees, type LatLng } from "./geo";
 
+/**
+ * Camera presets, relative to facing the property from the nearest
+ * panorama: `turn` swings the heading, `fov` zooms (smaller = closer),
+ * `pitch` tilts up.
+ */
 export const STREET_VIEW_ANGLES = {
-  front: { turn: 0, fov: 80 },
-  left: { turn: -70, fov: 90 },
-  right: { turn: 70, fov: 90 },
-  wide: { turn: 0, fov: 120 },
+  front: { turn: 0, fov: 80, pitch: 5 },
+  closeUp: { turn: 0, fov: 45, pitch: 8 },
+  frontLeft: { turn: -35, fov: 85, pitch: 5 },
+  frontRight: { turn: 35, fov: 85, pitch: 5 },
+  left: { turn: -80, fov: 90, pitch: 3 },
+  right: { turn: 80, fov: 90, pitch: 3 },
+  across: { turn: 180, fov: 90, pitch: 3 },
+  wide: { turn: 0, fov: 120, pitch: 5 },
 } as const;
 export type StreetViewAngle = keyof typeof STREET_VIEW_ANGLES;
 
@@ -16,6 +25,8 @@ type Metadata = { status: string; pano_id?: string; location?: LatLng };
 export async function streetViewImage(
   target: LatLng,
   angle: StreetViewAngle = "front",
+  /** "WxH" in pixels (max 640x640); smaller for thumbnails. */
+  size = "640x400",
 ): Promise<Response> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return new Response("Maps not configured", { status: 503 });
@@ -46,10 +57,10 @@ export async function streetViewImage(
   const heading =
     (bearingDegrees(meta.location, target) + preset.turn + 360) % 360;
   const imageUrl = new URL(base);
-  imageUrl.searchParams.set("size", "640x400");
+  imageUrl.searchParams.set("size", size);
   imageUrl.searchParams.set("pano", meta.pano_id);
   imageUrl.searchParams.set("heading", heading.toFixed(0));
-  imageUrl.searchParams.set("pitch", "5");
+  imageUrl.searchParams.set("pitch", String(preset.pitch));
   imageUrl.searchParams.set("fov", String(preset.fov));
   imageUrl.searchParams.set("return_error_code", "true");
   imageUrl.searchParams.set("key", key);

@@ -2,21 +2,46 @@
 
 import { useTravelMode } from "@/components/globals/travel-mode";
 import { Autocomplete } from "@base-ui/react/autocomplete";
-import { ArrowUpIcon, MapPinIcon } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { TRPCClientError } from "@trpc/client";
+import {
+  AlertCircleIcon,
+  ArrowUpIcon,
+  MapPinIcon,
+  MapPinnedIcon,
+  XIcon,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { cn } from "cn";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import type {
+  AddressCandidate,
+  AddressResolution,
+} from "@/server/google-places";
+import { useTRPC } from "@/trpc/client";
+import { startNavigationProgress } from "@/components/globals/top-progress";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { Button } from "@/components/ui/button";
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@/components/ui/item";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LocationBanner } from "./location-banner";
+import { PinDropDialog } from "./pin-drop-dialog";
+import type { LatLng } from "./pin-map";
 import { useUserLocation } from "@/components/globals/location/location-provider";
 import {
   type AddressSuggestion,
@@ -56,11 +81,34 @@ export function AddressSearch({ className }: AddressSearchProps) {
   const id = useId();
   const anchorRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<Mode>("single");
+  // Set on submit until the report page loads (the browser navigates away).
+  const [submitting, setSubmitting] = useState(false);
+  // Back button restores this page from cache: make it usable again.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setSubmitting(false);
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
   const [address, setAddress] = useState("");
   const [open, setOpen] = useState(false);
   const [placeId, setPlaceId] = useState("");
   const [pickedSessionToken, setPickedSessionToken] = useState("");
   const [sessionToken, setSessionToken] = useState<string>();
+  // Typed addresses (no suggestion picked) are checked before a report is
+  // made: the result decides between going ahead, "Did you mean…?" and a pin.
+  const trpc = useTRPC();
+  const resolve = useMutation(trpc.places.resolve.mutationOptions());
+  const [resolution, setResolution] = useState<
+    AddressResolution | { outcome: "error"; message: string } | null
+  >(null);
+  const [pin, setPin] = useState<LatLng | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinKey, setPinKey] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  // Set for one submit when the agent chose "Create anyway".
+  const skipCheck = useRef(false);
   const { coords } = useUserLocation();
   // The AI copy's travel times follow the app-wide walk / bike / car choice.
   const { mode: travelMode } = useTravelMode();
@@ -80,22 +128,102 @@ export function AddressSearch({ className }: AddressSearchProps) {
     ready: coords ? "Suggested addresses near you" : "Suggested addresses",
   }[status];
 
+  /** Fills the form with the confirmed address and submits it. */
+  const submitWith = (next: {
+    address?: string;
+    placeId?: string;
+    pin?: LatLng;
+  }) => {
+    flushSync(() => {
+      if (next.address) setAddress(next.address);
+      setPlaceId(next.placeId ?? "");
+      setPickedSessionToken("");
+      setPin(next.pin ?? null);
+      setResolution(null);
+      setPinOpen(false);
+    });
+    formRef.current?.requestSubmit();
+  };
+
+  const openPin = () => {
+    setPinKey((k) => k + 1);
+    setPinOpen(true);
+  };
+  // Open the map near what was found (a street or town), else near the agent.
+  const near =
+    resolution && "candidates" in resolution
+      ? resolution.candidates.find((c) => c.lat != null && c.lng != null)
+      : undefined;
+  const pinStart =
+    near && resolution?.outcome !== "outside"
+      ? { center: { lat: near.lat!, lng: near.lng! }, zoom: 15 }
+      : coords
+        ? { center: { lat: coords.lat, lng: coords.lng }, zoom: 13 }
+        : null;
+  const checking = resolve.isPending;
+  const busy = submitting || checking;
+
   const emptyMessage =
     status === "limited"
       ? "You've searched a lot in a short time. Suggestions will be back shortly; press Enter to search anyway."
       : status === "error"
         ? "We couldn't load suggestions. Press Enter to search for this address anyway."
         : status === "ready"
-          ? "No matching addresses. Press Enter to search for it anyway."
+          ? "No suggestions. Press Enter and we'll look it up."
           : null;
 
   return (
     <div className={cn("w-full", className)}>
       <form
+        ref={formRef}
         action="/reports/new"
         method="get"
         role="search"
         aria-label="Generate a property report"
+        aria-busy={busy}
+        onSubmit={(e) => {
+          // One report per submit: ignore repeats while it's being created.
+          if (busy || !address.trim()) {
+            e.preventDefault();
+            return;
+          }
+          const unchecked =
+            mode === "single" && !placeId && !pin && !skipCheck.current;
+          skipCheck.current = false;
+          if (unchecked) {
+            e.preventDefault();
+            setOpen(false);
+            setResolution(null);
+            resolve.mutate(
+              { address: address.trim() },
+              {
+                onSuccess: (result) => {
+                  if (result.outcome === "exact") {
+                    const [match] = result.candidates;
+                    submitWith({
+                      placeId: match.placeId,
+                      address: match.formattedAddress,
+                    });
+                  } else {
+                    setResolution(result);
+                  }
+                },
+                onError: (error) =>
+                  setResolution({
+                    outcome: "error",
+                    message:
+                      error instanceof TRPCClientError &&
+                      error.data?.code === "TOO_MANY_REQUESTS"
+                        ? error.message
+                        : "We couldn't check this address right now.",
+                  }),
+              },
+            );
+            return;
+          }
+          setSubmitting(true);
+          startNavigationProgress();
+        }}
       >
         <ToggleGroup
           aria-label="Report mode"
@@ -151,6 +279,9 @@ export function AddressSearch({ className }: AddressSearchProps) {
                 setPlaceId("");
                 setPickedSessionToken("");
               }
+              // Editing the address drops any earlier check or pin.
+              setResolution(null);
+              setPin(null);
             }}
             open={suggestionsOpen}
             onOpenChange={(next) => {
@@ -182,6 +313,12 @@ export function AddressSearch({ className }: AddressSearchProps) {
               {placeId && (
                 <input type="hidden" name="placeId" value={placeId} />
               )}
+              {pin && (
+                <>
+                  <input type="hidden" name="lat" value={pin.lat.toFixed(6)} />
+                  <input type="hidden" name="lng" value={pin.lng.toFixed(6)} />
+                </>
+              )}
               {placeId && pickedSessionToken && (
                 <input
                   type="hidden"
@@ -194,10 +331,26 @@ export function AddressSearch({ className }: AddressSearchProps) {
                   type="submit"
                   variant="default"
                   size="icon-sm"
-                  aria-label="Generate report"
-                  className="size-11 shadow-lg transition-transform hover:scale-105 active:scale-95 sm:size-12"
+                  aria-label={
+                    checking
+                      ? "Checking address…"
+                      : submitting
+                        ? "Creating report…"
+                        : "Generate report"
+                  }
+                  aria-disabled={busy}
+                  className={cn(
+                    "size-11 shadow-lg transition-transform sm:size-12",
+                    busy
+                      ? "pointer-events-none"
+                      : "hover:scale-105 active:scale-95",
+                  )}
                 >
-                  <ArrowUpIcon className="size-5" />
+                  {busy ? (
+                    <Spinner className="size-5" />
+                  ) : (
+                    <ArrowUpIcon className="size-5" />
+                  )}
                 </InputGroupButton>
               </InputGroupAddon>
             </InputGroup>
@@ -211,7 +364,6 @@ export function AddressSearch({ className }: AddressSearchProps) {
                 className="isolate z-50"
               >
                 <Autocomplete.Popup className="flex max-h-[calc(var(--available-height)-0.75rem)] w-(--anchor-width) max-w-(--available-width) flex-col overflow-hidden bg-card text-card-foreground transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0">
-                  {/* <Separator className="mx-4 w-auto data-horizontal:w-auto sm:mx-5" /> */}
                   <LocationBanner className="mx-2 mt-2 w-auto shrink-0" />
                   <p
                     aria-live="polite"
@@ -267,6 +419,30 @@ export function AddressSearch({ className }: AddressSearchProps) {
         </div>
       </form>
 
+      {resolution && (
+        <AddressCheckPanel
+          resolution={resolution}
+          onPick={(c) =>
+            submitWith({ placeId: c.placeId, address: c.formattedAddress })
+          }
+          onPin={openPin}
+          onCreateAnyway={() => {
+            skipCheck.current = true;
+            submitWith({});
+          }}
+          onDismiss={() => setResolution(null)}
+        />
+      )}
+
+      <PinDropDialog
+        key={pinKey}
+        open={pinOpen}
+        onOpenChange={setPinOpen}
+        address={address.trim()}
+        start={pinStart}
+        onConfirm={(p, label) => submitWith({ address: label, pin: p })}
+      />
+
       {/* {showExamples && (
         <div
           aria-label="Example addresses"
@@ -289,5 +465,149 @@ export function AddressSearch({ className }: AddressSearchProps) {
         </div>
       )} */}
     </div>
+  );
+}
+
+const CHECK_COPY = {
+  choose: {
+    title: "Did you mean one of these?",
+    body: "Pick the property to create its report.",
+  },
+  imprecise: {
+    title: "Add a street number",
+    body: "We found the area but not a specific property. Add the street number, or drop a pin for a lot without one.",
+  },
+  outside: {
+    title: "This address is outside Ontario",
+    body: "Reports cover Ontario properties only.",
+  },
+  none: {
+    title: "We couldn't find this address",
+    body: "Check the spelling and the town. For a new build or rural lot, drop a pin on the map instead.",
+  },
+} as const;
+
+/**
+ * Shown under the search box when a typed address isn't one clear match:
+ * a "Did you mean…?" list, or a short reason with a way forward (a pin).
+ */
+function AddressCheckPanel({
+  resolution,
+  onPick,
+  onPin,
+  onCreateAnyway,
+  onDismiss,
+}: {
+  resolution: AddressResolution | { outcome: "error"; message: string };
+  onPick: (candidate: AddressCandidate) => void;
+  onPin: () => void;
+  onCreateAnyway: () => void;
+  onDismiss: () => void;
+}) {
+  const { outcome } = resolution;
+  const copy =
+    outcome === "error"
+      ? {
+          title: resolution.message,
+          body: "You can create the report anyway; we'll look the address up as it's built.",
+        }
+      : outcome === "exact"
+        ? CHECK_COPY.choose
+        : CHECK_COPY[outcome];
+  const list =
+    outcome === "choose" || outcome === "exact" ? resolution.candidates : [];
+  const area =
+    outcome === "imprecise" || outcome === "outside"
+      ? resolution.candidates[0]
+      : undefined;
+
+  return (
+    <section
+      aria-live="polite"
+      aria-label="Address check"
+      className="mt-2 animate-in bg-card p-2 text-card-foreground shadow-[0_24px_60px_-20px_oklch(0.2_0_0/0.35)] duration-200 fade-in-0 slide-in-from-top-1 sm:p-2.5"
+    >
+      <div className="flex items-start gap-3 px-3 pt-2 pb-1">
+        {list.length === 0 && (
+          <AlertCircleIcon
+            aria-hidden
+            className={cn(
+              "mt-0.5 size-4 shrink-0",
+              outcome === "outside" ? "text-destructive" : "text-primary",
+            )}
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold">{copy.title}</p>
+          <p className="mt-0.5 text-sm text-foreground/65">
+            {copy.body}
+            {area && (
+              <>
+                {" "}
+                Closest match:{" "}
+                <span className="font-medium text-foreground">
+                  {area.formattedAddress}
+                </span>
+                .
+              </>
+            )}
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Dismiss"
+          onClick={onDismiss}
+          className="-mt-1 -mr-2 shrink-0 text-foreground/60"
+        >
+          <XIcon />
+        </Button>
+      </div>
+
+      {list.length > 0 && (
+        <ItemGroup className="gap-0 p-1">
+          {list.map((c) => (
+            <Item
+              key={c.placeId}
+              size="sm"
+              render={<button type="button" onClick={() => onPick(c)} />}
+              className="cursor-pointer text-left hover:bg-muted focus-visible:bg-muted"
+            >
+              <ItemMedia className="size-8 bg-muted text-foreground/70">
+                <MapPinIcon aria-hidden className="size-4" />
+              </ItemMedia>
+              <ItemContent className="min-w-0 gap-0">
+                <ItemTitle className="text-sm sm:text-base">
+                  {c.primary}
+                </ItemTitle>
+                <ItemDescription className="line-clamp-1 text-xs sm:text-sm">
+                  {c.secondary}
+                </ItemDescription>
+              </ItemContent>
+            </Item>
+          ))}
+        </ItemGroup>
+      )}
+
+      {outcome !== "outside" && (
+        <div className="flex flex-wrap items-center justify-end gap-2 px-3 pt-2 pb-1.5">
+          {outcome === "error" && (
+            <Button variant="outline" size="sm" onClick={onCreateAnyway}>
+              Create anyway
+            </Button>
+          )}
+          <Button
+            variant={outcome === "choose" ? "ghost" : "outline"}
+            size="sm"
+            onClick={onPin}
+          >
+            <MapPinnedIcon data-icon="inline-start" />
+            {outcome === "choose"
+              ? "Not listed? Drop a pin"
+              : "Drop a pin on the map"}
+          </Button>
+        </div>
+      )}
+    </section>
   );
 }

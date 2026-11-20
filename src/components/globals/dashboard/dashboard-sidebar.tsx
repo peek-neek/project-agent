@@ -358,7 +358,10 @@ export function DashboardSidebar({ history }: { history: React.ReactNode }) {
               className="h-10 flex items-center justify-center bg-primary px-4 text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
             >
               <PlusIcon />
-              <span>New report</span>
+              {/* Removed when collapsed: its gap would push the icon off-centre. */}
+              <span className="group-data-[collapsible=icon]:hidden">
+                New report
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           {/* Collapsed only: expand and jump straight into search. */}

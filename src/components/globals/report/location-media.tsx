@@ -2,16 +2,14 @@
 
 import { FadeImg } from "./fade-img";
 import { useTravelMode } from "@/components/globals/travel-mode";
-import { CameraIcon, ImagesIcon, LoaderCircleIcon } from "lucide-react";
+import {
+  CameraIcon,
+  ImagesIcon,
+  LoaderCircleIcon,
+  Maximize2Icon,
+} from "lucide-react";
 import { cn } from "cn";
 import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -22,42 +20,48 @@ import {
 } from "@/lib/report-sections";
 import { AMENITY_ICONS } from "./amenity-icons";
 import { DashCard } from "./dash-card";
+import { Lightbox, type LightboxItem, photoAtWidth } from "./lightbox";
 import { MapImage } from "./map-image";
 import { type ReportData } from "./report-format";
 
 type View = "street" | "photos";
 
+/** Street View presets (server/street-view.ts), in display order. */
 const ANGLES = [
   { id: "front", label: "Front" },
+  { id: "closeUp", label: "Close-up" },
+  { id: "frontLeft", label: "Front left" },
+  { id: "frontRight", label: "Front right" },
   { id: "left", label: "Up the street" },
   { id: "right", label: "Down the street" },
+  { id: "across", label: "Across the street" },
   { id: "wide", label: "Wide" },
 ] as const;
 type Angle = (typeof ANGLES)[number]["id"];
 
-type Photo = {
+/** A place shown in the gallery, with all of its photos. */
+type PlaceTile = {
   id: string;
-  src: string;
   title: string;
-  subtitle?: string;
-  categoryId?: AmenityCategoryId;
-  credit?: { author: string | null; authorUri: string | null };
+  subtitle: string;
+  categoryId: AmenityCategoryId;
+  photos: {
+    src: string;
+    credit: { author: string | null; authorUri: string | null };
+  }[];
 };
 
-/** One photo per category first (nearest with a photo), then the rest. */
-function placePhotos(
+/** Places to show: the nearest with a photo in each category first. */
+function placeTiles(
   reportId: string,
   amenities: AmenitiesData,
   /** e.g. "4 min walk", in the selected travel mode. */
   timeLabel: (place: NearbyPlace) => string,
-  limit = 11,
-) {
+  limit = 23,
+): PlaceTile[] {
   const withPhoto = AMENITY_CATEGORIES.map((c) => ({
     category: c,
-    places: (amenities.categories[c.id] ?? []).filter(
-      (p): p is NearbyPlace & { photo: NonNullable<NearbyPlace["photo"]> } =>
-        Boolean(p.photo),
-    ),
+    places: (amenities.categories[c.id] ?? []).filter((p) => Boolean(p.photo)),
   }));
   const picked: {
     place: NearbyPlace;
@@ -76,39 +80,25 @@ function placePhotos(
       }
     }
   }
-  return picked.map<Photo>(({ place, categoryId, label }) => ({
-    id: place.id,
-    src: `/api/reports/${reportId}/place-photo/${encodeURIComponent(place.id)}`,
-    title: place.name,
-    subtitle: `${label} · ${timeLabel(place)}`,
-    categoryId,
-    credit: place.photo
-      ? { author: place.photo.author, authorUri: place.photo.authorUri }
-      : undefined,
-  }));
-}
-
-/** Google requires showing the photographer's name, linked when available. */
-function Credit({ credit }: { credit?: Photo["credit"] }) {
-  if (!credit?.author) return null;
-  return (
-    <span className="text-[11px] text-foreground/50">
-      Photo:{" "}
-      {credit.authorUri ? (
-        <a
-          href={credit.authorUri}
-          target="_blank"
-          rel="noreferrer"
-          className="underline-offset-2 hover:underline"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {credit.author}
-        </a>
-      ) : (
-        credit.author
-      )}
-    </span>
-  );
+  return picked.map(({ place, categoryId, label }) => {
+    const base = `/api/reports/${reportId}/place-photo/${encodeURIComponent(place.id)}`;
+    // Newer reports keep up to 4 photos per place; older ones just `photo`.
+    const list = place.photos?.length
+      ? place.photos
+      : place.photo
+        ? [place.photo]
+        : [];
+    return {
+      id: place.id,
+      title: place.name,
+      subtitle: `${label} · ${timeLabel(place)}`,
+      categoryId,
+      photos: list.map((ph, i) => ({
+        src: i === 0 ? base : `${base}?i=${i}`,
+        credit: { author: ph.author, authorUri: ph.authorUri },
+      })),
+    };
+  });
 }
 
 export function LocationMedia({
@@ -124,7 +114,11 @@ export function LocationMedia({
 }) {
   const [view, setView] = useState<View>("street");
   const [angle, setAngle] = useState<Angle>("front");
-  const [open, setOpen] = useState<Photo | null>(null);
+  // The open lightbox: which list (street angles or place photos) and where.
+  const [viewer, setViewer] = useState<{
+    list: "street" | "photos";
+    index: number;
+  } | null>(null);
   const travel = useTravelMode();
 
   const property = report.property;
@@ -132,27 +126,44 @@ export function LocationMedia({
   const streetSrc = (a: Angle) =>
     `/api/reports/${report.id}/street-view?angle=${a}&v=${version}`;
   const address = property?.formattedAddress ?? report.inputAddress;
+  const hasStreet = property?.latitude != null;
 
-  const photos: Photo[] = [
-    ...(property?.latitude != null
-      ? [
-          {
-            id: "street",
-            src: streetSrc("front"),
-            title: "The property",
-            subtitle: "Google Street View",
-          },
-        ]
-      : []),
-    ...(amenities
-      ? placePhotos(
-          report.id,
-          amenities,
-          (p) => `${travel.minutes(p)} ${travel.verb}`,
-        )
-      : []),
+  const tiles = amenities
+    ? placeTiles(
+        report.id,
+        amenities,
+        (p) => `${travel.minutes(p)} ${travel.verb}`,
+      )
+    : [];
+  const hasPlacePhotos = tiles.length > 0;
+
+  // Lightbox lists: every Street View angle; every photo of every place.
+  const streetItems: LightboxItem[] = ANGLES.map((a) => ({
+    key: `street-${a.id}`,
+    src: streetSrc(a.id),
+    title: "The property",
+    subtitle: `Google Street View · ${a.label}`,
+    icon: CameraIcon,
+    group: "street",
+  }));
+  const photoItems: LightboxItem[] = [
+    ...(hasStreet ? [{ ...streetItems[0]!, group: undefined }] : []),
+    ...tiles.flatMap((t) =>
+      t.photos.map((ph, i) => ({
+        key: `${t.id}-${i}`,
+        src: photoAtWidth(ph.src, 800),
+        fullSrc: photoAtWidth(ph.src, 3200),
+        title: t.title,
+        subtitle: t.subtitle,
+        icon: AMENITY_ICONS[t.categoryId],
+        group: t.id,
+        credit: ph.credit,
+      })),
+    ),
   ];
-  const hasPlacePhotos = photos.length > 1;
+  /** Index of a place's first photo in photoItems. */
+  const firstPhotoOf = (placeId: string) =>
+    photoItems.findIndex((it) => it.group === placeId);
 
   const titles: Record<View, { title: string; icon: typeof CameraIcon }> = {
     street: { title: "Street view", icon: CameraIcon },
@@ -187,17 +198,34 @@ export function LocationMedia({
       bodyClassName="p-0"
     >
       {view === "street" &&
-        (property?.latitude != null ? (
-          <div className="grid lg:h-[30rem] lg:grid-cols-[minmax(0,1fr)_13rem]">
-            <MapImage
-              key={angle}
-              src={streetSrc(angle)}
-              alt={`Street View of ${address}, ${ANGLES.find((a) => a.id === angle)!.label.toLowerCase()}`}
-              fallback="No Street View photo here, or the Street View Static API isn't enabled for your Google key."
-              className="aspect-[16/10] ring-0 lg:aspect-auto lg:h-full"
-            />
-            {/* Angles: a row under the photo, a column beside it on wide screens. */}
-            <div className="grid grid-cols-4 gap-px border-t bg-border lg:grid-cols-1 lg:grid-rows-4 lg:border-t-0 lg:border-l">
+        (hasStreet ? (
+          <div className="grid lg:h-[30rem] lg:grid-cols-[minmax(0,1fr)_17rem]">
+            {/* The selected angle; click to view large and step through. */}
+            <button
+              type="button"
+              onClick={() =>
+                setViewer({
+                  list: "street",
+                  index: ANGLES.findIndex((a) => a.id === angle),
+                })
+              }
+              aria-label="View Street View photos full size"
+              className="group/sv relative block cursor-zoom-in text-left"
+            >
+              <MapImage
+                key={angle}
+                src={streetSrc(angle)}
+                alt={`Street View of ${address}, ${ANGLES.find((a) => a.id === angle)!.label.toLowerCase()}`}
+                fallback="No Street View photo here, or the Street View Static API isn't enabled for your Google key."
+                className="aspect-[16/10] ring-0 lg:aspect-auto lg:h-full"
+              />
+              <span className="pointer-events-none absolute right-2 bottom-2 flex items-center gap-1.5 bg-black/60 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover/sv:opacity-100">
+                <Maximize2Icon aria-hidden className="size-3" />
+                View {ANGLES.length} angles
+              </span>
+            </button>
+            {/* Angles: 4 per row under the photo; 2 columns beside it on wide screens. */}
+            <div className="grid grid-cols-4 gap-px border-t bg-border lg:grid-cols-2 lg:grid-rows-4 lg:border-t-0 lg:border-l">
               {ANGLES.map((a) => (
                 <button
                   key={a.id}
@@ -248,43 +276,74 @@ export function LocationMedia({
 
       {view === "photos" && (
         <div className="p-3">
-          {photos.length === 0 ? (
+          {!hasStreet && !hasPlacePhotos ? (
             <Skeleton className="aspect-[16/10] w-full" />
           ) : (
-            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-              {photos.map((photo, i) => {
-                const Icon = photo.categoryId
-                  ? AMENITY_ICONS[photo.categoryId]
-                  : CameraIcon;
-                return (
-                  <li
-                    key={photo.id}
-                    className={cn(i === 0 && "col-span-2 row-span-2")}
+            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              {hasStreet && (
+                <li className="col-span-2 row-span-2">
+                  <button
+                    type="button"
+                    onClick={() => setViewer({ list: "photos", index: 0 })}
+                    className="group relative block size-full min-h-28 cursor-zoom-in overflow-hidden bg-muted text-left"
                   >
+                    <FadeImg
+                      src={streetSrc("front")}
+                      alt="The property"
+                      loading="lazy"
+                      className="absolute inset-0 size-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-[1.03]"
+                      onError={(e) =>
+                        (e.currentTarget.style.visibility = "hidden")
+                      }
+                    />
+                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pt-6 pb-2 text-white">
+                      <span className="flex items-center gap-1.5">
+                        <CameraIcon aria-hidden className="size-3.5 shrink-0" />
+                        <span className="truncate text-xs font-medium">
+                          The property · Street View
+                        </span>
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              )}
+              {tiles.map((t) => {
+                const Icon = AMENITY_ICONS[t.categoryId];
+                const cover = t.photos[0]!;
+                return (
+                  <li key={t.id}>
                     <button
                       type="button"
-                      onClick={() => setOpen(photo)}
-                      className="group relative block size-full min-h-28 overflow-hidden bg-muted text-left"
+                      onClick={() =>
+                        setViewer({ list: "photos", index: firstPhotoOf(t.id) })
+                      }
+                      className="group relative block aspect-[4/3] size-full cursor-zoom-in overflow-hidden bg-muted text-left"
                     >
                       <FadeImg
-                        src={photo.src}
-                        alt={photo.title}
+                        src={photoAtWidth(cover.src, 800)}
+                        alt={t.title}
                         loading="lazy"
                         className="absolute inset-0 size-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-[1.03]"
                         onError={(e) =>
                           (e.currentTarget.style.visibility = "hidden")
                         }
                       />
-                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2.5 pt-6 pb-2 text-white">
+                      {t.photos.length > 1 && (
+                        <span className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white tabular-nums">
+                          <ImagesIcon aria-hidden className="size-3" />
+                          {t.photos.length}
+                        </span>
+                      )}
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2 pt-6 pb-1.5 text-white">
                         <span className="flex items-center gap-1.5">
                           <Icon aria-hidden className="size-3.5 shrink-0" />
                           <span className="truncate text-xs font-medium">
-                            {photo.title}
+                            {t.title}
                           </span>
                         </span>
-                        {photo.credit?.author && (
+                        {cover.credit.author && (
                           <span className="mt-0.5 block truncate text-[10px] text-white/70">
-                            Photo: {photo.credit.author}
+                            Photo: {cover.credit.author}
                           </span>
                         )}
                       </span>
@@ -311,33 +370,12 @@ export function LocationMedia({
         </p>
       )}
 
-      <Dialog open={open !== null} onOpenChange={(o) => !o && setOpen(null)}>
-        <DialogContent className="gap-3 sm:max-w-3xl">
-          {open && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{open.title}</DialogTitle>
-                {open.subtitle && (
-                  <DialogDescription className="flex items-center gap-1.5">
-                    {open.categoryId && (
-                      <travel.icon aria-hidden className="size-3.5" />
-                    )}
-                    {open.subtitle}
-                  </DialogDescription>
-                )}
-              </DialogHeader>
-              <div className="relative aspect-[16/10] overflow-hidden bg-muted">
-                <FadeImg
-                  src={open.src}
-                  alt={open.title}
-                  className="absolute inset-0 size-full object-cover"
-                />
-              </div>
-              <Credit credit={open.credit} />
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <Lightbox
+        items={viewer?.list === "street" ? streetItems : photoItems}
+        index={viewer?.index ?? null}
+        onIndexChange={(index) => setViewer((v) => (v ? { ...v, index } : v))}
+        onClose={() => setViewer(null)}
+      />
     </DashCard>
   );
 }

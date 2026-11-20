@@ -67,6 +67,7 @@ export async function withTravelTimes(
       driveMinutes: driveMinutes ?? estimateMinutes(straight, "drive"),
       driveEstimated: driveMinutes == null,
       photo: place.photo ?? null,
+      photos: place.photos ?? (place.photo ? [place.photo] : []),
     };
   });
 }

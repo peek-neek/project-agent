@@ -107,11 +107,17 @@ const hashtag = (tag: string) => (tag.startsWith("#") ? tag : `#${tag}`);
 const withTags = (caption: string, tags: string[]) =>
   tags.length ? `${caption}\n\n${tags.map(hashtag).join(" ")}` : caption;
 
-/** Square, underlined tabs used inside cards. */
+/**
+ * Square, underlined tabs used inside cards. Nothing may sit below the
+ * list: a horizontally scrolling list also scrolls vertically, so an
+ * underline even 1px lower makes the row jump when a clicked tab is
+ * scrolled into view. The hairline is an inset shadow (drawn inside) and
+ * the underline sits at the trigger's bottom edge, over it.
+ */
 const tabListClass =
-  "h-auto w-full justify-start gap-0 overflow-x-auto border-b bg-transparent p-0 group-data-horizontal/tabs:h-auto";
+  "h-auto w-full scroll-fade-x no-scrollbar justify-start gap-0 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-transparent p-0 shadow-[inset_0_-1px_0_var(--border)] group-data-horizontal/tabs:h-auto";
 const tabClass =
-  "h-10 flex-none gap-1.5 border-0 px-3 text-foreground/60 hover:text-foreground data-active:bg-transparent data-active:text-foreground data-active:shadow-none group-data-horizontal/tabs:after:-bottom-px group-data-horizontal/tabs:after:h-[3px] after:bg-primary";
+  "h-10 flex-none gap-1.5 border-0 px-3 text-foreground/60 hover:text-foreground data-active:bg-transparent data-active:text-foreground data-active:shadow-none group-data-horizontal/tabs:after:bottom-0 group-data-horizontal/tabs:after:h-[3px] after:bg-primary";
 
 /** Every piece of copy on the tab, for the compliance summary. */
 function allCopy(

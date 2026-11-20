@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   autocompleteAddresses,
   PlacesConfigError,
+  resolveAddress,
 } from "@/server/google-places";
 import { createRateLimiter, getClientIp } from "@/server/rate-limit";
 import { baseProcedure, createTRPCRouter } from "../init";
@@ -65,6 +66,27 @@ export const placesRouter = createTRPCRouter({
               ? "PRECONDITION_FAILED"
               : "BAD_GATEWAY",
           message: "Address suggestions are unavailable right now.",
+        });
+      }
+    }),
+
+  /**
+   * Checks a typed address (no suggestion picked) before a report is made:
+   * one exact match goes ahead, otherwise the agent picks or drops a pin.
+   */
+  resolve: rateLimitedProcedure
+    .input(z.object({ address: z.string().trim().min(3).max(500) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await resolveAddress(input.address);
+      } catch (error) {
+        console.error("[places.resolve]", error);
+        throw new TRPCError({
+          code:
+            error instanceof PlacesConfigError
+              ? "PRECONDITION_FAILED"
+              : "BAD_GATEWAY",
+          message: "Address lookup is unavailable right now.",
         });
       }
     }),

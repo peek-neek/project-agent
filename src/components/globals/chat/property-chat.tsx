@@ -208,38 +208,19 @@ function ChatMessage({
   );
 }
 
-const SUGGESTIONS: {
-  label: string;
-  icon: typeof FileTextIcon;
-  questions: string[];
-}[] = [
+/** One of each kind: from the report, beyond it (tools), and writing. */
+const SUGGESTIONS: { icon: typeof FileTextIcon; question: string }[] = [
   {
-    label: "From the report",
     icon: FileTextIcon,
-    questions: [
-      "What are the 3 strongest selling points for this home?",
-      "How long is the commute downtown by transit and by car?",
-      "Which schools are closest, and how do their EQAO results compare?",
-      "Summarize the safety, flood and noise findings for a buyer.",
-    ],
+    question: "What are the 3 strongest selling points for this home?",
   },
   {
-    label: "Beyond the report",
     icon: GlobeIcon,
-    questions: [
-      "What are property taxes like in this municipality?",
-      "Is there a Costco or big-box store nearby?",
-      "How long is the drive to Toronto Pearson at weekday rush hour?",
-      "Any recent news or zoning changes affecting this area?",
-    ],
+    question: "Is there a Costco or big-box store nearby?",
   },
   {
-    label: "Write for me",
     icon: PenLineIcon,
-    questions: [
-      "Write an Instagram caption for an open house this Saturday.",
-      "Draft a reply to a buyer asking how far the nearest GO station is.",
-    ],
+    question: "Write an Instagram caption for an open house this Saturday.",
   },
 ];
 
@@ -262,26 +243,17 @@ function EmptyState({
         Answers draw on this whole report, Google Maps and the web, with the
         sources named. Times follow your walk / bike / car setting.
       </p>
-      <div className="mt-8 grid w-full gap-5 text-left md:grid-cols-3">
-        {SUGGESTIONS.map((group) => (
-          <div key={group.label}>
-            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-foreground/55 uppercase">
-              <group.icon aria-hidden className="size-3.5" />
-              {group.label}
-            </p>
-            <div className="flex flex-col gap-1.5">
-              {group.questions.map((q) => (
-                <Button
-                  key={q}
-                  variant="outline"
-                  onClick={() => onAsk(q)}
-                  className="h-auto justify-start bg-card px-3 py-2 text-left text-sm leading-snug font-normal whitespace-normal"
-                >
-                  {q}
-                </Button>
-              ))}
-            </div>
-          </div>
+      <div className="mt-8 grid w-full gap-2 text-left md:grid-cols-3">
+        {SUGGESTIONS.map(({ icon: Icon, question }) => (
+          <Button
+            key={question}
+            variant="outline"
+            onClick={() => onAsk(question)}
+            className="h-auto items-start justify-start gap-2.5 bg-card px-3 py-2.5 text-left text-sm leading-snug font-normal whitespace-normal"
+          >
+            <Icon aria-hidden className="mt-0.5 text-foreground/50" />
+            {question}
+          </Button>
         ))}
       </div>
     </div>

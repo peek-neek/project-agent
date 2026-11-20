@@ -1,4 +1,5 @@
 import {
+  CalculatorIcon,
   GraduationCapIcon,
   LayoutDashboardIcon,
   type LucideIcon,
@@ -51,6 +52,8 @@ export const REPORT_TABS = [
     icon: TrendingUpIcon,
     kinds: [JOB_KINDS.upside],
   },
+  // Works from the list price alone: no background step to wait for.
+  { id: "calculators", label: "Calculators", icon: CalculatorIcon, kinds: [] },
   {
     id: "marketing",
     label: "Marketing",

@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { reportStore } from "@/server/report-store";
 import { parseAngle, streetViewImage } from "@/server/street-view";
 
-/** Street View photo of the property (?angle=front|left|right|wide). */
+/** Street View photo of the property (?angle=, see STREET_VIEW_ANGLES). */
 export async function GET(
   request: Request,
   { params }: RouteContext<"/api/reports/[reportId]/street-view">,

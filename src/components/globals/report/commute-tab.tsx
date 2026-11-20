@@ -225,7 +225,7 @@ export function CommuteTab({
   );
   const photoUrl = (s: Station) =>
     s.photo
-      ? `/api/reports/${reportId}/place-photo/${encodeURIComponent(s.id)}`
+      ? `/api/reports/${reportId}/place-photo/${encodeURIComponent(s.id)}?w=800`
       : null;
 
   const pins: MapPin[] = stops.map((s, i) => ({

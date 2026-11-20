@@ -236,6 +236,105 @@ export async function searchPlaceAddress(
 }
 
 // ---------------------------------------------------------------------------
+// Address check for typed addresses (no suggestion picked): a few Text Search
+// candidates, each marked precise (a street number) and in Ontario or not.
+// ---------------------------------------------------------------------------
+
+export type AddressCandidate = {
+  placeId: string;
+  formattedAddress: string;
+  /** "123 Main St" */
+  primary: string;
+  /** "Toronto, ON M5V 1A1" */
+  secondary: string;
+  /** Has a street number (a building or lot, not a street or city). */
+  precise: boolean;
+  inOntario: boolean;
+  lat: number | null;
+  lng: number | null;
+};
+
+export type AddressResolution =
+  /** One precise Ontario address matching the typed street number. */
+  | { outcome: "exact"; candidates: AddressCandidate[] }
+  /** Several precise Ontario addresses: the agent picks. */
+  | { outcome: "choose"; candidates: AddressCandidate[] }
+  /** Only streets, neighbourhoods or towns: needs a street number. */
+  | { outcome: "imprecise"; candidates: AddressCandidate[] }
+  | { outcome: "outside"; candidates: AddressCandidate[] }
+  | { outcome: "none"; candidates: AddressCandidate[] };
+
+const PRECISE_TYPES = ["street_address", "premise", "subpremise"];
+
+/** Leading street number the agent typed ("Unit 4, 120 Main" → "120"). */
+function typedStreetNumber(text: string) {
+  const cleaned = text.replace(
+    /^\s*(?:unit|suite|apt\.?|apartment|ph|#)\s*[a-z0-9-]+\s*[,-]?\s+/i,
+    "",
+  );
+  const match = cleaned.match(/^\s*(?:[a-z]?\d+[a-z]?\s*-\s*)?(\d+[a-z]?)\b/i);
+  return match ? match[1].toLowerCase() : null;
+}
+
+export async function resolveAddress(text: string): Promise<AddressResolution> {
+  const fields = [...PLACE_FIELDS, "types"];
+  const data = await placesFetch<{
+    places?: (PlaceResult & { types?: string[] })[];
+  }>("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": requireKey(),
+      "X-Goog-FieldMask": fields.map((f) => `places.${f}`).join(","),
+    },
+    body: JSON.stringify({
+      textQuery: text,
+      regionCode: "CA",
+      languageCode: "en-CA",
+      locationBias: ONTARIO_BOUNDS,
+      pageSize: 5,
+    }),
+  });
+
+  const candidates = (data.places ?? []).map((place): AddressCandidate => {
+    const r = toResolvedAddress(place);
+    const formatted = (r.formattedAddress ?? "").replace(/, Canada$/, "");
+    const [primary, ...rest] = formatted.split(",").map((s) => s.trim());
+    return {
+      placeId: r.placeId,
+      formattedAddress: formatted,
+      primary: primary ?? formatted,
+      secondary: rest.join(", "),
+      precise:
+        Boolean(r.streetNumber) ||
+        (place.types ?? []).some((t) => PRECISE_TYPES.includes(t)),
+      inOntario: r.province === "ON" && r.country === "CA",
+      lat: r.latitude,
+      lng: r.longitude,
+    };
+  });
+
+  const usable = candidates.filter((c) => c.precise && c.inOntario);
+  if (usable.length > 0) {
+    const typed = typedStreetNumber(text);
+    const [first] = usable;
+    const sameNumber =
+      typed != null &&
+      new RegExp(`^${typed}\\b`).test(
+        first.primary.toLowerCase().replace(/^[a-z0-9]+\s*-\s*(?=\d)/, ""),
+      );
+    return {
+      outcome: usable.length === 1 && sameNumber ? "exact" : "choose",
+      candidates: usable,
+    };
+  }
+  const ontario = candidates.filter((c) => c.inOntario);
+  if (ontario.length > 0) return { outcome: "imprecise", candidates: ontario };
+  if (candidates.length > 0) return { outcome: "outside", candidates };
+  return { outcome: "none", candidates: [] };
+}
+
+// ---------------------------------------------------------------------------
 // Nearby Search (New): places of given types around a point, nearest first.
 // ---------------------------------------------------------------------------
 
@@ -248,12 +347,19 @@ export type NearbyResult = {
   rating: number | null;
   ratingCount: number | null;
   primaryType: string | null;
-  photo?: {
-    name: string;
-    author: string | null;
-    authorUri: string | null;
-  } | null;
+  photo?: PlacePhoto | null;
+  /** Up to PHOTOS_PER_PLACE photos (the first is `photo`). */
+  photos?: PlacePhoto[];
 };
+
+export type PlacePhoto = {
+  name: string;
+  author: string | null;
+  authorUri: string | null;
+};
+
+/** Photos kept per place: enough to browse, few enough to stay light. */
+const PHOTOS_PER_PLACE = 4;
 
 type NearbyPlace = {
   id: string;
@@ -283,7 +389,13 @@ const NEARBY_FIELDS = [
 
 function toNearbyResult(p: NearbyPlace): NearbyResult[] {
   if (!p.location || !p.displayName?.text) return [];
-  const photo = p.photos?.[0];
+  const photos: PlacePhoto[] = (p.photos ?? [])
+    .slice(0, PHOTOS_PER_PLACE)
+    .map((ph) => ({
+      name: ph.name,
+      author: ph.authorAttributions?.[0]?.displayName ?? null,
+      authorUri: ph.authorAttributions?.[0]?.uri ?? null,
+    }));
   return [
     {
       id: p.id,
@@ -294,13 +406,8 @@ function toNearbyResult(p: NearbyPlace): NearbyResult[] {
       rating: p.rating ?? null,
       ratingCount: p.userRatingCount ?? null,
       primaryType: p.primaryType ?? null,
-      photo: photo
-        ? {
-            name: photo.name,
-            author: photo.authorAttributions?.[0]?.displayName ?? null,
-            authorUri: photo.authorAttributions?.[0]?.uri ?? null,
-          }
-        : null,
+      photo: photos[0] ?? null,
+      photos,
     },
   ];
 }

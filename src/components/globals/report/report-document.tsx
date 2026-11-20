@@ -1,8 +1,8 @@
 "use client";
 
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { DownloadPdfButton } from "./download-pdf-button";
 import {
-  DownloadIcon,
   GraduationCapIcon,
   HouseIcon,
   LoaderCircleIcon,
@@ -193,14 +193,12 @@ export function ReportView({ report }: { report: ReportData }) {
               Preparing report · {done} of {jobs.length} steps
             </span>
           )}
-          <Button
-            onClick={() => window.print()}
+          <DownloadPdfButton
+            reportId={report.id}
             disabled={working}
-            className="h-9 px-4"
-          >
-            <DownloadIcon data-icon="inline-start" />
-            Download PDF
-          </Button>
+            label="Download PDF"
+            className="h-9 w-36 px-4"
+          />
         </div>
       </div>
 
