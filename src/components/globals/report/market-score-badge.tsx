@@ -18,6 +18,7 @@ import { MARKET_LEVELS, marketScore } from "@/lib/market-score";
 import {
   amenitiesSchema,
   commuteSchema,
+  listingSchema,
   SECTION_KEYS,
   safetySchema,
   schoolsSchema,
@@ -35,7 +36,7 @@ const TRAVEL_PHRASE = {
 } as const;
 
 /**
- * Header badge on a report page: how easy the location makes the home to
+ * Header badge on a report page: how easy the location and price make the home to
  * sell or rent, 1 (hard) to 5 (easy), with the reasons on click. Reads the
  * report from the page's query cache; renders nothing elsewhere.
  */
@@ -67,6 +68,10 @@ function Badge({ reportId }: { reportId: string }) {
       schools: getSection(report, SECTION_KEYS.schools, schoolsSchema),
       safety: getSection(report, SECTION_KEYS.safety, safetySchema),
       upside: getSection(report, SECTION_KEYS.upside, upsideSchema),
+      listPrice:
+        getSection(report, SECTION_KEYS.listing, listingSchema)?.listPrice ??
+        null,
+      city: report.property?.city ?? null,
     },
     travel.mode,
   );
@@ -78,6 +83,7 @@ function Badge({ reportId }: { reportId: string }) {
   }
 
   const meta = MARKET_LEVELS[score.level];
+  const hasPrice = score.factors.some((f) => f.id === "price");
   const factors = [...score.factors].sort((a, b) => b.weight - a.weight);
 
   return (
@@ -110,8 +116,8 @@ function Badge({ reportId }: { reportId: string }) {
             Market ease: {score.level}/5 · {score.label}
           </PopoverTitle>
           <PopoverDescription className="text-xs">
-            How much the location helps or hinders selling or renting. 1 is
-            hard, 5 is easy.
+            How much the location and price point help or hinder selling or
+            renting. 1 is hard, 5 is easy.
           </PopoverDescription>
         </PopoverHeader>
 
@@ -176,8 +182,11 @@ function Badge({ reportId }: { reportId: string }) {
         </ul>
 
         <p className="border-t pt-2 text-[11px] leading-snug text-foreground/50">
-          Location only, using {TRAVEL_PHRASE[travel.mode]} times: price,
-          condition, size and market conditions aren&apos;t included. Census
+          Uses {TRAVEL_PHRASE[travel.mode]} times.{" "}
+          {hasPrice
+            ? "The price point reflects how many buyers can afford the list price, not how it compares with recent sales."
+            : "Add a list price in the property details to include the price point."}{" "}
+          Condition, size and market conditions aren&apos;t included. Census
           facts about residents are never used.
         </p>
       </PopoverContent>

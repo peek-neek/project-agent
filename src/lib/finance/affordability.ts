@@ -138,3 +138,34 @@ export function maxAffordable(input: AffordabilityInput): Affordability {
     bindingLimit: blocker.limitedBy ?? firstFail?.limitedBy ?? null,
   };
 }
+
+/**
+ * Gross household income needed to qualify for a price: 20% down (no
+ * insurance), the stress-tested rate, property tax and heating, with
+ * housing costs at the 39% GDS limit (no other debts). A single,
+ * comparable measure of how many buyers a price point reaches.
+ */
+export function incomeToQualify({
+  price,
+  annualRate,
+  amortizationYears,
+  propertyTaxRate,
+  heatingMonthly,
+  downShare = 0.2,
+}: {
+  price: number;
+  annualRate: number;
+  amortizationYears: number;
+  propertyTaxRate: number;
+  heatingMonthly: number;
+  downShare?: number;
+}) {
+  const monthly = payment({
+    principal: price * (1 - downShare),
+    annualRate: qualifyingRate(annualRate),
+    years: amortizationYears,
+    frequency: "monthly",
+  });
+  const housing = monthly + (price * propertyTaxRate) / 12 + heatingMonthly;
+  return (housing / QUALIFYING.maxGds) * 12;
+}

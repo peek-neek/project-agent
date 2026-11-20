@@ -1,8 +1,9 @@
-// How easy a property's location makes it to sell or rent, 1 (hard) to 5
-// (easy). A transparent rule-based score from the report's location data:
-// errands, transit, commute, schools, safety, environment and upside. It
-// deliberately ignores census facts about residents (Human Rights Code) and
-// knows nothing about price, condition or the market, which matter as much.
+// How easy a property's location and price point make it to sell or rent,
+// 1 (hard) to 5 (easy). A transparent rule-based score from the report's
+// data: errands, transit, commute, schools, safety, environment, upside and,
+// once a list price is entered, how many buyers can afford that price. It
+// deliberately ignores census facts about residents (Human Rights Code). It
+// can't judge a price against recent sales (no sales data), or condition.
 // Errands, transit, commute and schools follow the selected travel mode,
 // judged against what's normal for it (thresholds shared with the Overview
 // section scores).
@@ -14,6 +15,12 @@ import type {
   SchoolsData,
   UpsideData,
 } from "./report-sections";
+import { incomeToQualify } from "./finance/affordability";
+import { DEFAULTS } from "./finance/defaults";
+import {
+  ONTARIO_MEDIAN_TAX_RATE,
+  propertyTaxRateFor,
+} from "./finance/property-tax-rates";
 import { THRESHOLDS } from "./section-scores";
 import {
   destinationTime,
@@ -271,6 +278,42 @@ function upsideFactor(upside: UpsideData | null): MarketFactor | null {
   };
 }
 
+/**
+ * Price point: the household income needed to qualify at the list price
+ * (20% down, stress test, local property tax). Full marks at $120K or less,
+ * which many two-income households earn (Ontario's median household income
+ * was about $91K in the 2021 census); none at $320K or more, which only a
+ * small share of buyers earn. The higher the price, the smaller the pool.
+ */
+export const PRICE_INCOME_RANGE: [number, number] = [120_000, 320_000];
+
+/** "$849K", "$1.25M". */
+const shortMoney = (v: number) =>
+  v >= 1_000_000
+    ? `$${Number((v / 1_000_000).toFixed(2))}M`
+    : `$${Math.round(v / 1_000)}K`;
+
+function pricePoint(
+  listPrice: number | null | undefined,
+  city: string | null | undefined,
+): MarketFactor | null {
+  if (!listPrice || listPrice <= 0) return null;
+  const income = incomeToQualify({
+    price: listPrice,
+    annualRate: DEFAULTS.rate,
+    amortizationYears: DEFAULTS.amortization,
+    propertyTaxRate: propertyTaxRateFor(city)?.rate ?? ONTARIO_MEDIAN_TAX_RATE,
+    heatingMonthly: DEFAULTS.heating,
+  });
+  return {
+    id: "price",
+    label: "Price point",
+    weight: 15,
+    score: scale(income, ...PRICE_INCOME_RANGE),
+    detail: `${shortMoney(listPrice)} needs about ${shortMoney(Math.round(income / 5_000) * 5_000)} household income to qualify (20% down)`,
+  };
+}
+
 const levelFor = (ease: number): MarketScore["level"] =>
   ease >= 0.78 ? 5 : ease >= 0.63 ? 4 : ease >= 0.48 ? 3 : ease >= 0.33 ? 2 : 1;
 
@@ -285,6 +328,10 @@ export function marketScore(
     schools: SchoolsData | null;
     safety: SafetyData | null;
     upside: UpsideData | null;
+    /** The agent's list price, when entered: adds the price point factor. */
+    listPrice?: number | null;
+    /** For the local property tax rate in the price point factor. */
+    city?: string | null;
   },
   mode: TravelMode,
 ): MarketScore | null {
@@ -296,6 +343,7 @@ export function marketScore(
     safetyFactor(data.safety),
     environment(data.safety),
     upsideFactor(data.upside),
+    pricePoint(data.listPrice, data.city),
   ].filter((f): f is MarketFactor => f != null);
   if (
     factors.length < 3 ||

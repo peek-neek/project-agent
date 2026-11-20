@@ -125,7 +125,9 @@ export function Lightbox({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
-        className="gap-3 sm:max-w-4xl"
+        // minmax(0,1fr): the grid column never grows to fit its content
+        // (8 Street View thumbnails are wider than a phone), it scrolls.
+        className="grid-cols-[minmax(0,1fr)] gap-3 sm:max-w-4xl"
         onKeyDown={(e) => {
           if (!many) return;
           if (e.key === "ArrowRight") {
@@ -202,10 +204,10 @@ export function Lightbox({
                 )}
             </div>
 
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
               <Credit credit={item.credit} />
               {group.length > 1 && (
-                <div className="flex gap-1.5 overflow-x-auto">
+                <div className="flex max-w-full min-w-0 gap-1.5 overflow-x-auto overscroll-x-contain p-0.5 no-scrollbar scroll-fade-x">
                   {group.map(({ it, idx }) => (
                     <button
                       key={it.key}

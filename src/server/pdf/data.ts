@@ -88,6 +88,7 @@ export function pdfData(report: PdfReport, copyMode: TravelMode) {
   const safety = get(SECTION_KEYS.safety, safetySchema);
   const demographics = get(SECTION_KEYS.demographics, demographicsSchema);
   const upside = get(SECTION_KEYS.upside, upsideSchema);
+  const listing = get(SECTION_KEYS.listing, listingSchema);
 
   // Scores for every mode side by side (no section repeated per mode).
   const scores = Object.fromEntries(
@@ -111,7 +112,18 @@ export function pdfData(report: PdfReport, copyMode: TravelMode) {
   const market = Object.fromEntries(
     MODES.map((m) => [
       m,
-      marketScore({ amenities, commute, schools, safety, upside }, m),
+      marketScore(
+        {
+          amenities,
+          commute,
+          schools,
+          safety,
+          upside,
+          listPrice: listing?.listPrice ?? null,
+          city: report.property?.city ?? null,
+        },
+        m,
+      ),
     ]),
   ) as Record<TravelMode, ReturnType<typeof marketScore>>;
 
@@ -126,7 +138,7 @@ export function pdfData(report: PdfReport, copyMode: TravelMode) {
     street,
     place: rest.filter((x) => x !== "Canada").join(", "),
     property: p,
-    listing: get(SECTION_KEYS.listing, listingSchema),
+    listing,
     amenities,
     commute,
     schools,

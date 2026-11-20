@@ -357,7 +357,7 @@ export function ScoresPage({ d, n }: { d: PdfData; n: number }) {
         >
           <IconChip icon={TrophyIcon} color={C.accent} size={18} />
           <Text style={[s.h3, { marginBottom: 0 }]}>
-            How easy the location makes it to sell or rent
+            How easy the location and price make it to sell or rent
           </Text>
         </View>
         <Text style={[s.small, { marginBottom: 8 }]}>
@@ -370,8 +370,9 @@ export function ScoresPage({ d, n }: { d: PdfData; n: number }) {
                 )
                 .join(", ")}. `
             : ""}
-          Green points help the sale; red points hold it back. Location only:
-          price, condition and the market matter just as much.
+          Green points help the sale; red points hold it back. Price is judged
+          by how many buyers can afford it, not against recent sales; condition
+          and the market matter too.
         </Text>
         <Grid columns={3} width={500}>
           {MODES.map((m) => {

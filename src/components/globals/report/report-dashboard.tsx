@@ -134,6 +134,26 @@ const STEP_ICONS: Record<JobKind, { icon: LucideIcon; label: string }> = {
   [JOB_KINDS.ai]: { icon: SparklesIcon, label: "AI copy" },
 };
 
+/** Header shortcut: the place icon over its travel time. */
+const SHORTCUT_TILE =
+  "size-9 flex-col gap-0.5 bg-card p-0 [&_svg:not([class*='size-'])]:size-3.5";
+
+/** The travel mode's icon and the minutes, together under the place icon. */
+function ShortcutTime({
+  icon: ModeIcon,
+  minutes,
+}: {
+  icon: LucideIcon;
+  minutes: number;
+}) {
+  return (
+    <span className="flex items-center gap-0.5 text-[9px] leading-none font-semibold text-foreground/60 tabular-nums">
+      <ModeIcon aria-hidden className="size-2 text-foreground/45" />
+      {Math.max(1, Math.round(minutes))}
+    </span>
+  );
+}
+
 export function ReportDashboard({ report }: { report: ReportData }) {
   const searchParams = useSearchParams();
   const tab = parseTab(searchParams.get("tab"));
@@ -329,25 +349,30 @@ export function ReportDashboard({ report }: { report: ReportData }) {
     <div className="mx-auto w-full max-w-[90rem] space-y-4">
       {/* Address with the home's details, actions; amenities underneath. */}
       <header className="space-y-4">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
-              {street}
-            </h1>
-            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-foreground/60">
-              <MapPinIcon aria-hidden className="size-3.5" />
-              {place || "Ontario"}
-              <span aria-hidden>·</span>
-              {formatDate(report.createdAt)}
-            </p>
+        {/* Two columns: address and the home's details on the left, the
+            actions pinned top-right (they never wrap under the details when
+            the sidebar narrows the page). Stacked on phones. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
+                {street}
+              </h1>
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-foreground/60">
+                <MapPinIcon aria-hidden className="size-3.5 shrink-0" />
+                <span className="truncate">{place || "Ontario"}</span>
+                <span aria-hidden>·</span>
+                <span className="shrink-0">{formatDate(report.createdAt)}</span>
+              </p>
+            </div>
+            <HomeFacts
+              report={report}
+              listing={data.listing}
+              onSaved={() => setDetailsChanged(true)}
+            />
           </div>
 
-          <HomeFacts
-            report={report}
-            listing={data.listing}
-            onSaved={() => setDetailsChanged(true)}
-          />
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 max-sm:order-first max-sm:self-end">
             {detailsChanged || (copyModeStale && !regenerating) ? (
               <Button
                 onClick={regenerate}
@@ -409,14 +434,15 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                             size="icon"
                             aria-label={tip}
                             onClick={() => goTo("amenities", category.id)}
-                            className="relative size-9 bg-card"
+                            className={SHORTCUT_TILE}
                           />
                         }
                       >
                         <Icon aria-hidden style={{ color: category.color }} />
-                        <span className="absolute right-0.5 bottom-0 text-[9px] font-semibold text-foreground/60 tabular-nums">
-                          {travel.time(nearest).minutes}′
-                        </span>
+                        <ShortcutTime
+                          icon={travel.icon}
+                          minutes={travel.time(nearest).minutes}
+                        />
                       </TooltipTrigger>
                       <TooltipContent className="p-0">
                         <ShortcutTip
@@ -461,14 +487,15 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                             size="icon"
                             aria-label={tip}
                             onClick={() => goTo("commute", kind)}
-                            className="relative size-9 bg-card"
+                            className={SHORTCUT_TILE}
                           />
                         }
                       >
                         <Icon aria-hidden style={{ color: meta.color }} />
-                        <span className="absolute right-0.5 bottom-0 text-[9px] font-semibold text-foreground/60 tabular-nums">
-                          {travel.time(nearest).minutes}′
-                        </span>
+                        <ShortcutTime
+                          icon={travel.icon}
+                          minutes={travel.time(nearest).minutes}
+                        />
                       </TooltipTrigger>
                       <TooltipContent className="p-0">
                         <ShortcutTip
