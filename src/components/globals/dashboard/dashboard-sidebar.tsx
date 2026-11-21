@@ -19,6 +19,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, use, useRef, useState } from "react";
 import { Logo } from "@/components/globals/homepage/logo";
+import { FadeImg } from "@/components/globals/report/fade-img";
 import { startNavigationProgress } from "@/components/globals/top-progress";
 import {
   DropdownMenu,
@@ -95,7 +96,14 @@ type HistoryItem = {
   name: string | null;
   inputAddress: string;
   createdAt: Date | string;
-  property: { formattedAddress: string | null; city: string | null } | null;
+  property: {
+    formattedAddress: string | null;
+    city: string | null;
+    /** For the Street View thumbnail. */
+    latitude?: number | null;
+    longitude?: number | null;
+    updatedAt?: Date | string;
+  } | null;
 };
 
 /**
@@ -123,6 +131,35 @@ function describe(item: HistoryItem) {
 const DAY = 86_400_000;
 
 /** Today / Previous 7 days / Previous 30 days / Older. */
+/**
+ * The property's Street View photo, small and square; the document icon
+ * when there's no location yet or no Street View there.
+ */
+function ReportThumb({ report }: { report: HistoryItem }) {
+  const [failed, setFailed] = useState(false);
+  const p = report.property;
+  if (!p || p.latitude == null || p.longitude == null || failed) {
+    return (
+      <span className="grid size-9 shrink-0 place-items-center bg-sidebar-accent">
+        <FileTextIcon aria-hidden className="text-foreground/50" />
+      </span>
+    );
+  }
+  const version = encodeURIComponent(String(p.updatedAt ?? ""));
+  return (
+    <span className="relative size-9 shrink-0 overflow-hidden bg-sidebar-accent">
+      <FadeImg
+        src={`/api/reports/${report.id}/street-view?size=thumb&v=${version}`}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+        className="absolute inset-0 size-full object-cover"
+      />
+    </span>
+  );
+}
+
 function groupByAge(items: HistoryItem[]) {
   const startOfToday = new Date().setHours(0, 0, 0, 0);
   const groups = [
@@ -250,10 +287,7 @@ export function ReportHistory() {
                         }
                         className="h-auto py-2"
                       >
-                        <FileTextIcon
-                          aria-hidden
-                          className="text-foreground/50"
-                        />
+                        <ReportThumb report={report} />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">
                             {title}

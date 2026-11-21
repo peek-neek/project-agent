@@ -21,9 +21,9 @@ export function Header() {
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: easeOutExpo }}
-      className="relative z-20"
+      className="sticky top-0 z-30 border-b border-foreground/5 bg-background/80 backdrop-blur-md"
     >
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-6 px-5 sm:px-8">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-5 sm:px-8">
         <Logo />
 
         <nav aria-label="Main" className="hidden md:block">

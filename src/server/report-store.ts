@@ -134,7 +134,15 @@ export const reportStore = {
         inputAddress: true,
         mode: true,
         createdAt: true,
-        property: { select: { formattedAddress: true, city: true } },
+        property: {
+          select: {
+            formattedAddress: true,
+            city: true,
+            latitude: true,
+            longitude: true,
+            updatedAt: true,
+          },
+        },
       },
     });
   },

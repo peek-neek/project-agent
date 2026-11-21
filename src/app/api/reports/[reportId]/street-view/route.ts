@@ -2,7 +2,10 @@ import { auth } from "@clerk/nextjs/server";
 import { reportStore } from "@/server/report-store";
 import { parseAngle, streetViewImage } from "@/server/street-view";
 
-/** Street View photo of the property (?angle=, see STREET_VIEW_ANGLES). */
+/**
+ * Street View photo of the property (?angle=, see STREET_VIEW_ANGLES;
+ * ?size=thumb for the small square used in the report history).
+ */
 export async function GET(
   request: Request,
   { params }: RouteContext<"/api/reports/[reportId]/street-view">,
@@ -17,8 +20,10 @@ export async function GET(
   if (!report || lat == null || lng == null) {
     return new Response("Not found", { status: 404 });
   }
+  const search = new URL(request.url).searchParams;
   return streetViewImage(
     { lat, lng },
-    parseAngle(new URL(request.url).searchParams.get("angle")),
+    parseAngle(search.get("angle")),
+    search.get("size") === "thumb" ? "160x160" : undefined,
   );
 }

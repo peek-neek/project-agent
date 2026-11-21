@@ -5,11 +5,11 @@ export const site = {
 };
 
 export const navLinks = [
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#snapshot", label: "Snapshot" },
-  { href: "#whats-inside", label: "What's inside" },
-  { href: "#versions", label: "Agent tools" },
-  { href: "#faq", label: "FAQ" },
+  { href: "/#features", label: "Features" },
+  { href: "/#how-it-works", label: "How it works" },
+  { href: "/#compliance", label: "Compliance" },
+  { href: "/#pricing", label: "Pricing" },
+  { href: "/#faq", label: "FAQ" },
 ];
 
 export const exampleAddresses = [
@@ -19,35 +19,15 @@ export const exampleAddresses = [
   "250 Lakeshore Rd E, Oakville, ON",
 ];
 
+/** Every source the reports actually read from. */
 export const dataSources = [
-  "Google Maps Platform",
-  "Google Places",
-  "Google Routes",
-  "Google Solar API",
-  "Walk Score",
-  "Statistics Canada",
-  "Ontario parcel data",
-  "City open data",
-  "Police open data",
-  "Conservation authorities",
-  "Transit agencies",
-  "Public school boards",
-  "OpenStreetMap",
-];
-
-export const steps = [
-  {
-    title: "Enter any Ontario address",
-    body: "Type a street address, or paste up to three to compare. Add beds, baths, price and taxes if you have them.",
-  },
-  {
-    title: "We pull 20+ data sources",
-    body: "Parcel data, zoning, permits, transit, schools, demographics, flood maps and air quality, gathered and checked against each other.",
-  },
-  {
-    title: "Share a branded report",
-    body: "Download an agent or client PDF with your logo and photo, or send a live link with a QR code.",
-  },
+  "Google Maps Platform (Places, Routes, Street View, Air Quality)",
+  "Statistics Canada (2021 Census, crime severity)",
+  "Toronto Police Service open data",
+  "Land Information Ontario (road and rail networks)",
+  "Conservation authority flood regulation mapping",
+  "Ontario school data and EQAO results",
+  "Municipal open data (development applications)",
 ];
 
 export type ReportItem = {
@@ -302,52 +282,33 @@ export const reportSections: ReportSection[] = [
   },
 ];
 
-export const workflowFeatures = [
-  {
-    title: "Section toggles",
-    body: "Turn off any section before you share it, like demographics for a first-time buyer or the money pages for a renter.",
-  },
-  {
-    title: "Shareable link",
-    body: "Send a live report link instead of an attachment. Every PDF includes a QR code that opens it.",
-  },
-  {
-    title: "Report history",
-    body: "Every report you've made, saved and searchable. Reopen, re-run with fresh data or duplicate.",
-  },
-  {
-    title: "Compare 2–3 addresses",
-    body: "Put shortlisted homes side by side on scores, commutes, amenities and costs.",
-  },
-  {
-    title: "Bulk mode",
-    body: "Upload a list of addresses and generate a report for each one in a single run.",
-  },
-];
-
 export const faqs = [
   {
-    q: "What is a property report?",
-    a: `A property report brings together everything a buyer asks about one address: the home's details, the neighbourhood, nearby amenities, transit, demographics and safety. ${site.name} builds one from public and licensed data in a few minutes and brands it with your details.`,
+    q: "What exactly do I get for each address?",
+    a: `A full location report (amenities timed on foot, by bike and by car, commute and transit, schools with EQAO results, crime, flood, noise and air quality, housing mix and planned development), a sell / rent ease score, ready-to-post marketing copy, a showing playbook, 13 calculators, a downloadable PDF and an AI chat that can answer anything the report doesn't cover.`,
   },
   {
     q: "Which areas do you cover?",
-    a: `${site.name} covers addresses across Ontario. Lot boundaries, zoning, permits and crime data come from provincial and city open data, so detail varies by municipality. Each section notes where its data came from.`,
+    a: "Addresses anywhere in Ontario. Some details depend on what each municipality publishes: Toronto adds neighbourhood crime rates and its development applications, for example. Each section says where its data came from.",
   },
   {
     q: "Where does the data come from?",
-    a: "Google Maps Platform (Places, Routes, Street View, Solar and air quality), Walk Score, Statistics Canada, Ontario parcel data, city open data portals, police open data, conservation authority maps, transit agencies and OpenStreetMap. Each report lists its sources with “as of” dates.",
+    a: "Google Maps Platform (Places, Routes, Street View and Air Quality), Statistics Canada (the 2021 Census and crime severity), Toronto Police Service, Land Information Ontario, conservation authority flood mapping, Ontario school data with EQAO results, and municipal open data.",
   },
   {
-    q: "What's the difference between the agent and client versions?",
-    a: "The client version is a polished report you can hand to buyers and sellers. The agent version adds a private playbook with showing talking points, likely objections and suggested answers, an ideal buyer profile and a prep checklist.",
+    q: "Is the marketing copy safe to post?",
+    a: "It's written with the Ontario Human Rights Code and RECO's advertising rules built in: it describes homes and places, never who should live there, and never labels a neighbourhood. You're still the licensee, so read it before you publish.",
   },
   {
-    q: "Can I add my own branding?",
-    a: "Yes. Save your logo, headshot, name, phone, email and brokerage once, and they appear on the cover of every report.",
+    q: "How long does a report take?",
+    a: "Usually a few minutes. You can watch each section arrive, and the report is yours to revisit, regenerate or download whenever you need it.",
   },
   {
-    q: "Is the information guaranteed to be accurate?",
-    a: "No. Reports are for reference only. We pull from reputable sources and show the date of each dataset, but you should check anything important, such as zoning or lot lines, with the municipality before relying on it.",
+    q: "Why is there no free plan?",
+    a: "Every report runs fresh lookups against live map, routing and AI services, so each one has a real cost. Plans start at C$59 a month, you can cancel anytime, and extra reports are C$15 each.",
+  },
+  {
+    q: "Are the figures guaranteed?",
+    a: "No. Reports are for reference. Data is pulled from reputable sources and labelled, but confirm anything important, such as school boundaries, zoning or the tax bill, with the relevant authority.",
   },
 ];

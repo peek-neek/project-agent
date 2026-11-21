@@ -1,20 +1,21 @@
 import type { Metadata } from "next";
-import { AgentTools } from "@/components/globals/homepage/agent-tools";
 import { faqs, site } from "@/components/globals/homepage/content";
-import { Cta } from "@/components/globals/homepage/cta";
-import { DataSources } from "@/components/globals/homepage/data-sources";
-import { Faq } from "@/components/globals/homepage/faq";
 import { Footer } from "@/components/globals/homepage/footer";
 import { Header } from "@/components/globals/homepage/header";
-import { Hero } from "@/components/globals/homepage/hero";
-import { HowItWorks } from "@/components/globals/homepage/how-it-works";
-import { ReportSections } from "@/components/globals/homepage/report-sections";
-import { SnapshotPreview } from "@/components/globals/homepage/snapshot-preview";
-import { WorkflowFeatures } from "@/components/globals/homepage/workflow-features";
+import { Compliance } from "@/components/globals/landing/compliance";
+import { Faq } from "@/components/globals/landing/faq";
+import { Features } from "@/components/globals/landing/features";
+import { FinalCta } from "@/components/globals/landing/final-cta";
+import { Hero } from "@/components/globals/landing/hero";
+import { Homework } from "@/components/globals/landing/homework";
+import { HowItWorks } from "@/components/globals/landing/how-it-works";
+import { Pricing } from "@/components/globals/landing/pricing";
+import { Sources } from "@/components/globals/landing/sources";
 
-const title = "AI Property Reports for Real Estate Agents in Ontario";
+const title =
+  "Property Reports and Listing Copy for Ontario Real Estate Agents";
 const description =
-  "Generate a branded property report for any Ontario address in minutes, covering neighbourhood amenities, transit, Walk Score, demographics, safety and an agent playbook. Share it as a PDF or a link.";
+  "Type any Ontario address and get the neighbourhood research, compliant listing copy, showing playbook, calculators and a polished PDF in minutes. Amenities timed three ways, schools with EQAO, commute, safety facts and a sell / rent ease score.";
 
 export const metadata: Metadata = {
   title: { absolute: `${title} | ${site.name}` },
@@ -77,16 +78,17 @@ export default function HomePage() {
         }}
       />
       <Header />
-      <main id="top">
+      {/* overflow-x-clip: the fanned PDF pages never cause sideways scroll. */}
+      <main id="top" className="overflow-x-clip">
         <Hero />
-        <DataSources />
+        <Sources />
+        <Homework />
+        <Features />
         <HowItWorks />
-        <SnapshotPreview />
-        <ReportSections />
-        <AgentTools />
-        <WorkflowFeatures />
+        <Compliance />
+        <Pricing />
         <Faq />
-        <Cta />
+        <FinalCta />
       </main>
       <Footer />
     </>
