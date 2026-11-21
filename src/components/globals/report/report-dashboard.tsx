@@ -267,7 +267,8 @@ export function ReportDashboard({ report }: { report: ReportData }) {
   // Also older reports without province-wide highway/rail distances.
   const needsAreaCrime =
     data.safety != null &&
-    (data.safety.areaCrime === undefined || !data.safety.noise.roadsCovered);
+    (data.safety.areaCrime === undefined ||
+      (!data.safety.noise.roadsCovered && !data.safety.noise.outsideCoverage));
   useEffect(() => {
     if (!needsAreaCrime || safetyBackfilled.current || isJobActive(safetyJob))
       return;
@@ -360,7 +361,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
               </h1>
               <p className="mt-0.5 flex items-center gap-1.5 text-sm text-foreground/60">
                 <MapPinIcon aria-hidden className="size-3.5 shrink-0" />
-                <span className="truncate">{place || "Ontario"}</span>
+                <span className="truncate">{place || "Canada"}</span>
                 <span aria-hidden>·</span>
                 <span className="shrink-0">{formatDate(report.createdAt)}</span>
               </p>
@@ -867,6 +868,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                     reportId={report.id}
                     listPrice={data.listing?.listPrice ?? null}
                     city={report.property?.city ?? null}
+                    province={report.property?.province ?? null}
                     propertyType={data.listing?.propertyType ?? null}
                     saved={getSection(
                       report,

@@ -3,9 +3,10 @@
 //
 //   npm run data:crime
 //
-// Writes src/server/datasets/ontario-crime-severity.json: CSI, violent and
-// non-violent CSI for every Ontario police service, plus Ontario and Canada,
-// for the latest six years. Needs the `unzip` command (macOS/Linux).
+// Writes src/server/datasets/canada-crime-severity.json: CSI, violent and
+// non-violent CSI for every police service in Canada, plus each province and
+// territory and Canada, for the latest six years. Needs the `unzip` command
+// (macOS/Linux).
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,13 +14,41 @@ import { join } from "node:path";
 import { parseCsvRecords } from "../src/server/csv";
 
 const OUT = new URL(
-  "../src/server/datasets/ontario-crime-severity.json",
+  "../src/server/datasets/canada-crime-severity.json",
   import.meta.url,
 );
 const YEARS = 6;
 
-/** Table 35-10-0188: police services in Ontario. 35-10-0026: Canada. */
-const TABLES = { ontario: "35100188", canada: "35100026" } as const;
+/** "Crime severity index … police services in …" tables, one per region. */
+const SERVICE_TABLES = {
+  "35100186": "the Atlantic provinces",
+  "35100187": "Quebec",
+  "35100188": "Ontario",
+  "35100189": "Manitoba",
+  "35100061": "Saskatchewan",
+  "35100190": "Alberta",
+  "35100063": "British Columbia",
+  "35100064": "the Territories",
+} as const;
+/** Canada, provinces, territories and CMAs. */
+const CANADA_TABLE = "35100026";
+
+const PROVINCES = {
+  NL: "Newfoundland and Labrador",
+  PE: "Prince Edward Island",
+  NS: "Nova Scotia",
+  NB: "New Brunswick",
+  QC: "Quebec",
+  ON: "Ontario",
+  MB: "Manitoba",
+  SK: "Saskatchewan",
+  AB: "Alberta",
+  BC: "British Columbia",
+  YT: "Yukon",
+  NT: "Northwest Territories",
+  NU: "Nunavut",
+} as const;
+type ProvinceCode = keyof typeof PROVINCES;
 
 const STATS = {
   "Crime severity index": "csi",
@@ -50,15 +79,24 @@ async function readTable(pid: string) {
 /** "York Region, Ontario, municipal [35335]" → "York Region, Ontario, municipal" */
 const geoName = (geo: string) => geo.replace(/\s*\[[^\]]*\]\s*$/, "");
 
-function collect(
-  rows: Record<string, string>[],
-  keep: (geo: string) => boolean,
-) {
-  const byGeo = new Map<string, Map<number, Partial<Record<Stat, number>>>>();
+/** The province a service is in: the first ", <Province>" in its name. */
+function provinceOf(geo: string): ProvinceCode | null {
+  let best: { code: ProvinceCode; at: number } | null = null;
+  for (const [code, name] of Object.entries(PROVINCES) as [ProvinceCode, string][]) {
+    const at = geo.indexOf(`, ${name}`);
+    if (at !== -1 && (!best || at < best.at)) best = { code, at };
+  }
+  return best?.code ?? null;
+}
+
+type ByYear = Map<number, Partial<Record<Stat, number>>>;
+
+function collect(rows: Record<string, string>[], keep: (geo: string) => boolean) {
+  const byGeo = new Map<string, ByYear>();
   for (const r of rows) {
     const stat = STATS[r.Statistics as keyof typeof STATS];
-    if (!stat || !keep(r.GEO) || r.VALUE === "") continue;
     const geo = geoName(r.GEO);
+    if (!stat || !keep(geo) || r.VALUE === "") continue;
     const year = Number(r.REF_DATE);
     const years = byGeo.get(geo) ?? new Map();
     byGeo.set(geo, years);
@@ -67,11 +105,19 @@ function collect(
   return byGeo;
 }
 
-const ontarioRows = await readTable(TABLES.ontario);
-const canadaRows = await readTable(TABLES.canada);
-
-const services = collect(ontarioRows, () => true);
-const canada = collect(canadaRows, (geo) => geoName(geo) === "Canada");
+const provinceNames = new Set<string>(Object.values(PROVINCES));
+const services = new Map<string, ByYear>();
+for (const pid of Object.keys(SERVICE_TABLES)) {
+  const rows = await readTable(pid);
+  // Provincial totals come from the Canada table; keep only services here.
+  for (const [geo, byYear] of collect(rows, (g) => !provinceNames.has(g))) {
+    services.set(geo, byYear);
+  }
+}
+const totals = collect(
+  await readTable(CANADA_TABLE),
+  (geo) => geo === "Canada" || provinceNames.has(geo),
+);
 
 const latest = Math.max(
   ...[...services.values()].flatMap((years) =>
@@ -80,33 +126,37 @@ const latest = Math.max(
 );
 const years = Array.from({ length: YEARS }, (_, i) => latest - YEARS + 1 + i);
 
-const series = (
-  byYear?: Map<number, Partial<Record<Stat, number>>>,
-): Series => ({
+const series = (byYear?: ByYear): Series => ({
   csi: years.map((y) => byYear?.get(y)?.csi ?? null),
   violent: years.map((y) => byYear?.get(y)?.violent ?? null),
   nonViolent: years.map((y) => byYear?.get(y)?.nonViolent ?? null),
 });
 
 const out = {
-  source:
-    "Statistics Canada, Tables 35-10-0188-01 and 35-10-0026-01 (Crime Severity Index)",
+  source: `Statistics Canada, Tables 35-10-0026-01, ${Object.keys(SERVICE_TABLES)
+    .map((pid) => `${pid.slice(0, 2)}-${pid.slice(2, 4)}-${pid.slice(4)}-01`)
+    .join(", ")} (Crime Severity Index)`,
   years,
-  ontario: series(services.get("Ontario")),
-  canada: series(canada.get("Canada")),
+  canada: series(totals.get("Canada")),
+  provinces: Object.fromEntries(
+    (Object.entries(PROVINCES) as [ProvinceCode, string][]).map(([code, name]) => [
+      code,
+      series(totals.get(name)),
+    ]),
+  ) as Record<ProvinceCode, Series>,
   // Only services with a figure in the latest year (others have merged or
-  // closed).
-  services: Object.fromEntries(
-    [...services]
-      .filter(
-        ([geo, byYear]) => geo !== "Ontario" && byYear.get(latest)?.csi != null,
-      )
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([geo, byYear]) => [geo, series(byYear)]),
-  ),
+  // closed), each tagged with its province.
+  services: [...services]
+    .filter(([, byYear]) => byYear.get(latest)?.csi != null)
+    .flatMap(([geo, byYear]) => {
+      const province = provinceOf(geo);
+      return province ? [{ geo, province, ...series(byYear) }] : [];
+    })
+    .sort((a, b) => a.geo.localeCompare(b.geo)),
 };
 
-writeFileSync(OUT, `${JSON.stringify(out, null, 1)}\n`);
-console.log(
-  `Wrote ${Object.keys(out.services).length} services, ${years[0]}–${latest}`,
+writeFileSync(OUT, `${JSON.stringify(out)}\n`);
+const perProvince = Object.fromEntries(
+  Object.keys(PROVINCES).map((c) => [c, out.services.filter((s) => s.province === c).length]),
 );
+console.log(`Wrote ${out.services.length} services, ${years[0]}–${latest}`, perProvince);

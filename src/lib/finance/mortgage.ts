@@ -8,8 +8,8 @@ import {
   CMHC_NON_TRADITIONAL_RATE,
   CMHC_PREMIUMS,
   DOWN_PAYMENT,
-  ONTARIO_PST_ON_PREMIUM,
 } from "./ontario-rules";
+import { PREMIUM_TAX, type Province } from "./provinces";
 
 export const FREQUENCIES = {
   monthly: { label: "Monthly", perYear: 12 },
@@ -198,11 +198,14 @@ export function mortgageInsurance({
   downPayment,
   amortizationYears,
   nonTraditional = false,
+  province = "ON",
 }: {
   price: number;
   downPayment: number;
   amortizationYears: number;
   nonTraditional?: boolean;
+  /** Ontario, Quebec and Saskatchewan tax the premium (paid at closing). */
+  province?: Province;
 }): Insurance {
   const loan = Math.max(0, price - downPayment);
   const ltv = price > 0 ? loan / price : 0;
@@ -241,6 +244,6 @@ export function mortgageInsurance({
     reason: null,
     rate,
     premium,
-    pst: premium * ONTARIO_PST_ON_PREMIUM,
+    pst: premium * PREMIUM_TAX[province],
   };
 }

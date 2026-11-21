@@ -1,7 +1,7 @@
 // An agent's take-home from one deal: the side's commission, the split
 // with the brokerage, and fees.
 
-import { ONTARIO_HST } from "./ontario-rules";
+import { COMMISSION_TAX, type Province } from "./provinces";
 
 export type CommissionInput = {
   salePrice: number;
@@ -18,6 +18,8 @@ export type CommissionInput = {
   referralFee: number;
   /** Per-deal brokerage transaction or desk fee. */
   transactionFee: number;
+  /** Sets the sales tax the client pays on top. Default Ontario. */
+  province?: Province;
 };
 
 export function commission(input: CommissionInput) {
@@ -26,7 +28,7 @@ export function commission(input: CommissionInput) {
       ? input.salePrice * input.rate
       : Math.min(input.salePrice, input.tierAmount) * input.tierRate +
         Math.max(0, input.salePrice - input.tierAmount) * input.restRate;
-  const hst = gross * ONTARIO_HST;
+  const hst = gross * COMMISSION_TAX[input.province ?? "ON"].rate;
   const referral = gross * input.referralFee;
   const afterReferral = gross - referral;
   const agentGross = afterReferral * input.agentSplit;

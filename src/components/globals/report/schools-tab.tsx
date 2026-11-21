@@ -106,6 +106,7 @@ function SchoolCard({
   label,
   index,
   average,
+  showResults,
   selected,
   onSelect,
 }: {
@@ -114,6 +115,8 @@ function SchoolCard({
   label?: string;
   index: number;
   average: SchoolsData["provincialAverage"];
+  /** EQAO results exist only for Ontario's school list. */
+  showResults: boolean;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -170,11 +173,11 @@ function SchoolCard({
                 className="size-2"
                 style={{ backgroundColor: school.color }}
               />
-              {school.board}
+              {school.board || school.systemLabel}
             </span>
           </p>
         </div>
-        <Eqao school={school} average={average} />
+        {showResults && <Eqao school={school} average={average} />}
         <div
           className="flex flex-wrap items-center gap-x-4 gap-y-1"
           onClick={(e) => e.stopPropagation()}
@@ -262,6 +265,11 @@ export function SchoolsTab({
     ),
   ];
   const average = schools.provincialAverage;
+  const nearby = schools.coverage === "nearby";
+  // Only the systems this report has (Ontario's four, or "Nearby schools").
+  const systems = SCHOOL_SYSTEMS.filter((system) =>
+    schools.systems.some((x) => x.id === system.id),
+  );
   // Stagger order across both levels, computed up front (no render mutation).
   const order = new Map(
     byLevel.flatMap((g) => g.schools).map((s, i) => [s.id, i]),
@@ -292,7 +300,7 @@ export function SchoolsTab({
             {everything.length}
           </span>
         </ToggleGroupItem>
-        {SCHOOL_SYSTEMS.map((system) => {
+        {systems.map((system) => {
           const count = everything.filter(
             (s) => s.systemLabel === system.label,
           ).length;
@@ -339,7 +347,9 @@ export function SchoolsTab({
               <InfoIcon />
               <AlertTitle>Nearest isn&apos;t always assigned</AlertTitle>
               <AlertDescription className="text-foreground/65">
-                Confirm catchment with each board&apos;s school locator.
+                {nearby
+                  ? "Confirm catchment with the local school district or board."
+                  : "Confirm catchment with each board\u2019s school locator."}
                 {boards.length > 0 && (
                   <span className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
                     {boards.map(([board, url]) => (
@@ -381,6 +391,7 @@ export function SchoolsTab({
                         label={labels.get(school.id)}
                         index={order.get(school.id) ?? 0}
                         average={average}
+                        showResults={!nearby}
                         selected={selectedId === school.id}
                         onSelect={() => {
                           setSelectedId(school.id);
@@ -396,10 +407,20 @@ export function SchoolsTab({
               ),
           )}
           <p className="text-xs leading-relaxed text-foreground/50">
-            EQAO: share of students meeting the provincial standard,{" "}
-            {schools.dataYear}. ↑/↓ shows points above or below the Ontario
-            school average (hover a value to see it). Results aren&apos;t
-            reported for small or new schools.
+            {nearby ? (
+              <>
+                Nearest schools from Google Maps: public, Catholic,
+                French-language and private schools alike. Test results are
+                shown for Ontario schools only for now.
+              </>
+            ) : (
+              <>
+                EQAO: share of students meeting the provincial standard,{" "}
+                {schools.dataYear}. ↑/↓ shows points above or below the Ontario
+                school average (hover a value to see it). Results aren&apos;t
+                reported for small or new schools.
+              </>
+            )}
           </p>
         </div>
       </div>

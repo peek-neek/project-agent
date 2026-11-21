@@ -10,7 +10,7 @@ import {
   SECTION_KEYS,
   type UpsideData,
 } from "../../lib/report-sections";
-import { municipalityAt } from "../crime-severity";
+import { municipalityAt } from "../census-geo";
 import { db } from "../db";
 import {
   developmentSourceFor,
@@ -59,11 +59,6 @@ const box = (lat: number, lng: number, meters: number) => {
     longitude: { gte: lng - dLng, lte: lng + dLng },
   };
 };
-
-const titleCase = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/(^|[\s\-/.])([a-z])/g, (_, p, c) => p + c.toUpperCase());
 
 export async function extractUpside(reportId: string) {
   const report = await reportStore.findWithDetails(reportId);
@@ -170,8 +165,8 @@ export async function extractUpside(reportId: string) {
       .filter((a) => a.distanceMeters <= DEVELOPMENT_RADIUS_M);
   } else {
     const muni = await municipalityAt(origin).catch(() => null);
-    municipality = muni ? titleCase(muni.name) : null;
-    const live = muni ? developmentSourceFor(muni.name) : null;
+    municipality = muni?.name ?? null;
+    const live = muni ? developmentSourceFor(muni.name, muni.province) : null;
     if (live) {
       try {
         applications = (
@@ -204,10 +199,15 @@ export async function extractUpside(reportId: string) {
     };
   }
 
+  const province = report?.property?.province;
   const data: UpsideData = {
     projects,
     development,
     developmentNote,
+    projectsNote:
+      province && province !== "ON"
+        ? "Public infrastructure projects come from Ontario's capital plan (Ontario Builds) and cover Ontario only so far."
+        : null,
     fetchedAt: new Date().toISOString(),
   };
   await reportStore.setSection(reportId, SECTION_KEYS.upside, data);

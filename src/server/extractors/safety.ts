@@ -52,6 +52,29 @@ const AIRPORTS = [
   },
   { name: "London International", lat: 43.0356, lng: -81.1539, radiusKm: 6 },
   { name: "Oshawa Executive", lat: 43.9228, lng: -78.895, radiusKm: 4 },
+  // Across Canada (locations from Google Places, Nov 2026).
+  { name: "Vancouver International", lat: 49.1934, lng: -123.1751, radiusKm: 12 },
+  { name: "Calgary International", lat: 51.1217, lng: -114.0081, radiusKm: 12 },
+  { name: "Edmonton International", lat: 53.3027, lng: -113.5769, radiusKm: 10 },
+  { name: "Montréal–Trudeau International", lat: 45.4658, lng: -73.7454, radiusKm: 12 },
+  { name: "Winnipeg Richardson International", lat: 49.9097, lng: -97.2364, radiusKm: 10 },
+  { name: "Québec City Jean Lesage International", lat: 46.7909, lng: -71.3886, radiusKm: 8 },
+  { name: "Halifax Stanfield International", lat: 44.8825, lng: -63.5152, radiusKm: 8 },
+  { name: "Victoria International", lat: 48.6481, lng: -123.4288, radiusKm: 6 },
+  { name: "Saskatoon International", lat: 52.1715, lng: -106.7004, radiusKm: 6 },
+  { name: "Regina International", lat: 50.4321, lng: -104.6639, radiusKm: 6 },
+  { name: "Kelowna International", lat: 49.9568, lng: -119.3787, radiusKm: 6 },
+  { name: "Abbotsford International", lat: 49.0239, lng: -122.3642, radiusKm: 6 },
+  { name: "St. John's International", lat: 47.62, lng: -52.7494, radiusKm: 6 },
+  { name: "Greater Moncton International", lat: 46.1145, lng: -64.6729, radiusKm: 5 },
+  { name: "Fredericton International", lat: 45.8728, lng: -66.5297, radiusKm: 4 },
+  { name: "Saint John", lat: 45.3293, lng: -65.8906, radiusKm: 4 },
+  { name: "Charlottetown", lat: 46.2904, lng: -63.1244, radiusKm: 4 },
+  { name: "Whitehorse International", lat: 60.7141, lng: -135.0761, radiusKm: 4 },
+  { name: "Yellowknife", lat: 62.4661, lng: -114.4392, radiusKm: 4 },
+  { name: "Iqaluit International", lat: 63.757, lng: -68.545, radiusKm: 3 },
+  { name: "Thunder Bay International", lat: 48.372, lng: -89.3121, radiusKm: 5 },
+  { name: "Greater Sudbury", lat: 46.6256, lng: -80.7991, radiusKm: 4 },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -372,6 +395,18 @@ async function airQualityAt(point: LatLng) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Outside Ontario: flood regulation (conservation authorities) and the road
+ * and rail networks used for noise are Ontario datasets, so say so rather
+ * than report "clear".
+ */
+const OUTSIDE_ONTARIO_FLOOD: SafetyData["flood"] = {
+  authority: null,
+  status: "unknown",
+  criteria: [],
+  note: "Flood and erosion regulation mapping is connected for Ontario only so far. Check the province's or municipality's flood hazard maps.",
+};
+
 export async function extractSafety(reportId: string) {
   const report = await reportStore.findWithDetails(reportId);
   const { latitude: lat, longitude: lng } = report?.property ?? {};
@@ -379,18 +414,28 @@ export async function extractSafety(reportId: string) {
     throw new Error("The property's location isn't available yet.");
   }
   const point = { lat, lng };
+  const province = report?.property?.province;
+  const outsideOntario = province != null && province !== "ON";
 
   const [crime, areaCrime, flood, air, noise] = await Promise.all([
     crimeAt(point),
     // Area figures are a bonus next to Toronto's neighbourhood detail, and
     // the only crime data elsewhere: never fail the step over them.
-    areaCrimeAt(point).catch((error) => {
+    areaCrimeAt(point, report?.property?.province).catch((error) => {
       console.error("[safety] crime severity", error);
       return null;
     }),
-    floodAt(point),
+    outsideOntario ? OUTSIDE_ONTARIO_FLOOD : floodAt(point),
     airQualityAt(point),
-    noiseAt(point),
+    outsideOntario
+      ? {
+          highway: null,
+          railway: null,
+          airport: nearestAirport(point),
+          roadsCovered: false,
+          outsideCoverage: true,
+        }
+      : noiseAt(point),
   ]);
 
   const data: SafetyData = {

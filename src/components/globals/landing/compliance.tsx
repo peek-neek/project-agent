@@ -5,7 +5,7 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 const RULES = [
   {
     title: "Homes and places, never people",
-    text: "Copy never describes or targets buyers by race, religion, age, family status, disability or any other ground in the Ontario Human Rights Code. Buyers are described by needs and lifestyle only.",
+    text: "Copy never describes or targets buyers by race, religion, age, family status, disability or any other ground protected by provincial human rights codes. Buyers are described by needs and lifestyle only.",
   },
   {
     title: "No labels on neighbourhoods",
@@ -13,7 +13,7 @@ const RULES = [
   },
   {
     title: "Distances, not catchments",
-    text: "Reports never promise a school boundary. They give distances and EQAO results, and remind you to confirm attendance areas with the board.",
+    text: "Reports never promise a school boundary. They give distances (and EQAO results in Ontario), and remind you to confirm attendance areas with the board or district.",
   },
   {
     title: "Sourced and dated",
@@ -45,7 +45,7 @@ export function Compliance() {
               id="compliance-title"
               className="mt-6 text-[clamp(1.9rem,3.4vw,2.9rem)] leading-[1.08] font-semibold tracking-tight text-balance"
             >
-              Drafted with Ontario&apos;s advertising rules built in.
+              Drafted with provincial advertising rules built in.
             </h2>
             <p className="mt-5 text-lg leading-relaxed text-background/65 text-pretty">
               One careless line about a neighbourhood can turn into a complaint.

@@ -1,6 +1,6 @@
 // Runs inside the Trigger.dev "property-identity" task.
 import { AbortTaskRunError } from "@trigger.dev/sdk";
-import { municipalityAt } from "../crime-severity";
+import { municipalityAt } from "../census-geo";
 import {
   getPlaceAddress,
   type ResolvedAddress,
@@ -31,14 +31,8 @@ export function parseUnitFromInput(input: string) {
 /** Shown on the report when the address can't be placed on the map. */
 export const ADDRESS_NOT_FOUND =
   "We couldn't find this address on the map. Check the street number and town, pick it from the suggestions, or drop a pin for new builds and rural lots.";
-export const ADDRESS_OUTSIDE_ONTARIO =
-  "This address is outside Ontario. Reports cover Ontario properties only.";
-
-/** "WHITCHURCH-STOUFFVILLE" → "Whitchurch-Stouffville". */
-const titleCase = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/(^|[\s\-/.(])([a-z])/g, (_, p, c) => p + c.toUpperCase());
+export const ADDRESS_OUTSIDE_CANADA =
+  "This address is outside Canada. Reports cover Canadian properties only.";
 
 /**
  * Resolves the report's address with Google and stores the identification
@@ -62,8 +56,8 @@ export async function extractPropertyIdentity({
     error: null,
   });
 
-  // A pin the agent dropped: keep its coordinates, add the town (free, from
-  // Ontario's municipal boundaries) and skip Google.
+  // A pin the agent dropped: keep its coordinates, add the town and province
+  // (free, from StatCan's census boundaries) and skip Google.
   const existing = await reportStore.getIdentity(reportId);
   const pinned =
     (existing?.sources as IdentitySources | null)?.location?.source === "pin" &&
@@ -79,7 +73,9 @@ export async function extractPropertyIdentity({
     await reportStore.saveIdentity(
       reportId,
       {
-        city: existing.city ?? (muni ? titleCase(muni.name) : null),
+        // StatCan names are already cased ("St. John's", "McKellar").
+        city: existing.city ?? muni?.name ?? null,
+        province: existing.province ?? muni?.province ?? null,
         unitNumber: existing.unitNumber ?? typedUnit,
       },
       typedUnit ? { unitNumber: { source: "search", asOf } } : {},
@@ -99,12 +95,10 @@ export async function extractPropertyIdentity({
   // a guess. Fail once, without retries, with a message the agent can act on.
   const notFound =
     !resolved || resolved.latitude == null || resolved.longitude == null;
-  const outside =
-    resolved != null &&
-    (resolved.province !== "ON" || resolved.country !== "CA");
+  const outside = resolved != null && resolved.country !== "CA";
   const vague = !report.placeId && resolved != null && !resolved.streetNumber;
   if (notFound || outside || vague) {
-    const message = outside ? ADDRESS_OUTSIDE_ONTARIO : ADDRESS_NOT_FOUND;
+    const message = outside ? ADDRESS_OUTSIDE_CANADA : ADDRESS_NOT_FOUND;
     await reportStore.updateJob(reportId, PROPERTY_IDENTITY_JOB, {
       status: "failed",
       finishedAt: new Date(),

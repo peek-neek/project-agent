@@ -1,8 +1,8 @@
 // Rental property returns, rent vs buy, prepayments and bridge financing.
 
-import { landTransferTax } from "./land-transfer-tax";
+
 import { amortize, mortgageInsurance, payment, periodicRate } from "./mortgage";
-import { ONTARIO_HST } from "./ontario-rules";
+import { LEGAL_FEE_TAX, type Province, transferTax } from "./provinces";
 
 // ---------------------------------------------------------------------------
 // Rental property
@@ -33,6 +33,8 @@ export type RentalInput = {
   setupCosts: number;
   /** Home value growth per year (decimal), for the total return. */
   appreciation: number;
+  /** Default Ontario. */
+  province?: Province;
 };
 
 export function rentalAnalysis(input: RentalInput) {
@@ -40,6 +42,7 @@ export function rentalAnalysis(input: RentalInput) {
     price: input.price,
     downPayment: input.downPayment,
     amortizationYears: input.amortizationYears,
+    province: input.province,
   });
   const loan =
     Math.max(0, input.price - input.downPayment) +
@@ -134,6 +137,10 @@ export type RentVsBuyInput = {
   amortizationYears: number;
   toronto: boolean;
   firstTimeBuyer: boolean;
+  /** Default Ontario. */
+  province?: Province;
+  /** Inside the City of Montréal (Quebec only). */
+  montreal?: boolean;
   /** Legal, inspection and other buying costs besides land transfer tax. */
   otherBuyingCosts: number;
   propertyTaxRate: number;
@@ -169,13 +176,16 @@ export function rentVsBuy(input: RentVsBuyInput) {
     price: input.price,
     downPayment: input.downPayment,
     amortizationYears: input.amortizationYears,
+    province: input.province,
   });
   const loan =
     Math.max(0, input.price - input.downPayment) +
     (ins.available ? ins.premium : 0);
-  const ltt = landTransferTax({
+  const ltt = transferTax({
+    province: input.province ?? "ON",
     price: input.price,
     toronto: input.toronto,
+    montreal: input.montreal,
     firstTimeBuyer: input.firstTimeBuyer,
   }).total;
   const upfront = input.downPayment + ltt + input.otherBuyingCosts + ins.pst;
@@ -364,12 +374,14 @@ export type BridgeInput = {
   newHomeMonthly: number;
   /** Extra legal work for the bridge (often charged by the lawyer). */
   legalFee: number;
+  /** Default Ontario. */
+  province?: Province;
 };
 
 export function bridgeFinancing(input: BridgeInput) {
   // Simple daily interest, as bridge loans are usually charged.
   const interest = input.bridgeAmount * input.bridgeRate * (input.days / 365);
-  const legal = input.legalFee * (1 + ONTARIO_HST);
+  const legal = input.legalFee * (1 + LEGAL_FEE_TAX[input.province ?? "ON"].rate);
   const doubleCarrying =
     ((input.currentHomeMonthly + input.newHomeMonthly) * input.days * 12) / 365;
   // Only the old home is the extra cost: the new one is paid either way.

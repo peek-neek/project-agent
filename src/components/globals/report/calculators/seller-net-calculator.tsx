@@ -1,5 +1,6 @@
 "use client";
 
+import { COMMISSION_TAX, LEGAL_FEE_TAX, type Province } from "@/lib/finance/provinces";
 import { PieChartIcon, ReceiptTextIcon } from "lucide-react";
 import { sellerNet } from "@/lib/finance/closing";
 import {
@@ -24,15 +25,19 @@ import type { SellerState } from "./calculators-tab";
 export function SellerNetCalculator({
   state,
   set,
+  province,
   listPrice,
   onUseListPrice,
 }: {
   state: SellerState;
+  province: Province;
   set: (patch: Partial<SellerState>) => void;
   listPrice: number | null;
   onUseListPrice: () => void;
 }) {
-  const r = sellerNet(state);
+  const r = sellerNet({ ...state, province });
+  const commissionTax = COMMISSION_TAX[province].label;
+  const legalTax = LEGAL_FEE_TAX[province].label;
   const line = (id: string) => r.lines.find((l) => l.id === id)?.amount ?? 0;
   const fees =
     line("discharge") +
@@ -139,7 +144,7 @@ export function SellerNetCalculator({
               label="Legal fees"
               value={state.legalFees}
               onChange={(v) => set({ legalFees: v })}
-              hint="Before HST"
+              hint={`Before ${legalTax}`}
             />
             <MoneyField
               label="Discharge fee"
@@ -193,7 +198,7 @@ export function SellerNetCalculator({
                 hint: `${pct(r.sellingCostShare, 1)} of the price`,
               },
               {
-                label: "Commission + HST",
+                label: `Commission + ${commissionTax}`,
                 value: money(r.commission),
                 hint:
                   pct(state.listingCommission + state.buyerCommission, 2) +
@@ -227,7 +232,7 @@ export function SellerNetCalculator({
                   color: "#1c1917",
                 },
                 {
-                  label: "Commission + HST",
+                  label: `Commission + ${commissionTax}`,
                   amount: r.commission,
                   color: "#c4161c",
                 },

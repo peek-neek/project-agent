@@ -11,6 +11,11 @@ import {
   webSearchTool,
 } from "../server/ai/property-chat";
 import { calculatorTools, financeContext } from "../server/ai/calculator-tools";
+import {
+  chatRefusalMessage,
+  getChatAllowance,
+  recordChatMessage,
+} from "../server/entitlements";
 import { reportIdOfChat, reportStore } from "../server/report-store";
 
 /** The report a chat belongs to (chat ids carry it). Fresh every turn. */
@@ -46,9 +51,29 @@ export const propertyChat = chat
         ...(lat != null && lng != null ? chatTools({ lat, lng }) : {}),
         ...calculatorTools(financeContext(report)),
         ...(chatModel()?.provider === "openai"
-          ? { web_search: webSearchTool(report.property?.city) }
+          ? { web_search: webSearchTool(report.property?.city, report.property?.province) }
           : {}),
       };
+    },
+    // Monthly AI chat allowance (Starter 30, Pro 100). Checked before every
+    // turn; the thrown message is shown to the agent and the chat stays open.
+    // (A first message is also checked in the Head Start route, before its
+    // warm model call.)
+    onTurnStart: async ({ chatId }) => {
+      const report = await chatReport(chatId);
+      const allowance = await getChatAllowance(report.userId);
+      if (!allowance.allowed) throw new Error(chatRefusalMessage(allowance));
+    },
+    // Count each answered turn (stopped ones too: the model still ran).
+    // Errored turns, including refusals above, don't count.
+    onTurnComplete: async ({ chatId, responseMessage, error }) => {
+      if (error || !responseMessage) return;
+      const report = await chatReport(chatId);
+      await recordChatMessage({
+        messageId: responseMessage.id,
+        userId: report.userId,
+        reportId: report.id,
+      });
     },
     uiMessageStreamOptions: {
       sendSources: true,

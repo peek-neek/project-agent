@@ -10,6 +10,7 @@ import {
   findPlacesSchema,
   travelTimeSchema,
 } from "../../lib/chat-tools";
+import { PROVINCE_NAMES, provinceOr } from "../../lib/finance/provinces";
 import { copySectionKey, SECTION_KEYS } from "../../lib/report-sections";
 import {
   estimateMinutes,
@@ -150,10 +151,11 @@ export function chatInstructions(
   canSearchWeb: boolean,
 ) {
   const address = report.property?.formattedAddress ?? report.inputAddress;
-  return `You are the property assistant inside a real estate report app for agents in Ontario, Canada. You help a licensed agent understand and market one property: ${address}.
+  const province = PROVINCE_NAMES[provinceOr(report.property?.province)];
+  return `You are the property assistant inside a real estate report app for agents in Canada. You help a licensed agent understand and market one property in ${province}: ${address}.
 
 How to answer:
-- Start from the report data below. It covers amenities and travel times (walk, bike and drive), commute and transit, schools with EQAO results, safety (crime, flood regulation, noise, air quality), census figures, future projects and development applications, and the AI-written marketing copy and showing playbook. Use the exact names and numbers from it.
+- Start from the report data below. It covers amenities and travel times (walk, bike and drive), commute and transit, nearby schools (with EQAO results for Ontario schools), safety (crime, flood regulation, noise, air quality), census figures, future projects and development applications, and the AI-written marketing copy and showing playbook. Use the exact names and numbers from it.
 - The agent's preferred travel mode is ${TRAVEL_MODES[mode].label.toLowerCase()} ("${mode}"). Quote times in that mode unless asked otherwise; times marked estimated are approximate.
 - For anything the report doesn't cover, use your tools instead of guessing: find_places for businesses or places near the home, travel_time for trips to any address, ${canSearchWeb ? "and web_search for current or local facts (property taxes, zoning by-laws, news, market conditions, municipal services, recent sales commentary)" : "and say plainly when something can't be checked"}. Say which source an answer came from ("from the report", "from Google Maps", "from the web") and link web sources.
 - For money questions (mortgage payments, how much someone can afford, closing costs and land transfer tax, a seller's net proceeds, rental cash flow, rent versus buy, property tax, commission), call the calculator tools rather than doing the maths yourself. Leave out inputs the agent didn't give: the tools fill them from the agent's saved Calculators tab figures and the list price. State the key assumptions (price, down payment, rate) with the result, and say the figures are estimates that a lender, insurer or lawyer confirms. Never present rental or rent-versus-buy results as promised returns.
@@ -161,11 +163,11 @@ How to answer:
 - Be concise and practical: lead with the answer, then the supporting detail. Use short paragraphs, bullet lists and tables in Markdown when they help. Write in Canadian English.
 - You can draft marketing copy, emails, scripts and talking points on request, using only facts from the report or your tools.
 
-Rules you must follow (Ontario Human Rights Code and RECO advertising rules):
+Rules you must follow (${province}'s human rights code and the provincial real estate regulator's advertising rules (RECO in Ontario, BCFSA in British Columbia, RECA in Alberta, OACIQ in Quebec, or the local equivalent)):
 - Never describe, target or steer buyers or tenants by race, ancestry, place of origin, ethnicity, citizenship, creed or religion, sex, sexual orientation, gender identity, age, marital or family status, disability, or receipt of public assistance. Describe homes and places, and buyers only by needs and lifestyle.
 - Census figures describe the area's housing and residents as context; never use them to say who should or shouldn't live there.
 - Never call an area "safe", "unsafe", "low-crime" or "high-crime". Report crime figures as facts with their source.
-- Never say the home is in a school's catchment; give distances and advise confirming with the school board. Don't rank schools as "best".
+- Never say the home is in a school's catchment; give distances and advise confirming with the school board or district. Don't rank schools as "best".
 - Never promise future value or returns.
 
 <report_data>
@@ -255,21 +257,25 @@ export function chatTools(origin: { lat: number; lng: number }) {
 export function headStartTools(
   city: string | null | undefined,
   webSearch: boolean,
+  province?: string | null,
 ) {
   return {
     ...chatToolSchemas,
-    ...(webSearch ? { web_search: webSearchTool(city) } : {}),
+    ...(webSearch ? { web_search: webSearchTool(city, province) } : {}),
   };
 }
 
 /** OpenAI's built-in web search, localised to the property. */
-export function webSearchTool(city: string | null | undefined) {
+export function webSearchTool(
+  city: string | null | undefined,
+  province?: string | null,
+) {
   return openai.tools.webSearch({
     searchContextSize: "medium",
     userLocation: {
       type: "approximate",
       country: "CA",
-      region: "Ontario",
+      region: PROVINCE_NAMES[provinceOr(province)],
       ...(city ? { city } : {}),
     },
   });

@@ -568,7 +568,11 @@ export function OverviewTab({
             upside.projects.length === 0 &&
             !upside.development?.applications.length ? (
               <div className="py-3">
-                <Muted>Nothing major planned close by.</Muted>
+                <Muted>
+                  {upside.projectsNote
+                    ? "Project and development data cover Ontario only so far."
+                    : "Nothing major planned close by."}
+                </Muted>
               </div>
             ) : (
               <div className="divide-y">

@@ -1,5 +1,6 @@
 "use client";
 
+import { LEGAL_FEE_TAX } from "@/lib/finance/provinces";
 import { ReceiptTextIcon } from "lucide-react";
 import { buyerClosingCosts } from "@/lib/finance/closing";
 import { minDownPayment } from "@/lib/finance/mortgage";
@@ -37,12 +38,15 @@ export function ClosingCostsCalculator({
     price: purchase.price,
     downPayment: purchase.downPayment,
     amortizationYears: purchase.amortization,
-    toronto: purchase.toronto,
+    province: purchase.province,
+    toronto: purchase.province === "ON" && purchase.toronto,
+    montreal: purchase.province === "QC" && purchase.montreal,
     firstTimeBuyer: purchase.firstTimeBuyer,
     singleFamily: purchase.singleFamily,
     nonResident: purchase.nonResident,
     ...state,
   });
+  const legalTax = LEGAL_FEE_TAX[purchase.province].label;
   const minDown = minDownPayment(purchase.price);
 
   return (
@@ -70,19 +74,33 @@ export function ClosingCostsCalculator({
           />
           <SwitchField
             label="First-time buyer"
-            description="Land transfer tax rebates."
+            description="Transfer tax relief, where the province offers it."
             checked={purchase.firstTimeBuyer}
             onChange={(v) => setPurchase({ firstTimeBuyer: v })}
           />
-          <SwitchField
-            label="In the City of Toronto"
-            description="Adds Toronto's land transfer tax."
-            checked={purchase.toronto}
-            onChange={(v) => setPurchase({ toronto: v })}
-          />
+          {purchase.province === "ON" && (
+            <SwitchField
+              label="In the City of Toronto"
+              description="Adds Toronto's land transfer tax."
+              checked={purchase.toronto}
+              onChange={(v) => setPurchase({ toronto: v })}
+            />
+          )}
+          {purchase.province === "QC" && (
+            <SwitchField
+              label="In the City of Montréal"
+              description="Montréal's higher welcome tax brackets."
+              checked={purchase.montreal}
+              onChange={(v) => setPurchase({ montreal: v })}
+            />
+          )}
           <SwitchField
             label="Condo"
-            description="Adds the status certificate ($100 + HST)."
+            description={
+              purchase.province === "ON"
+                ? `Adds the status certificate ($100 + ${legalTax}).`
+                : `Adds the condo documents (estoppel certificate, about $100 + ${legalTax}).`
+            }
             checked={state.condo}
             onChange={(v) => set({ condo: v })}
           />
@@ -91,7 +109,7 @@ export function ClosingCostsCalculator({
               label="Legal fees"
               value={state.legalFees}
               onChange={(v) => set({ legalFees: v })}
-              hint="Before HST"
+              hint={`Before ${legalTax}`}
             />
             <MoneyField
               label="Title insurance"

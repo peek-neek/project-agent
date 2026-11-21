@@ -61,7 +61,7 @@ const FEATURES: { group: string; rows: [string, Cell, Cell][] }[] = [
       ["Sell / rent ease score, with the price point", true, true],
       ["23 amenity categories, timed on foot, by bike and by car", true, true],
       ["Commute to downtowns and airports at rush hour", true, true],
-      ["All four school boards, with EQAO results", true, true],
+      ["Nearest schools (every board and EQAO results in Ontario)", true, true],
       ["Crime, flood regulation, noise and air quality", true, true],
       ["Housing mix and planned development nearby", true, true],
     ],
@@ -126,7 +126,7 @@ export function Pricing() {
             </h2>
             <p className="mt-4 text-lg leading-relaxed text-foreground/65 text-pretty">
               Every report runs fresh lookups against live data, so there&apos;s
-              no free plan. Prices in Canadian dollars, plus HST. Cancel
+              no free plan. Prices in Canadian dollars, plus applicable sales tax. Cancel
               anytime.
             </p>
           </div>
@@ -214,7 +214,15 @@ export function Pricing() {
               </p>
               <Button
                 nativeButton={false}
-                render={<Link href="/sign-up" />}
+                render={
+                  <Link
+                    // Sign up, then straight to Stripe Checkout for this plan
+                    // and billing period.
+                    href={`/sign-up?redirect_url=${encodeURIComponent(
+                      `/billing/checkout?plan=${p.id}&interval=${billing}`,
+                    )}`}
+                  />
+                }
                 variant={p.highlight ? "default" : "outline"}
                 className="mt-8 h-12 w-full px-6 text-base sm:w-auto"
               >

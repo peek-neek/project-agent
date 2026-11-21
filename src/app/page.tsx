@@ -13,9 +13,9 @@ import { Pricing } from "@/components/globals/landing/pricing";
 import { Sources } from "@/components/globals/landing/sources";
 
 const title =
-  "Property Reports and Listing Copy for Ontario Real Estate Agents";
+  "Property Reports and Listing Copy for Canadian Real Estate Agents";
 const description =
-  "Type any Ontario address and get the neighbourhood research, compliant listing copy, showing playbook, calculators and a polished PDF in minutes. Amenities timed three ways, schools with EQAO, commute, safety facts and a sell / rent ease score.";
+  "Type any Canadian address and get the neighbourhood research, compliant listing copy, showing playbook, calculators and a polished PDF in minutes. Amenities timed three ways, nearby schools, commute, safety facts and a sell / rent ease score.";
 
 export const metadata: Metadata = {
   title: { absolute: `${title} | ${site.name}` },
@@ -55,7 +55,7 @@ const jsonLd = {
       description,
       url: site.url,
       audience: { "@type": "Audience", audienceType: "Real estate agents" },
-      areaServed: { "@type": "AdministrativeArea", name: "Ontario, Canada" },
+      areaServed: { "@type": "Country", name: "Canada" },
     },
     {
       "@type": "FAQPage",

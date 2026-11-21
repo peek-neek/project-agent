@@ -1,5 +1,6 @@
 "use client";
 
+import { COMMISSION_TAX, type Province } from "@/lib/finance/provinces";
 import { WalletIcon } from "lucide-react";
 import { commission } from "@/lib/finance/commission";
 import {
@@ -21,15 +22,18 @@ import type { CommissionState } from "./calculators-tab";
 export function CommissionCalculator({
   state,
   set,
+  province,
   listPrice,
   onUseListPrice,
 }: {
   state: CommissionState;
+  province: Province;
   set: (patch: Partial<CommissionState>) => void;
   listPrice: number | null;
   onUseListPrice: () => void;
 }) {
-  const r = commission(state);
+  const r = commission({ ...state, province });
+  const tax = COMMISSION_TAX[province].label;
 
   return (
     <CalcLayout
@@ -120,17 +124,17 @@ export function CommissionCalculator({
               {
                 label: "Gross commission",
                 value: money(r.gross),
-                hint: "Before HST",
+                hint: `Before ${tax}`,
               },
               {
-                label: "HST collected",
+                label: `${tax} collected`,
                 value: money(r.hst),
                 hint: "Remitted, not income",
               },
               {
                 label: "Client pays",
                 value: money(r.grossWithHst),
-                hint: "This side, with HST",
+                hint: `This side, with ${tax}`,
               },
             ]}
           />

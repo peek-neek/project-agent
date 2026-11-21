@@ -19,6 +19,7 @@ import {
   SquareIcon,
   SquarePenIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +45,7 @@ import {
 } from "@/components/ui/message-scroller";
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { useTravelMode } from "@/components/globals/travel-mode";
+import { isChatRefusal } from "@/lib/billing";
 import type { propertyChat } from "@/trigger/property-chat";
 import { useTRPC } from "@/trpc/client";
 import {
@@ -438,16 +440,32 @@ function ChatSession({
                   <div className="flex items-center gap-3 border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                     <AlertCircleIcon aria-hidden className="size-4 shrink-0" />
                     <span className="flex-1">
-                      {error.message || "Something went wrong."}
+                      {isChatRefusal(error)
+                        ? /\b402\b/.test(error.message)
+                          ? "You've used this month's AI chat messages, or your plan isn't active."
+                          : error.message
+                        : error.message || "Something went wrong."}
                     </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => regenerate()}
-                    >
-                      <RotateCcwIcon data-icon="inline-start" />
-                      Retry
-                    </Button>
+                    {isChatRefusal(error) ? (
+                      // Retrying can't help; the dashboard shows the plan.
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        nativeButton={false}
+                        render={<Link href="/dashboard" />}
+                      >
+                        See plan
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => regenerate()}
+                      >
+                        <RotateCcwIcon data-icon="inline-start" />
+                        Retry
+                      </Button>
+                    )}
                   </div>
                 </MessageScrollerItem>
               )}

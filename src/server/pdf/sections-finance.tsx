@@ -24,7 +24,12 @@ import {
   rentalAnalysis,
   rentVsBuy,
 } from "@/lib/finance/investing";
-import { landTransferTax } from "@/lib/finance/land-transfer-tax";
+import {
+  COMMISSION_TAX,
+  LEGAL_FEE_TAX,
+  PROVINCE_NAMES,
+  transferTax,
+} from "@/lib/finance/provinces";
 import {
   amortize,
   minDownPayment,
@@ -301,6 +306,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
     defaultInputs({
       listPrice,
       city,
+      province: d.property?.province ?? null,
       propertyType: d.listing?.propertyType ?? null,
     }),
     saved,
@@ -326,7 +332,13 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
     bridge: br,
     tax: tx,
   } = inp;
-  const { toronto, singleFamily, rateType } = purchase;
+  const { singleFamily, rateType, province } = purchase;
+  const ontario = province === "ON";
+  const toronto = ontario && purchase.toronto;
+  const montreal = province === "QC" && purchase.montreal;
+  const region = PROVINCE_NAMES[province];
+  const legalTax = LEGAL_FEE_TAX[province].label;
+  const commissionTax = COMMISSION_TAX[province].label;
   const condo = cl.condo;
   const price = purchase.price;
   const baseDown = purchase.downPayment;
@@ -374,6 +386,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
       price,
       downPayment: down,
       amortizationYears: years,
+      province,
     });
     return {
       ins,
@@ -422,7 +435,9 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
       price,
       downPayment: down,
       amortizationYears: amortization,
+      province,
       toronto,
+      montreal,
       firstTimeBuyer: purchase.firstTimeBuyer,
       singleFamily,
       nonResident: purchase.nonResident,
@@ -442,7 +457,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
     { label: "Non-resident", firstTimeBuyer: false, nonResident: true },
   ].map((b) => ({
     ...b,
-    t: landTransferTax({ price, toronto, singleFamily, ...b }),
+    t: transferTax({ province, price, toronto, montreal, singleFamily, ...b }),
   }));
   const buyerHi = purchase.nonResident ? 2 : purchase.firstTimeBuyer ? 1 : 0;
 
@@ -495,14 +510,15 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
 
   // Property tax: on the MPAC assessed value, usually well below today's
   // price (still 2016-based), so show it lower too.
-  const taxRateFor =
-    tx.municipality === CUSTOM_MUNICIPALITY
-      ? tx.customRate
-      : (PROPERTY_TAX_RATES[tx.municipality] ?? ONTARIO_MEDIAN_TAX_RATE);
-  const taxName =
-    tx.municipality === CUSTOM_MUNICIPALITY
+  const customTax = !ontario || tx.municipality === CUSTOM_MUNICIPALITY;
+  const taxRateFor = customTax
+    ? tx.customRate
+    : (PROPERTY_TAX_RATES[tx.municipality] ?? ONTARIO_MEDIAN_TAX_RATE);
+  const taxName = customTax
+    ? ontario
       ? "your entered"
-      : `${tx.municipality}'s`;
+      : `the entered (or typical ${region})`
+    : `${tx.municipality}'s`;
   const assessedSaved = saved?.tax?.assessedValue != null;
   const assessed = around(tx.assessedValue, [
     roundTo(tx.assessedValue * 0.6, 1_000),
@@ -598,6 +614,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
   const selling = commTotals.values.map((total) =>
     sellerNet({
       ...sl,
+      province,
       listingCommission: total * listingPart,
       buyerCommission: total * (1 - listingPart),
     }),
@@ -607,7 +624,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
 
   const savedBridge = saved?.bridge != null;
   const days = around(br.days, [30, 60, 90]);
-  const bridges = days.values.map((d) => bridgeFinancing({ ...br, days: d }));
+  const bridges = days.values.map((d) => bridgeFinancing({ ...br, days: d, province }));
 
   // --- Investing ----------------------------------------------------------
   // Rental: by down payment (investment properties need 20%+).
@@ -617,7 +634,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
   );
   const rentalDownSaved = saved?.rental?.downPayment != null;
   const rentals = rentalDowns.values.map((down) =>
-    rentalAnalysis({ ...rt, downPayment: down }),
+    rentalAnalysis({ ...rt, downPayment: down, province }),
   );
   const rentIsExample = saved?.rental?.rent == null;
 
@@ -635,7 +652,9 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
       downPayment: baseDown,
       rate,
       amortizationYears: amortization,
+      province,
       toronto,
+      montreal,
       firstTimeBuyer: purchase.firstTimeBuyer,
       propertyTaxRate: taxRate,
       appreciation: g,
@@ -656,7 +675,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
     ? saved?.comm?.rate != null
     : saved?.comm?.agentSplit != null;
   const commissions = commVar.values.map((v) =>
-    commission({ ...comm, ...(flat ? { rate: v } : { agentSplit: v }) }),
+    commission({ ...comm, province, ...(flat ? { rate: v } : { agentSplit: v }) }),
   );
   const commLine = flat
     ? `${pct(comm.agentSplit, 0)} split to you`
@@ -694,6 +713,8 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
           {pct(taxRate, 3)} a year
           {purchase.firstTimeBuyer ? " · first-time buyer" : ""}
           {toronto ? " · Toronto land transfer tax included" : ""}
+          {montreal ? " · Montréal welcome tax brackets" : ""}
+          {!ontario ? ` · ${region} rules` : ""}
           {condoFees ? ` · condo fees ${$(condoFees)}/month` : ""} · commission{" "}
           {pct(commTotal)} total.{" "}
           {usingSaved
@@ -720,11 +741,15 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
                     : "Not available",
               ),
             },
-            {
-              label: "PST on insurance (cash at closing)",
-              values: byDown.map((m) => $(m.ins.pst)),
-              muted: true,
-            },
+            ...(byDown.some((m) => m.ins.pst > 0)
+              ? [
+                  {
+                    label: `${province === "QC" ? "Tax" : "PST"} on insurance (cash at closing)`,
+                    values: byDown.map((m) => $(m.ins.pst)),
+                    muted: true,
+                  },
+                ]
+              : []),
             { label: "Mortgage", values: byDown.map((m) => $(m.loan)) },
             {
               label: "Monthly payment",
@@ -847,18 +872,16 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
         <ScenarioTable
           title="Closing costs by down payment"
           icon={ReceiptTextIcon}
-          assumptions={`${$(price)}; legal ${$(cl.legalFees)} + HST, title ${$(cl.titleInsurance)}, inspection ${$(cl.homeInspection)}${purchase.firstTimeBuyer ? "; first-time buyer rebates" : ""}.`}
+          assumptions={`${$(price)}; legal ${$(cl.legalFees)} + ${legalTax}, title ${$(cl.titleInsurance)}, inspection ${$(cl.homeInspection)}${purchase.firstTimeBuyer ? "; first-time buyer rebates" : ""}.`}
           columns={cols(downs, "Down payment", downLabel(price), downSaved)}
           highlight={downs.hi}
           rows={[
             {
-              label: toronto
-                ? "Land transfer tax (Ontario + Toronto)"
-                : "Land transfer tax",
+              label: closing[0]?.ltt.label ?? "Land transfer tax",
               values: closing.map((c) => $(c.ltt.total)),
             },
             {
-              label: "Legal fees with HST",
+              label: `Legal fees with ${legalTax}`,
               values: closing.map((c) =>
                 $(
                   c.lines
@@ -885,7 +908,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
             ...(condo
               ? [
                   {
-                    label: "Status certificate",
+                    label: ontario ? "Status certificate" : "Condo documents",
                     values: closing.map((c) =>
                       $(c.lines.find((l) => l.id === "status")?.amount ?? 0),
                     ),
@@ -895,7 +918,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
             ...(closing.some((c) => c.lines.some((l) => l.id === "pst"))
               ? [
                   {
-                    label: "PST on mortgage insurance",
+                    label: province === "QC" ? "Tax on mortgage insurance" : "PST on mortgage insurance",
                     values: closing.map((c) =>
                       $(c.lines.find((l) => l.id === "pst")?.amount ?? 0),
                     ),
@@ -925,20 +948,32 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
           ]}
         />
         <ScenarioTable
-          title="Land transfer tax by buyer"
+          title={`${buyers[0].t.label} by buyer`}
           icon={LandmarkIcon}
-          assumptions={`At ${$(price)}. ${toronto ? "Ontario plus Toronto's municipal tax." : "Ontario land transfer tax (no municipal tax outside Toronto)."} Non-residents pay the 25% speculation tax${toronto ? " plus Toronto's 10%" : ""}.`}
+          assumptions={
+            ontario
+              ? `At ${$(price)}. ${toronto ? "Ontario plus Toronto's municipal tax." : "Ontario land transfer tax (no municipal tax outside Toronto)."} Non-residents pay the 25% speculation tax${toronto ? " plus Toronto's 10%" : ""}.`
+              : `At ${$(price)}. ${buyers[0].t.note}`
+          }
           columns={buyers.map((b) => ({ label: b.label }))}
           highlight={buyerHi}
           rows={[
             {
-              label: "Ontario",
-              values: buyers.map((b) => $(b.t.provincial)),
+              label: ontario ? "Ontario" : region,
+              values: buyers.map((b) =>
+                $(ontario ? b.t.provincial : b.t.provincial + b.t.municipal),
+              ),
             },
             {
-              label: "Ontario first-time rebate",
+              label: ontario ? "Ontario first-time rebate" : "First-time buyer relief",
               values: buyers.map((b) =>
-                b.t.provincialRebate ? `−${$(b.t.provincialRebate)}` : "—",
+                ontario
+                  ? b.t.provincialRebate
+                    ? `−${$(b.t.provincialRebate)}`
+                    : "—"
+                  : b.t.provincialRebate + b.t.municipalRebate
+                    ? `−${$(b.t.provincialRebate + b.t.municipalRebate)}`
+                    : "—",
               ),
               muted: true,
             },
@@ -958,7 +993,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
                 ]
               : []),
             {
-              label: "Non-resident speculation tax",
+              label: ontario ? "Non-resident speculation tax" : "Foreign / non-resident buyer tax",
               values: buyers.map((b) =>
                 b.t.nonResident ? $(b.t.nonResident) : "—",
               ),
@@ -1062,7 +1097,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
         <ScenarioTable
           title="Property tax by assessed value"
           icon={BuildingIcon}
-          assumptions={`${taxName} ${tx.municipality === CUSTOM_MUNICIPALITY ? "" : `${PROPERTY_TAX_RATES_YEAR} `}rate of ${pct(taxRateFor, 4)}. Tax is on the MPAC assessed value, still based on 2016 values and often well below today's price: check the owner's assessment notice.`}
+          assumptions={`${taxName} ${customTax ? "" : `${PROPERTY_TAX_RATES_YEAR} `}rate of ${pct(taxRateFor, 4)}. ${ontario ? "Tax is on the MPAC assessed value, still based on 2016 values and often well below today's price" : "Tax is on the assessed value, which can differ from today's price"}: check the owner's assessment notice.`}
           columns={cols(assessed, "Assessed at", (v) => $(v), assessedSaved)}
           highlight={assessed.hi}
           rows={[
@@ -1131,7 +1166,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
         <ScenarioTable
           title="Seller net by commission"
           icon={HouseIcon}
-          assumptions={`Selling at ${$(sl.salePrice)}, commission + HST, a ${$(sl.mortgageBalance)} mortgage${sl.monthsLeftInTerm && !sl.portingMortgage ? `, broken with ${sl.monthsLeftInTerm} months left` : " paid off at term end"}.`}
+          assumptions={`Selling at ${$(sl.salePrice)}, commission + ${commissionTax}, a ${$(sl.mortgageBalance)} mortgage${sl.monthsLeftInTerm && !sl.portingMortgage ? `, broken with ${sl.monthsLeftInTerm} months left` : " paid off at term end"}.`}
           columns={cols(
             commTotals,
             "Total commission",
@@ -1141,7 +1176,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
           highlight={commTotals.hi}
           rows={[
             {
-              label: "Commission with HST",
+              label: `Commission with ${commissionTax}`,
               values: selling.map((r) => $(r.commission)),
             },
             {
@@ -1158,7 +1193,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
                 ]
               : []),
             {
-              label: "Legal fees with HST",
+              label: `Legal fees with ${legalTax}`,
               values: selling.map((r) =>
                 $(line(r, "legal") + line(r, "legalHst")),
               ),
@@ -1326,7 +1361,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
               values: commissions.map((c) => $(c.gross)),
             },
             {
-              label: "HST collected (not income)",
+              label: `${commissionTax} collected (not income)`,
               values: commissions.map((c) => $(c.hst)),
               muted: true,
             },

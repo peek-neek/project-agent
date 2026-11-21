@@ -200,41 +200,44 @@ function NoiseRow({
 }
 
 /** Neutral comparison of two index values (±15% counts as similar). */
-export function compareIndex(value: number | null, ontario: number | null) {
-  if (value == null || ontario == null || ontario === 0) return null;
-  const ratio = value / ontario;
+export function compareIndex(value: number | null, reference: number | null) {
+  if (value == null || reference == null || reference === 0) return null;
+  const ratio = value / reference;
   return ratio < 0.85 ? "Lower" : ratio > 1.15 ? "Higher" : "Similar";
 }
 
-const policingLabel = (a: AreaCrimeData) =>
-  a.policing === "opp"
-    ? "Ontario Provincial Police"
-    : a.policing === "municipal"
-      ? "Police service"
-      : null;
+const POLICING_LABELS: Record<NonNullable<AreaCrimeData["policing"]>, string> = {
+  opp: "Ontario Provincial Police",
+  sq: "Sûreté du Québec",
+  rcmp: "RCMP",
+  municipal: "Police service",
+};
+const policingLabel = (a: AreaCrimeData) => (a.policing ? POLICING_LABELS[a.policing] : null);
 
 /**
- * Crime Severity Index for the local police service (or Ontario overall),
- * against Ontario: overall, violent and non-violent, plus a 6-year trend.
+ * Crime Severity Index for the local police service (or the province
+ * overall), against the province: overall, violent and non-violent, plus a
+ * 6-year trend.
  */
 export function AreaCrime({ area }: { area: AreaCrimeData }) {
   const rows = [
-    { label: "Overall", value: area.csi, ontario: area.ontario.csi },
+    { label: "Overall", value: area.csi, reference: area.province.csi },
     {
       label: "Violent",
       value: area.violentCsi,
-      ontario: area.ontario.violentCsi,
+      reference: area.province.violentCsi,
     },
     {
       label: "Non-violent",
       value: area.nonViolentCsi,
-      ontario: area.ontario.nonViolentCsi,
+      reference: area.province.nonViolentCsi,
     },
   ];
   const max = Math.max(
     1,
-    ...rows.flatMap((r) => [r.value ?? 0, r.ontario ?? 0]),
+    ...rows.flatMap((r) => [r.value ?? 0, r.reference ?? 0]),
   );
+  const region = area.province.name;
   const width = (v: number | null) =>
     `${Math.min(100, ((v ?? 0) / max) * 100)}%`;
   const province = area.level === "province";
@@ -243,7 +246,7 @@ export function AreaCrime({ area }: { area: AreaCrimeData }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-foreground/60">
         <span className="font-medium text-foreground">
-          {province ? "Ontario overall" : area.service}
+          {province ? `${region} overall` : area.service}
         </span>
         {!province && policingLabel(area) && <span>{policingLabel(area)}</span>}
         {area.municipality && <span>Covers {area.municipality}</span>}
@@ -253,14 +256,14 @@ export function AreaCrime({ area }: { area: AreaCrimeData }) {
           </span>
         )}
         <span className="flex items-center gap-1.5">
-          <span className="size-2.5 bg-foreground/30" /> Ontario
+          <span className="size-2.5 bg-foreground/30" /> {region}
         </span>
         <span>Crime Severity Index, {area.year}</span>
       </div>
 
       <ul className="divide-y">
         {rows.map((r) => {
-          const vs = province ? null : compareIndex(r.value, r.ontario);
+          const vs = province ? null : compareIndex(r.value, r.reference);
           return (
             <li
               key={r.label}
@@ -285,11 +288,11 @@ export function AreaCrime({ area }: { area: AreaCrimeData }) {
                   <span className="h-2 flex-1 bg-muted">
                     <span
                       className="block h-full bg-foreground/30"
-                      style={{ width: width(r.ontario) }}
+                      style={{ width: width(r.reference) }}
                     />
                   </span>
                   <span className="w-10 text-right text-xs text-foreground/55 tabular-nums">
-                    {r.ontario?.toFixed(0) ?? "—"}
+                    {r.reference?.toFixed(0) ?? "—"}
                   </span>
                 </span>
               </span>
@@ -325,7 +328,7 @@ export function AreaCrime({ area }: { area: AreaCrimeData }) {
 
       <p className="text-xs leading-relaxed text-foreground/50">
         {province
-          ? `Statistics Canada doesn't publish separate police figures for ${area.municipality ?? "this municipality"}, so this is Ontario overall. `
+          ? `Statistics Canada doesn't publish separate police figures for ${area.municipality ?? "this municipality"}, so this is ${region} overall. `
           : "Covers the whole police service area, not just this neighbourhood. "}
         The Crime Severity Index weighs police-reported crime by seriousness
         (100 = Canada in 2006). Canada: {area.canadaCsi?.toFixed(0) ?? "n/a"}.{" "}
@@ -338,7 +341,9 @@ export function AreaCrime({ area }: { area: AreaCrimeData }) {
 export function SafetySection({ safety }: { safety: SafetyData }) {
   const { flood, noise, airQuality } = safety;
   const flag = FLOOD_BADGES[flood.status];
-  const notCovered = "Couldn't be checked. Regenerate this section to retry.";
+  const notCovered = noise.outsideCoverage
+    ? "Not available outside Ontario yet"
+    : "Couldn't be checked. Regenerate this section to retry.";
 
   return (
     <>

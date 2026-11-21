@@ -24,7 +24,11 @@ import {
   minDownPayment,
   mortgageInsurance,
 } from "../../lib/finance/mortgage";
-import { ONTARIO_HST } from "../../lib/finance/ontario-rules";
+import {
+  COMMISSION_TAX,
+  PROVINCE_NAMES,
+  TYPICAL_PROPERTY_TAX,
+} from "../../lib/finance/provinces";
 import {
   ONTARIO_MEDIAN_TAX_RATE,
   PROPERTY_TAX_RATES_YEAR,
@@ -41,13 +45,14 @@ import { listingSchema, SECTION_KEYS } from "../../lib/report-sections";
 export type FinanceContext = {
   listPrice: number | null;
   city: string | null;
+  province?: string | null;
   propertyType: string | null;
   saved: SavedCalculators | null;
 };
 
 /** Pulls what the calculators need from a report. */
 export function financeContext(report: {
-  property: { city: string | null } | null;
+  property: { city: string | null; province?: string | null } | null;
   sections: { key: string; data: unknown }[];
 }): FinanceContext {
   const section = (key: string) =>
@@ -59,6 +64,7 @@ export function financeContext(report: {
   return {
     listPrice: listing.success ? listing.data.listPrice : null,
     city: report.property?.city ?? null,
+    province: report.property?.province ?? null,
     propertyType: listing.success ? listing.data.propertyType : null,
     saved: saved.success ? saved.data : null,
   };
@@ -73,6 +79,7 @@ const DISCLAIMER =
 
 export function calculatorTools(ctx: FinanceContext) {
   const inputs = mergeInputs(defaultInputs(ctx), ctx.saved);
+  const province = inputs.purchase.province;
   const {
     purchase,
     afford,
@@ -117,6 +124,7 @@ export function calculatorTools(ctx: FinanceContext) {
           price,
           downPayment: down,
           amortizationYears: years,
+          province,
         });
         const loan = price - down + (ins.available ? ins.premium : 0);
         const run = amortize({
@@ -201,7 +209,9 @@ export function calculatorTools(ctx: FinanceContext) {
           price,
           downPayment: down,
           amortizationYears: purchase.amortization,
-          toronto: purchase.toronto,
+          province,
+          toronto: province === "ON" && purchase.toronto,
+          montreal: province === "QC" && purchase.montreal,
           firstTimeBuyer: a.firstTimeBuyer ?? purchase.firstTimeBuyer,
           singleFamily: purchase.singleFamily,
           nonResident: a.nonResident ?? purchase.nonResident,
@@ -209,13 +219,17 @@ export function calculatorTools(ctx: FinanceContext) {
         });
         return {
           price: $(price),
+          province: PROVINCE_NAMES[province],
           landTransferTax: {
-            ontario: $(r.ltt.provincial),
-            ontarioRebate: $(r.ltt.provincialRebate),
-            toronto: $(r.ltt.municipal),
-            torontoRebate: $(r.ltt.municipalRebate),
+            name: r.ltt.label,
+            provincial: $(r.ltt.provincial),
+            provincialRebate: $(r.ltt.provincialRebate),
+            municipal: $(r.ltt.municipal),
+            municipalRebate: $(r.ltt.municipalRebate),
             nonResidentTax: $(r.ltt.nonResident),
             total: $(r.ltt.total),
+            howItWorks: r.ltt.note,
+            ...(r.ltt.estimate ? { estimate: true } : {}),
           },
           lines: r.lines
             .filter((l) => l.amount > 0)
@@ -239,6 +253,7 @@ export function calculatorTools(ctx: FinanceContext) {
         const totalComm = fromPct(a.commissionTotalPercent);
         const r = sellerNet({
           ...sl,
+          province,
           salePrice: price,
           listingCommission:
             totalComm != null ? totalComm / 2 : sl.listingCommission,
@@ -253,7 +268,7 @@ export function calculatorTools(ctx: FinanceContext) {
           lines: r.lines
             .filter((l) => l.amount > 0)
             .map((l) => ({ item: l.label, amount: $(l.amount) })),
-          commissionWithHst: $(r.commission),
+          commissionWithSalesTax: $(r.commission),
           prepaymentPenalty: $(r.penalty.penalty),
           penaltyMethod: r.penalty.method,
           sellingCosts: $(r.sellingCosts),
@@ -280,6 +295,7 @@ export function calculatorTools(ctx: FinanceContext) {
               : 0.2;
         const r = rentalAnalysis({
           ...rt,
+          province,
           price,
           downPayment: price * downShare,
           rent: a.monthlyRent ?? roundTo(price * rentShare, 50),
@@ -319,7 +335,9 @@ export function calculatorTools(ctx: FinanceContext) {
           downPayment: roundTo(price * savedDownShare, 1_000),
           rate: purchase.rate,
           amortizationYears: purchase.amortization,
-          toronto: purchase.toronto,
+          province,
+          toronto: province === "ON" && purchase.toronto,
+          montreal: province === "QC" && purchase.montreal,
           firstTimeBuyer: purchase.firstTimeBuyer,
           propertyTaxRate: afford.taxRate,
           rentMonthly: a.monthlyRent ?? roundTo(price * rentShare, 50),
@@ -348,19 +366,23 @@ export function calculatorTools(ctx: FinanceContext) {
       ...propertyTaxSchema,
       execute: async (a) => {
         const place = a.municipality ?? ctx.city;
-        const found = propertyTaxRateFor(place);
-        const rate = found?.rate ?? ONTARIO_MEDIAN_TAX_RATE;
+        const ontario = province === "ON";
+        const found = ontario ? propertyTaxRateFor(place) : null;
+        const rate =
+          found?.rate ?? (ontario ? ONTARIO_MEDIAN_TAX_RATE : TYPICAL_PROPERTY_TAX[province]);
         const assessed = a.assessedValue ?? inputs.tax.assessedValue;
         return {
           municipality:
             found?.name ??
-            `${place ?? "Unknown"} (not in the table: Ontario median used)`,
+            `${place ?? "Unknown"} (${ontario ? "not in the table: Ontario median used" : `typical ${PROVINCE_NAMES[province]} rate used; municipal rates are on file for Ontario only`})`,
           rate: `${Math.round(rate * 1_000_000) / 10_000}%`,
-          rateYear: PROPERTY_TAX_RATES_YEAR,
+          ...(found ? { rateYear: PROPERTY_TAX_RATES_YEAR } : {}),
           assessedValue: $(assessed),
           annualTax: $(assessed * rate),
           monthlyTax: $((assessed * rate) / 12),
-          note: "Ontario tax is the MPAC assessed value (still based on 2016 values) times the municipal rate; the tax bill is final.",
+          note: ontario
+            ? "Ontario tax is the MPAC assessed value (still based on 2016 values) times the municipal rate; the tax bill is final."
+            : "Property tax is the assessed value times the municipality's residential rate; this uses a typical provincial rate, so check the municipality's rate. The tax bill is final.",
         };
       },
     }),
@@ -372,6 +394,7 @@ export function calculatorTools(ctx: FinanceContext) {
         if (price == null) return noPrice;
         const r = commission({
           ...comm,
+          province,
           salePrice: price,
           structure: a.sideCommissionPercent != null ? "flat" : comm.structure,
           rate: fromPct(a.sideCommissionPercent) ?? comm.rate,
@@ -380,12 +403,12 @@ export function calculatorTools(ctx: FinanceContext) {
         return {
           salePrice: $(price),
           grossCommission: $(r.gross),
-          hstCollected: $(r.hst),
+          salesTaxCollected: $(r.hst),
           referralFee: $(r.referral),
           brokerageShare: $(r.brokerage),
           transactionFee: $(r.transactionFee),
           takeHome: $(r.net),
-          note: `Before income tax. HST (${pct(ONTARIO_HST)}) is collected and remitted, not income.`,
+          note: `Before income tax. ${COMMISSION_TAX[province].label} (${pct(COMMISSION_TAX[province].rate)}) is collected and remitted, not income.`,
         };
       },
     }),

@@ -60,10 +60,10 @@ describe("chat calculator tools", () => {
     const r = (await run(listed, "closing_costs", {
       firstTimeBuyer: true,
     })) as {
-      landTransferTax: { toronto: number; torontoRebate: number };
+      landTransferTax: { municipal: number; municipalRebate: number };
     };
-    expect(r.landTransferTax.toronto).toBeGreaterThan(0);
-    expect(r.landTransferTax.torontoRebate).toBe(4_475);
+    expect(r.landTransferTax.municipal).toBeGreaterThan(0);
+    expect(r.landTransferTax.municipalRebate).toBe(4_475);
   });
 
   it("uses Toronto's tax rate", async () => {
@@ -77,7 +77,7 @@ describe("chat calculator tools", () => {
       commissionTotalPercent: 5,
       mortgageBalance: 0,
     });
-    expect(r.commissionWithHst).toBe(56_500);
+    expect(r.commissionWithSalesTax).toBe(56_500);
   });
 
   it("returns the rest without throwing", async () => {

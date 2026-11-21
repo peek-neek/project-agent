@@ -118,7 +118,7 @@ function ProximityMeter({
 
 /**
  * Headline crime tile: Toronto's neighbourhood ranking where we have it,
- * else the local police service's Crime Severity Index against Ontario.
+ * else the local police service's Crime Severity Index against its province.
  */
 export function crimeTile(safety: SafetyData) {
   const { crime, areaCrime } = safety;
@@ -133,14 +133,14 @@ export function crimeTile(safety: SafetyData) {
     };
   }
   if (areaCrime?.csi != null) {
-    const vs = compareIndex(areaCrime.csi, areaCrime.ontario.csi);
+    const vs = compareIndex(areaCrime.csi, areaCrime.province.csi);
     const province = areaCrime.level === "province";
     return {
       label: "Crime severity",
       value: String(Math.round(areaCrime.csi)),
       caption: province
-        ? "Ontario overall"
-        : `${vs ?? "vs"} Ontario (${areaCrime.ontario.csi?.toFixed(0) ?? "—"})`,
+        ? `${areaCrime.province.name} overall`
+        : `${vs ?? "vs"} ${areaCrime.province.name} (${areaCrime.province.csi?.toFixed(0) ?? "—"})`,
       color: province ? undefined : vs === "Higher" ? "#d97706" : "#16a34a",
       gauge: null,
     };
@@ -213,7 +213,9 @@ export function SafetyTab({ safety }: { safety: SafetyData }) {
           caption={
             noise.roadsCovered
               ? "Straight-line distance"
-              : "Couldn't be checked"
+              : noise.outsideCoverage
+                ? "Ontario only for now"
+                : "Couldn't be checked"
           }
           accent="#525252"
           visual={

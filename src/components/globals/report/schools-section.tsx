@@ -126,9 +126,9 @@ function SchoolRow({
               {school.enrolment.toLocaleString("en-CA")} students
             </span>
           )}
-          <span>{school.board}</span>
+          {school.board && <span>{school.board}</span>}
         </div>
-        <SchoolResults school={school} />
+        {!school.id.startsWith("g:") && <SchoolResults school={school} />}
       </div>
     </li>
   );
@@ -154,6 +154,7 @@ export function SchoolsSection({
     ),
   ];
   const average = (id: EqaoFieldId) => schools.provincialAverage[id];
+  const nearby = schools.coverage === "nearby";
 
   if (systems.length === 0) {
     return (
@@ -233,15 +234,21 @@ export function SchoolsSection({
       </div>
 
       <p className="text-xs leading-relaxed text-foreground/55">
-        EQAO: share of students meeting the provincial standard,{" "}
-        {schools.dataYear} school year. Ontario school averages:{" "}
-        {EQAO_FIELDS.filter((f) => average(f.id) != null)
-          .map(
-            (f) =>
-              `${f.label.replace("Grade 10 literacy (OSSLT)", "Grade 10 literacy")} ${average(f.id)}%`,
-          )
-          .join(", ")}
-        .
+        {nearby ? (
+          "Nearest schools from Google Maps: public, Catholic, French-language and private schools alike. Test results are shown for Ontario schools only for now."
+        ) : (
+          <>
+            EQAO: share of students meeting the provincial standard,{" "}
+            {schools.dataYear} school year. Ontario school averages:{" "}
+            {EQAO_FIELDS.filter((f) => average(f.id) != null)
+              .map(
+                (f) =>
+                  `${f.label.replace("Grade 10 literacy (OSSLT)", "Grade 10 literacy")} ${average(f.id)}%`,
+              )
+              .join(", ")}
+            .
+          </>
+        )}
       </p>
 
       <Alert className="break-inside-avoid border-foreground/15 bg-muted/60">
@@ -249,8 +256,9 @@ export function SchoolsSection({
         <AlertTitle>Nearest isn&apos;t always assigned</AlertTitle>
         <AlertDescription className="text-foreground/65">
           School boundaries don&apos;t follow distance, and some schools cap
-          enrolment. Confirm which schools serve this address with each
-          board&apos;s school locator before quoting them to buyers.
+          enrolment. Confirm which schools serve this address with{" "}
+          {nearby ? "the local school district or board" : "each board\u2019s school locator"}{" "}
+          before quoting them to buyers.
           {boards.length > 0 && (
             <span className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
               {boards.map(([board, url]) => (

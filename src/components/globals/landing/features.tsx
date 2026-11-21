@@ -59,13 +59,13 @@ const CHAPTERS = [
   {
     id: "schools",
     name: "Schools",
-    title: "All four school boards, on one page.",
-    body: "The closest elementary and secondary schools in English public, English Catholic, French public and French Catholic, with distances and EQAO results against the Ontario average.",
+    title: "The nearest schools, on one page.",
+    body: "The closest elementary and secondary schools with walk, bike and drive times. In Ontario, every board (English and French, public and Catholic) with EQAO results against the provincial average.",
     points: [
-      { lead: "Every board", text: "not just the one closest to the listing." },
+      { lead: "Every board", text: "in Ontario, not just the one closest to the listing." },
       {
         lead: "EQAO in context",
-        text: "each school's results next to the provincial average.",
+        text: "for Ontario schools, each result next to the provincial average.",
       },
       {
         lead: "Boundary-safe wording",
@@ -78,15 +78,15 @@ const CHAPTERS = [
     id: "safety",
     name: "Safety & environment",
     title: "Facts buyers ask about. Never adjectives.",
-    body: "Crime severity compared with Ontario, neighbourhood crime rates in Toronto, flood regulation, distance to highways, rail lines and airports, and air quality, each with its source. You give clients facts, and you never have to describe a neighbourhood yourself.",
+    body: "Crime severity compared with the province, neighbourhood crime rates in Toronto, flood regulation and highway and rail distances in Ontario, airports, and air quality, each with its source. You give clients facts, and you never have to describe a neighbourhood yourself.",
     points: [
       {
         lead: "Crime, compared",
-        text: "the area's severity index next to Ontario's, from Statistics Canada.",
+        text: "the local police service's severity index next to the province's, from Statistics Canada.",
       },
       {
         lead: "Flood and noise",
-        text: "conservation authority mapping and the province's road and rail networks.",
+        text: "conservation authority mapping and Ontario's road and rail networks (Ontario only for now).",
       },
       {
         lead: "No labels",
@@ -159,15 +159,15 @@ const CHAPTERS = [
     id: "calculators",
     name: "Calculators",
     title: "Run the numbers in front of the client.",
-    body: "Thirteen calculators built on Canadian rules: semi-annual compounding, CMHC premiums, the stress test, Ontario and Toronto land transfer tax with first-time buyer rebates, seller net sheets, commission splits and more, starting from the home's list price.",
+    body: "Thirteen calculators built on Canadian rules: semi-annual compounding, CMHC premiums, the stress test, every province's land transfer tax (or its equivalent) with first-time buyer relief, seller net sheets, commission splits and more, starting from the home's list price.",
     points: [
       {
         lead: "13 tools",
         text: "mortgage, affordability, land transfer tax, renewal, closing costs, seller net, commission, cost of owning, rental, rent vs buy, prepayment, bridge financing and property tax.",
       },
       {
-        lead: "Ontario rules",
-        text: "including Toronto's land transfer tax tiers and 2025 municipal tax rates.",
+        lead: "Provincial rules",
+        text: "from Toronto's and Montréal's municipal tiers to BC's first-time buyer exemption and each province's sales tax.",
       },
       {
         lead: "Scenarios in the PDF",

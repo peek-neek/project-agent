@@ -1,5 +1,6 @@
 "use client";
 
+import { type Province } from "@/lib/finance/provinces";
 import { BuildingIcon, ReceiptTextIcon } from "lucide-react";
 import { rentalAnalysis } from "@/lib/finance/investing";
 import {
@@ -21,15 +22,17 @@ import type { RentalState } from "./calculators-tab";
 export function RentalCalculator({
   state,
   set,
+  province,
   listPrice,
   onUseListPrice,
 }: {
   state: RentalState;
+  province: Province;
   set: (patch: Partial<RentalState>) => void;
   listPrice: number | null;
   onUseListPrice: () => void;
 }) {
-  const r = rentalAnalysis(state);
+  const r = rentalAnalysis({ ...state, province });
   const positive = r.cashFlow >= 0;
 
   return (
@@ -267,8 +270,11 @@ export function RentalCalculator({
           </Panel>
           <Notice>
             Rental properties usually need 20% down (insured mortgages are for
-            owner-occupied homes). Ontario rent control caps increases for units
-            first occupied before November 15, 2018. Rental income is taxable.
+            owner-occupied homes).{" "}
+            {province === "ON"
+              ? "Ontario rent control caps increases for units first occupied before November 15, 2018. "
+              : "Rent increase rules vary by province; check the local residential tenancy rules. "}
+            Rental income is taxable.
           </Notice>
         </>
       }

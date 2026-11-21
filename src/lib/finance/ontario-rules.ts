@@ -158,4 +158,4 @@ export const TYPICAL = {
 };
 
 /** When these rules were last checked against their sources. */
-export const RULES_CHECKED = "2026-11-19";
+export const RULES_CHECKED = "2026-11-20";

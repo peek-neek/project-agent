@@ -1,8 +1,13 @@
 // What a sale nets the seller, and what a buyer needs on closing day.
 
-import { landTransferTax } from "./land-transfer-tax";
 import { mortgageInsurance } from "./mortgage";
-import { ONTARIO_HST, STATUS_CERTIFICATE_FEE } from "./ontario-rules";
+import { STATUS_CERTIFICATE_FEE } from "./ontario-rules";
+import {
+  COMMISSION_TAX,
+  LEGAL_FEE_TAX,
+  type Province,
+  transferTax,
+} from "./provinces";
 import { breakPenalty } from "./refinance";
 
 export type CostLine = {
@@ -39,14 +44,19 @@ export type SellerNetInput = {
   /** Prepaid property tax credited back (+) or owed (−) at closing. */
   taxAdjustment: number;
   other: number;
+  /** Sets the sales tax on commission and legal fees. Default Ontario. */
+  province?: Province;
 };
 
 export function sellerNet(input: SellerNetInput) {
+  const province = input.province ?? "ON";
+  const commissionTax = COMMISSION_TAX[province];
+  const legalTax = LEGAL_FEE_TAX[province];
   const listingComm = input.salePrice * input.listingCommission;
   const buyerComm = input.salePrice * input.buyerCommission;
   const commission = listingComm + buyerComm;
-  const commissionHst = commission * ONTARIO_HST;
-  const legalHst = input.legalFees * ONTARIO_HST;
+  const commissionHst = commission * commissionTax.rate;
+  const legalHst = input.legalFees * legalTax.rate;
   const penalty = input.portingMortgage
     ? { penalty: 0, method: "none" as const, threeMonths: 0, ird: 0 }
     : breakPenalty({
@@ -66,7 +76,7 @@ export function sellerNet(input: SellerNetInput) {
     { id: "buyer", label: "Buyer brokerage commission", amount: buyerComm },
     {
       id: "commissionHst",
-      label: "HST on commission (13%)",
+      label: `${commissionTax.label} on commission (${+(commissionTax.rate * 100).toFixed(3)}%)`,
       amount: commissionHst,
     },
     { id: "mortgage", label: "Mortgage payout", amount: input.mortgageBalance },
@@ -81,7 +91,7 @@ export function sellerNet(input: SellerNetInput) {
       amount: input.dischargeFee,
     },
     { id: "legal", label: "Legal fees", amount: input.legalFees },
-    { id: "legalHst", label: "HST on legal fees", amount: legalHst },
+    { id: "legalHst", label: `${legalTax.label} on legal fees`, amount: legalHst },
     {
       id: "staging",
       label: "Staging, repairs and cleaning",
@@ -129,12 +139,20 @@ export type BuyerClosingInput = {
   adjustments: number;
   moving: number;
   other: number;
+  /** Default Ontario. */
+  province?: Province;
+  /** Inside the City of Montréal (Quebec only). */
+  montreal?: boolean;
 };
 
 export function buyerClosingCosts(input: BuyerClosingInput) {
-  const ltt = landTransferTax({
+  const province = input.province ?? "ON";
+  const legalTax = LEGAL_FEE_TAX[province];
+  const ltt = transferTax({
+    province,
     price: input.price,
     toronto: input.toronto,
+    montreal: input.montreal,
     firstTimeBuyer: input.firstTimeBuyer,
     singleFamily: input.singleFamily,
     nonResident: input.nonResident,
@@ -143,18 +161,19 @@ export function buyerClosingCosts(input: BuyerClosingInput) {
     price: input.price,
     downPayment: input.downPayment,
     amortizationYears: input.amortizationYears,
+    province,
   });
+  // Ontario's status certificate fee is capped by law; elsewhere the
+  // estoppel certificate / Form B costs about the same.
   const statusCertificate = input.condo
-    ? STATUS_CERTIFICATE_FEE * (1 + ONTARIO_HST)
+    ? STATUS_CERTIFICATE_FEE * (1 + legalTax.rate)
     : 0;
-  const legalHst = input.legalFees * ONTARIO_HST;
+  const legalHst = input.legalFees * legalTax.rate;
 
   const lines: CostLine[] = [
     {
       id: "ltt",
-      label: input.toronto
-        ? "Land transfer tax (Ontario + Toronto)"
-        : "Land transfer tax",
+      label: ltt.label,
       amount: ltt.total,
     },
     {
@@ -162,7 +181,7 @@ export function buyerClosingCosts(input: BuyerClosingInput) {
       label: "Legal fees and disbursements",
       amount: input.legalFees,
     },
-    { id: "legalHst", label: "HST on legal fees", amount: legalHst },
+    { id: "legalHst", label: `${legalTax.label} on legal fees`, amount: legalHst },
     { id: "title", label: "Title insurance", amount: input.titleInsurance },
     {
       id: "inspection",
@@ -174,13 +193,22 @@ export function buyerClosingCosts(input: BuyerClosingInput) {
       ? [
           {
             id: "status",
-            label: "Condo status certificate",
+            label:
+              province === "ON"
+                ? "Condo status certificate"
+                : "Condo documents (estoppel certificate)",
             amount: statusCertificate,
           },
         ]
       : []),
-    ...(ins.required && ins.available
-      ? [{ id: "pst", label: "PST on mortgage insurance", amount: ins.pst }]
+    ...(ins.required && ins.available && ins.pst > 0
+      ? [
+          {
+            id: "pst",
+            label: province === "QC" ? "Tax on mortgage insurance (9%)" : "PST on mortgage insurance",
+            amount: ins.pst,
+          },
+        ]
       : []),
     {
       id: "adjustments",

@@ -390,6 +390,14 @@ export const SCHOOL_SYSTEMS = [
     type: "Catholic",
     color: "#ea580c",
   },
+  /** Outside Ontario: nearest schools from Google Maps, any system. */
+  {
+    id: "nearby",
+    label: "Nearby schools",
+    language: "Any",
+    type: "Any",
+    color: "#0891b2",
+  },
 ] as const;
 export type SchoolSystemId = (typeof SCHOOL_SYSTEMS)[number]["id"];
 
@@ -448,6 +456,12 @@ export const schoolsSchema = z.object({
       secondary: z.array(schoolSchema),
     }),
   ),
+  /**
+   * "ontario": Ontario's school list with boards and EQAO results.
+   * "nearby": outside Ontario, nearest schools from Google Maps (no boards
+   * or test results). Older reports lack it (Ontario).
+   */
+  coverage: z.enum(["ontario", "nearby"]).optional(),
   /** Unweighted average across Ontario schools, for context. */
   provincialAverage: eqaoSchema,
   dataYear: z.string(),
@@ -700,16 +714,23 @@ export const safetySchema = z.object({
   /** Why crime data is missing, when it is. */
   crimeNote: z.string().nullable(),
   /**
-   * Crime Severity Index for the local police service (anywhere in Ontario),
-   * or Ontario overall when no service matches. Older reports lack it.
+   * Crime Severity Index for the local police service (anywhere in Canada),
+   * or the province overall when no service matches. Older reports lack it;
+   * Ontario-only reports saved the comparison as `ontario` (mapped below).
    */
-  areaCrime: z
+  areaCrime: z.preprocess(
+    (v) =>
+      v && typeof v === "object" && "ontario" in v && !("province" in v)
+        ? { ...v, province: { code: "ON", name: "Ontario", ...(v as { ontario: object }).ontario } }
+        : v,
+    z
     .object({
       source: z.string(),
       level: z.enum(["service", "province"]),
       /** e.g. "York Region", "Dufferin (Orangeville)". */
       service: z.string(),
-      policing: z.enum(["municipal", "opp"]).nullable(),
+      /** opp / sq: Ontario / Quebec provincial police; rcmp: RCMP detachment. */
+      policing: z.enum(["municipal", "opp", "sq", "rcmp"]).nullable(),
       municipality: z.string().nullable(),
       year: z.number(),
       firstYear: z.number(),
@@ -719,7 +740,11 @@ export const safetySchema = z.object({
       nonViolentCsi: z.number().nullable(),
       /** CSI per year, firstYear…year. */
       trend: z.array(z.number().nullable()),
-      ontario: z.object({
+      /** The property's province or territory, for comparison. */
+      province: z.object({
+        code: z.string().nullable(),
+        /** "Ontario", "British Columbia"; "Canada" when the province is unknown. */
+        name: z.string(),
         csi: z.number().nullable(),
         violentCsi: z.number().nullable(),
         nonViolentCsi: z.number().nullable(),
@@ -728,6 +753,7 @@ export const safetySchema = z.object({
     })
     .nullable()
     .optional(),
+  ),
   flood: z.object({
     authority: z.string().nullable(),
     status: z.enum(["inside", "nearby", "clear", "unknown"]),
@@ -741,6 +767,11 @@ export const safetySchema = z.object({
     airport: z.object({ name: z.string(), km: z.number() }).nullable(),
     /** False when road/rail data isn't available for this city. */
     roadsCovered: z.boolean(),
+    /**
+     * True outside Ontario: highway and rail data cover Ontario only, so
+     * there's nothing to retry. Older reports lack it.
+     */
+    outsideCoverage: z.boolean().optional(),
   }),
   airQuality: z
     .object({
@@ -834,6 +865,8 @@ export const upsideSchema = z.object({
     })
     .nullable(),
   developmentNote: z.string().nullable(),
+  /** Why the project list is empty for reasons other than "none nearby". */
+  projectsNote: z.string().nullable().optional(),
   fetchedAt: z.string(),
 });
 export type UpsideData = z.infer<typeof upsideSchema>;

@@ -19,7 +19,7 @@ export function Footer() {
         <motion.div variants={fadeUp}>
           <Logo />
           <p className="mt-4 max-w-xs text-sm leading-relaxed text-foreground/65">
-            {site.tagline}. Branded, data-backed reports for any Ontario
+            {site.tagline}. Branded, data-backed reports for any Canadian
             address.
           </p>
         </motion.div>

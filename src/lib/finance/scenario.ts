@@ -5,8 +5,14 @@
 
 import { z } from "zod";
 import { DEFAULTS, EXAMPLE_PRICE, roundTo } from "./defaults";
-import { landTransferTax } from "./land-transfer-tax";
 import { TYPICAL } from "./ontario-rules";
+import {
+  LEGAL_FEE_TAX,
+  PROVINCE_CODES,
+  provinceOr,
+  TYPICAL_PROPERTY_TAX,
+  transferTax,
+} from "./provinces";
 import {
   ONTARIO_MEDIAN_TAX_RATE,
   propertyTaxRateFor,
@@ -35,7 +41,12 @@ export const purchaseSchema = z.object({
   termYears: years,
   firstTimeBuyer: z.boolean(),
   newBuild: z.boolean(),
+  /** The property's province: sets transfer tax and sales taxes. */
+  province: z.enum(PROVINCE_CODES),
+  /** Inside the City of Toronto (Ontario municipal land transfer tax). */
   toronto: z.boolean(),
+  /** Inside the City of Montréal (higher welcome tax brackets). */
+  montreal: z.boolean(),
   singleFamily: z.boolean(),
   nonResident: z.boolean(),
 });
@@ -216,6 +227,8 @@ export const CUSTOM_MUNICIPALITY = "__custom";
 export type ScenarioContext = {
   listPrice: number | null;
   city: string | null;
+  /** Two-letter province code from the report; Ontario when unknown. */
+  province?: string | null;
   propertyType: string | null;
 };
 
@@ -223,14 +236,21 @@ export type ScenarioContext = {
 export function defaultInputs({
   listPrice,
   city,
+  province: provinceCode,
   propertyType,
 }: ScenarioContext): CalculatorInputs {
   const price = listPrice ?? EXAMPLE_PRICE;
   const type = propertyType?.toLowerCase() ?? "";
   const condo = type.includes("condo");
-  const toronto = city?.trim().toLowerCase() === "toronto";
-  const cityTax = propertyTaxRateFor(city);
-  const taxRate = cityTax?.rate ?? TYPICAL.propertyTaxOther;
+  const province = provinceOr(provinceCode);
+  const cityName = city?.trim().toLowerCase() ?? "";
+  const toronto = province === "ON" && cityName === "toronto";
+  const montreal = province === "QC" && (cityName === "montréal" || cityName === "montreal");
+  // Municipal rates are on file for Ontario; elsewhere, a provincial typical.
+  const cityTax = province === "ON" ? propertyTaxRateFor(city) : null;
+  const taxRate =
+    cityTax?.rate ?? (province === "ON" ? TYPICAL.propertyTaxOther : TYPICAL_PROPERTY_TAX[province]);
+  const legalWithTax = TYPICAL.buyerLegalFees * (1 + LEGAL_FEE_TAX[province].rate);
   const insurance = condo ? TYPICAL.insuranceCondo : TYPICAL.insuranceHouse;
   const maintenanceRate = condo
     ? TYPICAL.maintenanceCondo
@@ -248,7 +268,9 @@ export function defaultInputs({
       termYears: DEFAULTS.termYears,
       firstTimeBuyer: false,
       newBuild: false,
+      province,
       toronto,
+      montreal,
       singleFamily: !condo && !type.includes("multiplex"),
       nonResident: false,
     },
@@ -332,8 +354,8 @@ export function defaultInputs({
       maintenance: DEFAULTS.rentalMaintenance,
       management: 0,
       closingCosts: Math.round(
-        landTransferTax({ price, toronto, firstTimeBuyer: false }).total +
-          TYPICAL.buyerLegalFees * 1.13 +
+        transferTax({ province, price, toronto, montreal, firstTimeBuyer: false }).total +
+          legalWithTax +
           TYPICAL.homeInspection,
       ),
       setupCosts: 0,
@@ -341,7 +363,7 @@ export function defaultInputs({
     },
     rvb: {
       otherBuyingCosts: Math.round(
-        TYPICAL.buyerLegalFees * 1.13 +
+        legalWithTax +
           TYPICAL.titleInsurance +
           TYPICAL.homeInspection,
       ),
@@ -375,7 +397,7 @@ export function defaultInputs({
     },
     tax: {
       municipality: cityTax?.name ?? CUSTOM_MUNICIPALITY,
-      customRate: ONTARIO_MEDIAN_TAX_RATE,
+      customRate: province === "ON" ? ONTARIO_MEDIAN_TAX_RATE : TYPICAL_PROPERTY_TAX[province],
       assessedValue: price,
     },
   };

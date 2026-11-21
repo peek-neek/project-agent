@@ -22,7 +22,7 @@ export function Hero() {
           className="flex items-center gap-2 text-xs font-medium tracking-[0.14em] text-foreground/55 uppercase"
         >
           <span className="h-px w-8 bg-primary" />
-          For Ontario real estate agents
+          For Canadian real estate agents
         </motion.p>
         <h1
           id="hero-title"
@@ -42,7 +42,7 @@ export function Hero() {
           {...line(0.36)}
           className="mt-6 max-w-md text-lg leading-relaxed text-foreground/70 text-pretty"
         >
-          Type any Ontario address. In minutes you have the neighbourhood
+          Type any Canadian address. In minutes you have the neighbourhood
           research, the listing copy and the showing prep you&apos;d normally
           spend an evening on, with every figure sourced.
         </motion.p>
@@ -52,7 +52,7 @@ export function Hero() {
           <AddressSearch />
         </motion.div>
         <motion.p {...line(0.56)} className="mt-5 text-sm text-foreground/50">
-          From C$59 a month · Cancel anytime · Built for Ontario
+          From C$59 a month · Cancel anytime · Built for Canada
         </motion.p>
       </div>
 

@@ -252,8 +252,8 @@ export function UpsideTab({
           >
             {upside.projects.length === 0 ? (
               <p className="py-3 text-sm text-foreground/60">
-                No provincial transit, school, hospital or community projects
-                are planned or under construction close by.
+                {upside.projectsNote ??
+                  "No provincial transit, school, hospital or community projects are planned or under construction close by."}
               </p>
             ) : (
               <ul className="divide-y">

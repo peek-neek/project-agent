@@ -195,7 +195,7 @@ export function fastFacts(data: Data, mode: TravelMode): FastFact[] {
         crime?.lowerRateThanShare != null
           ? `${crime.source}: lower total crime rate than ${Math.round(crime.lowerRateThanShare * 100)}% of Toronto neighbourhoods (${crime.year}). Rates vary by street; buyers can check the source.`
           : area?.csi != null
-            ? `Statistics Canada Crime Severity Index ${Math.round(area.csi)} for ${area.level === "service" ? `the ${area.service} police service area` : "Ontario overall"}, vs Ontario ${area.ontario.csi != null ? Math.round(area.ontario.csi) : "n/a"} (${area.year}). It covers the whole service area, not this street.`
+            ? `Statistics Canada Crime Severity Index ${Math.round(area.csi)} for ${area.level === "service" ? `the ${area.service} police service area` : `${area.province.name} overall`}, vs ${area.province.name} ${area.province.csi != null ? Math.round(area.province.csi) : "n/a"} (${area.year}). It covers the whole service area, not this street.`
             : (safety.crimeNote ??
               "Crime data isn't available for this address."),
     });
@@ -220,7 +220,9 @@ export function fastFacts(data: Data, mode: TravelMode): FastFact[] {
           ]
             .filter(Boolean)
             .join("; ") + "."
-        : "Highway and rail distances couldn't be checked.",
+        : safety.noise.outsideCoverage
+          ? `Highway and rail distances are available for Ontario only so far.${airport ? ` ${airport.name} airport is ${airport.km} km away.` : ""}`
+          : "Highway and rail distances couldn't be checked.",
     });
   }
 

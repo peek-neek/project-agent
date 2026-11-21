@@ -1,7 +1,12 @@
 "use client";
 
 import { useClerk, useUser } from "@clerk/nextjs";
-import { ChevronsUpDownIcon, LogOutIcon, UserCogIcon } from "lucide-react";
+import {
+  ChevronsUpDownIcon,
+  CreditCardIcon,
+  LogOutIcon,
+  UserCogIcon,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -115,6 +120,11 @@ export function SidebarUser() {
             <DropdownMenuItem onClick={() => openUserProfile()}>
               <UserCogIcon />
               Manage account
+            </DropdownMenuItem>
+            {/* Plain <a>: the route creates a Stripe session, so no prefetch. */}
+            <DropdownMenuItem render={<a href="/billing/portal" />}>
+              <CreditCardIcon />
+              Billing
             </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"

@@ -194,7 +194,7 @@ export function CoverPage({ d, images }: { d: PdfData; images: PdfImages }) {
       </View>
       <Text style={[s.h1, { fontSize: 28, marginTop: 6 }]}>{d.street}</Text>
       <Text style={s.lede}>
-        {d.place || "Ontario"} · Prepared {date(d.report.createdAt)}
+        {d.place || "Canada"} · Prepared {date(d.report.createdAt)}
       </Text>
 
       <View style={{ marginTop: 14 }}>
@@ -282,14 +282,14 @@ const SCORE_ROWS = [
     label: "Schools",
     icon: GraduationCapIcon,
     measures:
-      "The four closest schools: their EQAO results against the Ontario average, and how far away they are. Attendance boundaries aren't scored; confirm with the board.",
+      "The closest schools and how far away they are, with EQAO results against the Ontario average for Ontario schools. Attendance boundaries aren't scored; confirm with the board or district.",
   },
   {
     id: "safety",
     label: "Safety",
     icon: AlertTriangleIcon,
     measures:
-      "Police-reported crime against Ontario (or Toronto's neighbourhood ranking), plus flood regulation, highway, rail and airport noise, and air quality.",
+      "Police-reported crime against the province (or Toronto's neighbourhood ranking), plus flood regulation, highway, rail and airport noise, and air quality where available.",
   },
   {
     id: "neighbourhood",

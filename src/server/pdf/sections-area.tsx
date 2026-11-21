@@ -78,16 +78,16 @@ function Kpis({
 const n0 = (v: number | null | undefined) =>
   v == null ? "—" : v.toLocaleString("en-CA", { maximumFractionDigits: 0 });
 
-const compare = (local: number | null, ontario: number | null) =>
-  local == null || ontario == null
+const compare = (local: number | null, reference: number | null, region: string) =>
+  local == null || reference == null
     ? null
-    : local <= ontario
+    : local <= reference
       ? {
-          text: `${Math.round((1 - local / ontario) * 100)}% below Ontario`,
+          text: `${Math.round((1 - local / reference) * 100)}% below ${region}`,
           good: true,
         }
       : {
-          text: `${Math.round((local / ontario - 1) * 100)}% above Ontario`,
+          text: `${Math.round((local / reference - 1) * 100)}% above ${region}`,
           good: false,
         };
 
@@ -109,7 +109,7 @@ export function SafetyPage({ d, n }: { d: PdfData; n: number }) {
   const crime = sf.crime;
   const province = area?.level === "province";
   const overall =
-    area && !province ? compare(area.csi, area.ontario.csi) : null;
+    area && !province ? compare(area.csi, area.province.csi, area.province.name) : null;
   const flood = FLOOD[sf.flood.status];
 
   return (
@@ -166,23 +166,23 @@ export function SafetyPage({ d, n }: { d: PdfData; n: number }) {
           <Card>
             <Text style={[s.small, { marginBottom: 8 }]}>
               {province
-                ? `Ontario overall (no separate police figures for ${area.municipality ?? "this municipality"}).`
-                : `${area.service}${area.policing === "opp" ? " (OPP)" : ""}: covers the whole police service area.`}
+                ? `${area.province.name} overall (no separate police figures for ${area.municipality ?? "this municipality"}).`
+                : `${area.service}${area.policing === "opp" ? " (OPP)" : area.policing === "sq" ? " (SQ)" : area.policing === "rcmp" ? " (RCMP)" : ""}: covers the whole police service area.`}
             </Text>
             <Grid columns={3} gap={6} width={PAGE.content - 20}>
               {(
                 [
-                  ["Overall", area.csi, area.ontario.csi],
-                  ["Violent", area.violentCsi, area.ontario.violentCsi],
+                  ["Overall", area.csi, area.province.csi],
+                  ["Violent", area.violentCsi, area.province.violentCsi],
                   [
                     "Non-violent",
                     area.nonViolentCsi,
-                    area.ontario.nonViolentCsi,
+                    area.province.nonViolentCsi,
                   ],
                 ] as const
-              ).map(([label, local, ontario]) => {
-                const cmp = province ? null : compare(local, ontario);
-                const max = Math.max(local ?? 0, ontario ?? 0, 1);
+              ).map(([label, local, reference]) => {
+                const cmp = province ? null : compare(local, reference, area.province.name);
+                const max = Math.max(local ?? 0, reference ?? 0, 1);
                 return (
                   <View
                     key={label}
@@ -194,10 +194,10 @@ export function SafetyPage({ d, n }: { d: PdfData; n: number }) {
                     >
                       {n0(local)}
                     </Text>
-                    {/* This area vs Ontario, as two bars. */}
+                    {/* This area vs the province (short code fits the bar label). */}
                     {[
                       ["Here", local, C.ink],
-                      ["Ontario", ontario, C.faint],
+                      [area.province.code ?? "CA", reference, C.faint],
                     ].map(([l, v, color]) => (
                       <View
                         key={l as string}
@@ -781,7 +781,7 @@ export function UpsidePage({
           })}
         </View>
       ) : (
-        <Text style={s.p}>No public projects listed nearby.</Text>
+        <Text style={s.p}>{u.projectsNote ?? "No public projects listed nearby."}</Text>
       )}
       <Note>
         Projects from Ontario&apos;s infrastructure map; applications from

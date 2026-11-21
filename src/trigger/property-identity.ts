@@ -2,13 +2,13 @@ import { logger, schemaTask } from "@trigger.dev/sdk";
 import { z } from "zod";
 import {
   ADDRESS_NOT_FOUND,
-  ADDRESS_OUTSIDE_ONTARIO,
+  ADDRESS_OUTSIDE_CANADA,
   extractPropertyIdentity,
 } from "../server/extractors/property-identity";
 import { PROPERTY_IDENTITY_JOB, reportStore } from "../server/report-store";
 
 /** Messages written for the agent; any other error gets a generic one. */
-const AGENT_MESSAGES = [ADDRESS_NOT_FOUND, ADDRESS_OUTSIDE_ONTARIO];
+const AGENT_MESSAGES = [ADDRESS_NOT_FOUND, ADDRESS_OUTSIDE_CANADA];
 const messageOf = (error: unknown) =>
   error && typeof error === "object" && "message" in error
     ? String(error.message)

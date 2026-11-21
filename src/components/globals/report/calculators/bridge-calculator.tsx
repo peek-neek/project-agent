@@ -1,5 +1,6 @@
 "use client";
 
+import { LEGAL_FEE_TAX, type Province } from "@/lib/finance/provinces";
 import { ArrowLeftRightIcon } from "lucide-react";
 import { bridgeFinancing } from "@/lib/finance/investing";
 import {
@@ -19,11 +20,14 @@ import type { BridgeState } from "./calculators-tab";
 export function BridgeCalculator({
   state,
   set,
+  province,
 }: {
   state: BridgeState;
   set: (patch: Partial<BridgeState>) => void;
+  province: Province;
 }) {
-  const r = bridgeFinancing(state);
+  const r = bridgeFinancing({ ...state, province });
+  const tax = LEGAL_FEE_TAX[province].label;
 
   return (
     <CalcLayout
@@ -60,7 +64,7 @@ export function BridgeCalculator({
               label="Extra legal fee"
               value={state.legalFee}
               onChange={(v) => set({ legalFee: v })}
-              hint="Before HST"
+              hint={`Before ${tax}`}
             />
             <MoneyField
               label="Current home costs"
@@ -94,7 +98,7 @@ export function BridgeCalculator({
               {
                 label: "Bridge fees",
                 value: money(state.adminFee + r.legal),
-                hint: "Admin + legal (with HST)",
+                hint: `Admin + legal (with ${tax})`,
               },
               {
                 label: "Carrying both homes",
@@ -108,7 +112,7 @@ export function BridgeCalculator({
               rows={[
                 { label: "Bridge loan interest", value: money(r.interest) },
                 { label: "Lender admin fee", value: money(state.adminFee) },
-                { label: "Legal fee (with HST)", value: money(r.legal) },
+                { label: `Legal fee (with ${tax})`, value: money(r.legal) },
                 {
                   label: "Current home's carrying costs",
                   value: money(r.extraCarrying),

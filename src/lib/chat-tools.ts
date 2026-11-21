@@ -93,7 +93,7 @@ export const affordabilitySchema = tool({
 
 export const closingCostsSchema = tool({
   description:
-    "Buyer's closing costs and cash needed on closing day in Ontario: land transfer tax (with Toronto's municipal tax and first-time buyer rebates), legal fees with HST, title insurance, inspection, PST on mortgage insurance, condo status certificate.",
+    "Buyer's closing costs and cash needed on closing day, using the property's province: land transfer tax or the province's equivalent (Toronto's and Montréal's municipal rates, first-time buyer relief, foreign-buyer taxes), legal fees with sales tax, title insurance, inspection, provincial tax on mortgage insurance (ON, QC, SK), condo documents.",
   inputSchema: z.object({
     price: moneyInput("Purchase price in dollars."),
     downPayment: moneyInput("Down payment in dollars."),
@@ -110,7 +110,7 @@ export const closingCostsSchema = tool({
 
 export const sellerNetSchema = tool({
   description:
-    "Seller net sheet: proceeds after commission + 13% HST, mortgage payout, prepayment penalty, legal fees and other selling costs.",
+    "Seller net sheet: proceeds after commission plus the province's sales tax (GST/HST/QST), mortgage payout, prepayment penalty, legal fees and other selling costs.",
   inputSchema: z.object({
     salePrice: moneyInput("Sale price in dollars."),
     commissionTotalPercent: pctInput("Total commission (both brokerages)"),
@@ -155,24 +155,24 @@ export const rentVsBuySchema = tool({
 
 export const propertyTaxSchema = tool({
   description:
-    "Estimate Ontario property tax from the MPAC assessed value and a municipality's 2025 residential rate (128 municipalities).",
+    "Estimate property tax from the assessed value and a residential rate: Ontario has 128 municipalities' 2025 rates; elsewhere a typical provincial rate is used (say so).",
   inputSchema: z.object({
     assessedValue: moneyInput(
-      "MPAC assessed value (often below today's price).",
+      "Assessed value (in Ontario the MPAC value, often below today's price).",
     ),
     municipality: z
       .string()
       .max(80)
       .optional()
       .describe(
-        "Ontario municipality, e.g. 'Mississauga'. Defaults to the home's city.",
+        "Municipality, e.g. 'Mississauga'. Defaults to the home's city.",
       ),
   }),
 });
 
 export const commissionSchema = tool({
   description:
-    "The agent's take-home from a sale: gross commission on their side, HST, brokerage split and fees.",
+    "The agent's take-home from a sale: gross commission on their side, sales tax collected (GST/HST/QST), brokerage split and fees.",
   inputSchema: z.object({
     salePrice: moneyInput("Sale price in dollars."),
     sideCommissionPercent: pctInput("Commission on the agent's side"),

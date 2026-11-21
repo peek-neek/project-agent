@@ -121,6 +121,7 @@ export function pdfData(report: PdfReport, copyMode: TravelMode) {
           upside,
           listPrice: listing?.listPrice ?? null,
           city: report.property?.city ?? null,
+          province: report.property?.province ?? null,
         },
         m,
       ),

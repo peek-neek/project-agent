@@ -100,7 +100,7 @@ const GROUPS = [
       {
         id: "landTransfer",
         label: "Land transfer tax",
-        description: "Ontario and Toronto tax, with first-time buyer rebates",
+        description: "Every province's transfer tax, with first-time buyer relief",
         icon: LandmarkIcon,
       },
     ],
@@ -117,7 +117,7 @@ const GROUPS = [
       {
         id: "propertyTax",
         label: "Property tax",
-        description: "2025 rates for 128 Ontario municipalities",
+        description: "Ontario municipal rates; a typical rate elsewhere",
         icon: BuildingIcon,
       },
       {
@@ -193,17 +193,19 @@ export function CalculatorsTab({
   reportId,
   listPrice,
   city,
+  province,
   propertyType,
   saved,
 }: {
   reportId: string;
   listPrice: number | null;
   city: string | null;
+  province: string | null;
   propertyType: string | null;
   /** Inputs saved on this report earlier (merged over the defaults). */
   saved: SavedCalculators | null;
 }) {
-  const context = { listPrice, city, propertyType };
+  const context = { listPrice, city, province, propertyType };
   const [active, setActive] = useState<CalculatorId>("payment");
   // Start from the defaults with any saved changes laid over them.
   const [start] = useState(() => mergeInputs(defaultInputs(context), saved));
@@ -485,6 +487,7 @@ export function CalculatorsTab({
             state={tax}
             set={patch(setTaxState)}
             price={purchase.price}
+            province={purchase.province}
           />
         )}
         {active === "prepayment" && (
@@ -501,16 +504,22 @@ export function CalculatorsTab({
           <SellerNetCalculator
             state={seller}
             set={patch(setSellerState)}
+            province={purchase.province}
             {...priceProps}
           />
         )}
         {active === "bridge" && (
-          <BridgeCalculator state={bridge} set={patch(setBridgeState)} />
+          <BridgeCalculator
+            state={bridge}
+            set={patch(setBridgeState)}
+            province={purchase.province}
+          />
         )}
         {active === "rental" && (
           <RentalCalculator
             state={rental}
             set={patch(setRentalState)}
+            province={purchase.province}
             {...priceProps}
           />
         )}
@@ -526,6 +535,7 @@ export function CalculatorsTab({
         )}
         {active === "commission" && (
           <CommissionCalculator
+            province={purchase.province}
             state={comm}
             set={patch(setCommState)}
             {...priceProps}
@@ -534,9 +544,10 @@ export function CalculatorsTab({
       </div>
 
       <p className="text-xs text-foreground/50">
-        Estimates for discussion, not financial or legal advice. Ontario and
-        federal rules last checked {RULES_CHECKED}; property tax rates from the
-        BMA 2025 Municipal Study; typical costs are starting points to adjust.
+        Estimates for discussion, not financial or legal advice. Provincial
+        and federal rules last checked {RULES_CHECKED}; Ontario property tax
+        rates from the BMA 2025 Municipal Study (elsewhere a typical
+        provincial rate); typical costs are starting points to adjust.
         Lenders, insurers and lawyers confirm the final figures.
       </p>
     </div>

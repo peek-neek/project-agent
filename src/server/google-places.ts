@@ -12,11 +12,14 @@ const FIELD_MASK = [
   "suggestions.placePrediction.distanceMeters",
 ].join(",");
 
-// Used when we don't have the user's location: prefer results in Ontario.
-const ONTARIO_BOUNDS = {
+// Canada's bounding box, as a bias (autocomplete without the user's
+// location, and text search). Not a locationRestriction: Text Search drops
+// valid results (e.g. Toronto addresses) when restricted to a box this big.
+// Non-Canadian results are filtered out by country afterwards.
+const CANADA_BOUNDS = {
   rectangle: {
-    low: { latitude: 41.68, longitude: -95.16 },
-    high: { latitude: 56.86, longitude: -74.32 },
+    low: { latitude: 41.6, longitude: -141.1 },
+    high: { latitude: 83.2, longitude: -52.5 },
   },
 };
 
@@ -85,7 +88,7 @@ export async function autocompleteAddresses({
             },
             origin: center,
           }
-        : { locationBias: ONTARIO_BOUNDS }),
+        : { locationBias: CANADA_BOUNDS }),
     }),
   });
 
@@ -226,7 +229,7 @@ export async function searchPlaceAddress(
         textQuery: text,
         regionCode: "CA",
         languageCode: "en-CA",
-        locationBias: ONTARIO_BOUNDS,
+        locationBias: CANADA_BOUNDS,
         pageSize: 1,
       }),
     },
@@ -237,7 +240,7 @@ export async function searchPlaceAddress(
 
 // ---------------------------------------------------------------------------
 // Address check for typed addresses (no suggestion picked): a few Text Search
-// candidates, each marked precise (a street number) and in Ontario or not.
+// candidates, each marked precise (a street number) and in Canada or not.
 // ---------------------------------------------------------------------------
 
 export type AddressCandidate = {
@@ -249,15 +252,15 @@ export type AddressCandidate = {
   secondary: string;
   /** Has a street number (a building or lot, not a street or city). */
   precise: boolean;
-  inOntario: boolean;
+  inCanada: boolean;
   lat: number | null;
   lng: number | null;
 };
 
 export type AddressResolution =
-  /** One precise Ontario address matching the typed street number. */
+  /** One precise Canadian address matching the typed street number. */
   | { outcome: "exact"; candidates: AddressCandidate[] }
-  /** Several precise Ontario addresses: the agent picks. */
+  /** Several precise Canadian addresses: the agent picks. */
   | { outcome: "choose"; candidates: AddressCandidate[] }
   /** Only streets, neighbourhoods or towns: needs a street number. */
   | { outcome: "imprecise"; candidates: AddressCandidate[] }
@@ -291,7 +294,7 @@ export async function resolveAddress(text: string): Promise<AddressResolution> {
       textQuery: text,
       regionCode: "CA",
       languageCode: "en-CA",
-      locationBias: ONTARIO_BOUNDS,
+      locationBias: CANADA_BOUNDS,
       pageSize: 5,
     }),
   });
@@ -308,13 +311,13 @@ export async function resolveAddress(text: string): Promise<AddressResolution> {
       precise:
         Boolean(r.streetNumber) ||
         (place.types ?? []).some((t) => PRECISE_TYPES.includes(t)),
-      inOntario: r.province === "ON" && r.country === "CA",
+      inCanada: r.country === "CA",
       lat: r.latitude,
       lng: r.longitude,
     };
   });
 
-  const usable = candidates.filter((c) => c.precise && c.inOntario);
+  const usable = candidates.filter((c) => c.precise && c.inCanada);
   if (usable.length > 0) {
     const typed = typedStreetNumber(text);
     const [first] = usable;
@@ -328,8 +331,8 @@ export async function resolveAddress(text: string): Promise<AddressResolution> {
       candidates: usable,
     };
   }
-  const ontario = candidates.filter((c) => c.inOntario);
-  if (ontario.length > 0) return { outcome: "imprecise", candidates: ontario };
+  const canadian = candidates.filter((c) => c.inCanada);
+  if (canadian.length > 0) return { outcome: "imprecise", candidates: canadian };
   if (candidates.length > 0) return { outcome: "outside", candidates };
   return { outcome: "none", candidates: [] };
 }

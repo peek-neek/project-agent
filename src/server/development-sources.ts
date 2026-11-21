@@ -472,8 +472,13 @@ const norm = (s: string) =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
-/** The open data source for a municipality, if one is connected. */
-export function developmentSourceFor(municipality: string) {
+/**
+ * The open data source for a municipality, if one is connected. All
+ * connected sources are Ontario municipalities, so a same-named place in
+ * another province (Kingston, NS; Richmond, BC) never matches one.
+ */
+export function developmentSourceFor(municipality: string, province: string | null) {
+  if (province !== "ON") return null;
   const name = norm(municipality);
   return SOURCES.find((s) => s.municipalities.includes(name)) ?? null;
 }

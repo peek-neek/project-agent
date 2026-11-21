@@ -1,7 +1,11 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-const isProtectedRoute = createRouteMatcher(["/dashboard(.*)", "/reports(.*)"]);
+const isProtectedRoute = createRouteMatcher([
+  "/dashboard(.*)",
+  "/reports(.*)",
+  "/billing(.*)",
+]);
 
 export default clerkMiddleware(async (auth, req) => {
   // Signed-in agents work from the dashboard; the homepage is for visitors.

@@ -478,8 +478,8 @@ const CHECK_COPY = {
     body: "We found the area but not a specific property. Add the street number, or drop a pin for a lot without one.",
   },
   outside: {
-    title: "This address is outside Ontario",
-    body: "Reports cover Ontario properties only.",
+    title: "This address is outside Canada",
+    body: "Reports cover Canadian properties only.",
   },
   none: {
     title: "We couldn't find this address",

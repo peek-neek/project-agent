@@ -28,6 +28,12 @@ import {
 import { rewriteCopy } from "@/server/ai/rewrite-copy";
 import { createRateLimiter } from "@/server/rate-limit";
 import { savedCalculatorsSchema } from "@/lib/finance/scenario";
+import { BILLING_ERRORS } from "@/lib/billing";
+import {
+  consumeExtraReportCredit,
+  getEntitlement,
+  returnExtraReportCredit,
+} from "@/server/billing";
 import { createTRPCRouter, protectedProcedure } from "../init";
 
 const token = (max: number) =>
@@ -39,8 +45,8 @@ const token = (max: number) =>
 
 const travelMode = z.enum(travelModes);
 
-/** Roughly Ontario, so a pin can't land somewhere we have no data. */
-const ONTARIO_BOX = { south: 41.6, north: 57, west: -95.2, east: -74.3 };
+/** Canada's bounding box, so a pin can't land somewhere we have no data. */
+const CANADA_BOX = { south: 41.6, north: 83.2, west: -141.1, east: -52.5 };
 
 export const createReportInput = z.object({
   address: z.string().trim().min(3).max(500),
@@ -52,14 +58,14 @@ export const createReportInput = z.object({
   /** A pin the agent dropped (new builds, rural lots): skips the lookup. */
   lat: z.coerce
     .number()
-    .min(ONTARIO_BOX.south)
-    .max(ONTARIO_BOX.north)
+    .min(CANADA_BOX.south)
+    .max(CANADA_BOX.north)
     .optional()
     .catch(undefined),
   lng: z.coerce
     .number()
-    .min(ONTARIO_BOX.west)
-    .max(ONTARIO_BOX.east)
+    .min(CANADA_BOX.west)
+    .max(CANADA_BOX.east)
     .optional()
     .catch(undefined),
 });
@@ -78,17 +84,39 @@ export const reportRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const { sessionToken, travelMode, lat, lng, ...data } = input;
       const pin = lat != null && lng != null ? { lat, lng } : null;
+      // Each report runs paid lookups, so it needs a plan with reports left
+      // this billing period.
+      const entitlement = await getEntitlement(ctx.userId);
+      if (!entitlement.active) {
+        throw new TRPCError({ code: "FORBIDDEN", message: BILLING_ERRORS.required });
+      }
+      // Over the monthly allowance: spend an extra report (bought at C$15).
+      let usedCredit = false;
+      if (entitlement.reportsUsed >= entitlement.reportsLimit) {
+        usedCredit = await consumeExtraReportCredit(ctx.userId);
+        if (!usedCredit) {
+          throw new TRPCError({ code: "FORBIDDEN", message: BILLING_ERRORS.limit });
+        }
+      }
       // A double submit returns the report it already started.
       const { report, created } = await reportStore.createUnlessRecent({
         userId: ctx.userId,
         ...data,
+      }).catch(async (error: unknown) => {
+        if (usedCredit) await returnExtraReportCredit(ctx.userId);
+        throw error;
       });
-      if (!created) return report;
+      if (!created) {
+        // Nothing new was made, so the credit goes back.
+        if (usedCredit) await returnExtraReportCredit(ctx.userId);
+        return report;
+      }
       await reportStore.setSection(report.id, SECTION_KEYS.copySettings, {
         travelMode,
       });
       if (pin) {
-        // The identity step sees the pin and fills in the town from it.
+        // The identity step sees the pin and fills in the town and province
+        // from it.
         const asOf = new Date().toISOString();
         await reportStore.saveIdentity(
           report.id,
@@ -96,7 +124,6 @@ export const reportRouter = createTRPCRouter({
             formattedAddress: data.address,
             latitude: pin.lat,
             longitude: pin.lng,
-            province: "ON",
             country: "CA",
           },
           {

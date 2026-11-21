@@ -1,5 +1,6 @@
 "use client";
 
+import { PROVINCE_NAMES } from "@/lib/finance/provinces";
 import { BarChart3Icon, ReceiptIcon } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,7 @@ export function MortgageCalculator({
     price,
     downPayment,
     amortizationYears: amortization,
+    province: state.province,
   });
   // 30 years on an insured mortgage: first-time buyers and new builds only.
   const thirtyBlocked =
@@ -284,10 +286,14 @@ export function MortgageCalculator({
                     label: `Premium (${pct(ins.rate)} of the loan, added to the mortgage)`,
                     value: money(ins.premium),
                   },
-                  {
-                    label: "Ontario PST on the premium (paid at closing)",
-                    value: money(ins.pst),
-                  },
+                  ...(ins.pst > 0
+                    ? [
+                        {
+                          label: `${PROVINCE_NAMES[state.province]} tax on the premium (paid at closing)`,
+                          value: money(ins.pst),
+                        },
+                      ]
+                    : []),
                 ]}
                 total={{ label: "Insured mortgage", value: money(loan) }}
               />

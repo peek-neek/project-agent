@@ -285,19 +285,19 @@ export const reportSections: ReportSection[] = [
 export const faqs = [
   {
     q: "What exactly do I get for each address?",
-    a: `A full location report (amenities timed on foot, by bike and by car, commute and transit, schools with EQAO results, crime, flood, noise and air quality, housing mix and planned development), a sell / rent ease score, ready-to-post marketing copy, a showing playbook, 13 calculators, a downloadable PDF and an AI chat that can answer anything the report doesn't cover.`,
+    a: `A full location report (amenities timed on foot, by bike and by car, commute and transit, nearby schools (with EQAO results in Ontario), crime, flood, noise and air quality, housing mix and planned development), a sell / rent ease score, ready-to-post marketing copy, a showing playbook, 13 calculators, a downloadable PDF and an AI chat that can answer anything the report doesn't cover.`,
   },
   {
     q: "Which areas do you cover?",
-    a: "Addresses anywhere in Ontario. Some details depend on what each municipality publishes: Toronto adds neighbourhood crime rates and its development applications, for example. Each section says where its data came from.",
+    a: "Addresses anywhere in Canada. Amenities, commute, crime severity, census figures, schools, air quality and the calculators cover every province and territory. Some details are Ontario-only for now (EQAO results, flood regulation, highway and rail distances, infrastructure projects and development applications), and Toronto adds neighbourhood crime rates. Each section says where its data came from.",
   },
   {
     q: "Where does the data come from?",
-    a: "Google Maps Platform (Places, Routes, Street View and Air Quality), Statistics Canada (the 2021 Census and crime severity), Toronto Police Service, Land Information Ontario, conservation authority flood mapping, Ontario school data with EQAO results, and municipal open data.",
+    a: "Google Maps Platform (Places, Routes, Street View and Air Quality), Statistics Canada (the 2021 Census and crime severity for every police service), Toronto Police Service, Land Information Ontario, conservation authority flood mapping, Ontario school data with EQAO results, and municipal open data.",
   },
   {
     q: "Is the marketing copy safe to post?",
-    a: "It's written with the Ontario Human Rights Code and RECO's advertising rules built in: it describes homes and places, never who should live there, and never labels a neighbourhood. You're still the licensee, so read it before you publish.",
+    a: "It's written with human rights law and the provincial regulators' advertising rules (RECO, BCFSA, RECA, OACIQ and the rest) built in: it describes homes and places, never who should live there, and never labels a neighbourhood. You're still the licensee, so read it before you publish.",
   },
   {
     q: "How long does a report take?",

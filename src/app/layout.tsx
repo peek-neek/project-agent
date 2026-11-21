@@ -16,7 +16,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: { default: site.name, template: `%s | ${site.name}` },
-  description: `${site.tagline}. Branded, data-backed property reports for any Ontario address.`,
+  description: `${site.tagline}. Branded, data-backed property reports for any Canadian address.`,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

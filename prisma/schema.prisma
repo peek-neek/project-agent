@@ -194,3 +194,68 @@ model DevelopmentApplication {
 
   @@index([latitude, longitude])
 }
+
+enum Plan {
+  starter
+  pro
+}
+
+/// One row per Clerk user who has started checkout. Mirrors the user's Stripe
+/// customer and current subscription; kept in sync by the Stripe webhook
+/// (src/app/api/stripe/webhook/route.ts). Stripe is the source of truth.
+model BillingAccount {
+  /// Clerk user ID.
+  userId               String    @id
+  stripeCustomerId     String    @unique
+  stripeSubscriptionId String?   @unique
+  plan                 Plan?
+  stripePriceId        String?
+  /// Stripe subscription status: active, trialing, past_due, canceled, ...
+  status               String?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  /// Extra reports bought at C$15 each and not yet used. Used only once the
+  /// month's plan allowance is gone; they don't expire.
+  extraReportCredits   Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  creditPurchases ExtraReportPurchase[]
+}
+
+/// One paid Checkout Session for extra reports. The session ID as primary
+/// key means a webhook retry can never add the same credits twice.
+model ExtraReportPurchase {
+  checkoutSessionId String         @id
+  userId            String
+  account           BillingAccount @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  quantity          Int
+  /// Total charged, in cents (CAD), before tax.
+  amountSubtotal    Int
+  /// Credits taken back because the payment was refunded (in part or full).
+  /// Refund events carry the running total, so this makes them idempotent.
+  creditsRevoked    Int            @default(0)
+  createdAt         DateTime       @default(now())
+
+  @@index([userId])
+}
+
+/// Stripe webhook events already processed, so retries are handled once.
+model StripeEvent {
+  id          String   @id
+  type        String
+  processedAt DateTime @default(now())
+}
+
+/// One AI chat message an agent sent (one per answered turn), for the plan's
+/// monthly chat allowance. Keyed by the assistant message ID, so a retried
+/// hook can't count the same turn twice.
+model ChatMessageUsage {
+  messageId String   @id
+  userId    String
+  reportId  String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}

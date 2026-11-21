@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
 import * as motion from "motion/react-client";
+import { Suspense } from "react";
+import {
+  BillingPanel,
+  BillingPanelSkeleton,
+} from "@/components/globals/dashboard/billing-panel";
 import { AddressSearch } from "@/components/globals/homepage/address-search";
 import { fadeUp, stagger } from "@/components/globals/homepage/motion-presets";
 
@@ -8,7 +13,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function DashboardPage() {
+export default function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 py-12 sm:px-8">
       <motion.div
@@ -27,11 +32,16 @@ export default function DashboardPage() {
           variants={fadeUp}
           className="mt-3 text-center text-foreground/65 text-pretty"
         >
-          Enter an Ontario address. We&apos;ll build the report while you get on
+          Enter a Canadian address. We&apos;ll build the report while you get on
           with your day.
         </motion.p>
         <motion.div variants={fadeUp} className="mt-8">
           <AddressSearch />
+        </motion.div>
+        <motion.div variants={fadeUp} className="mt-6">
+          <Suspense fallback={<BillingPanelSkeleton />}>
+            <BillingPanel searchParams={searchParams} />
+          </Suspense>
         </motion.div>
       </motion.div>
     </div>

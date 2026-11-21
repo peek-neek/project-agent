@@ -7,6 +7,7 @@ import {
   chatProviderOptions,
   headStartTools,
 } from "@/server/ai/property-chat";
+import { chatRefusalMessage, getChatAllowance } from "@/server/entitlements";
 import { createRateLimiter } from "@/server/rate-limit";
 import { reportIdOfChat, reportStore } from "@/server/report-store";
 
@@ -59,6 +60,12 @@ export async function POST(
   if (thread?.chatId !== chatId) {
     return new Response("This chat has ended", { status: 409 });
   }
+  // Monthly AI chat allowance: refuse before the warm model call. The agent
+  // checks again on every turn (onTurnStart) and records usage.
+  const allowance = await getChatAllowance(userId);
+  if (!allowance.allowed) {
+    return new Response(chatRefusalMessage(allowance), { status: 402 });
+  }
   const limit = limiter.check(userId);
   if (!limit.success) {
     return new Response(
@@ -82,7 +89,7 @@ export async function POST(
       streamText({
         model: picked.model,
         instructions: chatInstructions(report, mode, webSearch),
-        tools: headStartTools(report.property?.city, webSearch),
+        tools: headStartTools(report.property?.city, webSearch, report.property?.province),
         providerOptions: chatProviderOptions(picked.provider, reportId),
       }),
   });

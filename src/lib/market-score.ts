@@ -15,6 +15,7 @@ import type {
   SchoolsData,
   UpsideData,
 } from "./report-sections";
+import { provinceOr, TYPICAL_PROPERTY_TAX } from "./finance/provinces";
 import { incomeToQualify } from "./finance/affordability";
 import { DEFAULTS } from "./finance/defaults";
 import {
@@ -202,15 +203,15 @@ function safetyFactor(safety: SafetyData | null): MarketFactor | null {
     };
   }
   const area = safety.areaCrime;
-  if (area?.csi != null && area.ontario.csi) {
-    const ratio = area.csi / area.ontario.csi;
+  if (area?.csi != null && area.province.csi) {
+    const ratio = area.csi / area.province.csi;
     return {
       id: "safety",
       label: "Safety",
       weight: 15,
-      // Half Ontario's crime severity → 1; one and a half times → 0.
+      // Half the province's crime severity → 1; one and a half times → 0.
       score: clamp(1.5 - ratio),
-      detail: `Crime severity ${Math.round(area.csi)} vs Ontario ${Math.round(area.ontario.csi)}${area.level === "province" ? " (Ontario-wide figure)" : ""}`,
+      detail: `Crime severity ${Math.round(area.csi)} vs ${area.province.name} ${Math.round(area.province.csi)}${area.level === "province" ? ` (${area.province.name}-wide figure)` : ""}`,
     };
   }
   return null;
@@ -296,13 +297,21 @@ const shortMoney = (v: number) =>
 function pricePoint(
   listPrice: number | null | undefined,
   city: string | null | undefined,
+  province: string | null | undefined,
 ): MarketFactor | null {
+  // Municipal rates are on file for Ontario only; elsewhere a typical
+  // provincial rate (a same-named Ontario town must not match).
+  const code = provinceOr(province);
+  const taxRate =
+    code === "ON"
+      ? (propertyTaxRateFor(city)?.rate ?? ONTARIO_MEDIAN_TAX_RATE)
+      : TYPICAL_PROPERTY_TAX[code];
   if (!listPrice || listPrice <= 0) return null;
   const income = incomeToQualify({
     price: listPrice,
     annualRate: DEFAULTS.rate,
     amortizationYears: DEFAULTS.amortization,
-    propertyTaxRate: propertyTaxRateFor(city)?.rate ?? ONTARIO_MEDIAN_TAX_RATE,
+    propertyTaxRate: taxRate,
     heatingMonthly: DEFAULTS.heating,
   });
   return {
@@ -332,6 +341,8 @@ export function marketScore(
     listPrice?: number | null;
     /** For the local property tax rate in the price point factor. */
     city?: string | null;
+    /** Two-letter province code; Ontario when missing (older callers). */
+    province?: string | null;
   },
   mode: TravelMode,
 ): MarketScore | null {
@@ -343,7 +354,7 @@ export function marketScore(
     safetyFactor(data.safety),
     environment(data.safety),
     upsideFactor(data.upside),
-    pricePoint(data.listPrice, data.city),
+    pricePoint(data.listPrice, data.city, data.province),
   ].filter((f): f is MarketFactor => f != null);
   if (
     factors.length < 3 ||

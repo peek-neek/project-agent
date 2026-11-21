@@ -72,6 +72,7 @@ function Badge({ reportId }: { reportId: string }) {
         getSection(report, SECTION_KEYS.listing, listingSchema)?.listPrice ??
         null,
       city: report.property?.city ?? null,
+      province: report.property?.province ?? null,
     },
     travel.mode,
   );

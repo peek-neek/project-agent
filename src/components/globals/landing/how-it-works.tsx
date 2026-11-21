@@ -6,7 +6,7 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 const STEPS = [
   {
     title: "Type the address",
-    text: "Any Ontario address. If Google can't place it, you confirm the match or drop a pin on the map. Add the list price, beds and baths whenever you have them.",
+    text: "Any Canadian address. If Google can't place it, you confirm the match or drop a pin on the map. Add the list price, beds and baths whenever you have them.",
   },
   {
     title: "Get on with your day",

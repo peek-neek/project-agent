@@ -5,7 +5,7 @@
 // neighbourhood and upside don't depend on how you get around.
 //
 // Neighbourhood uses housing stock and tenure only: never facts about who
-// lives there (age, family, income), per the Ontario Human Rights Code.
+// lives there (age, family, income), per provincial human rights codes.
 import type {
   AmenitiesData,
   CensusFieldId,
@@ -185,12 +185,12 @@ export function schoolsScore(schools: SchoolsData | null, mode: TravelMode) {
 export function safetyScore(safety: SafetyData | null) {
   if (!safety) return null;
   const parts: number[] = [];
-  // Crime: Toronto's neighbourhood ranking, else severity vs Ontario.
+  // Crime: Toronto's neighbourhood ranking, else severity vs the province.
   if (safety.crime?.lowerRateThanShare != null) {
     parts.push(safety.crime.lowerRateThanShare);
-  } else if (safety.areaCrime?.csi != null && safety.areaCrime.ontario.csi) {
+  } else if (safety.areaCrime?.csi != null && safety.areaCrime.province.csi) {
     parts.push(
-      clamp(1.5 - safety.areaCrime.csi / safety.areaCrime.ontario.csi),
+      clamp(1.5 - safety.areaCrime.csi / safety.areaCrime.province.csi),
     );
   }
   // Environment: flood regulation, noise and air.

@@ -33,19 +33,19 @@ import {
 import { generateStructured } from "../ai/generate-structured";
 import { reportStore } from "../report-store";
 
-const SYSTEM_PROMPT = `You are a marketing strategist for real estate agents in Ontario, Canada. You turn location data about a property into copy and talking points that help the agent sell it.
+const SYSTEM_PROMPT = `You are a marketing strategist for real estate agents in Canada. You turn location data about a property into copy and talking points that help the agent sell it.
 
 Rules:
 - Use only the facts in the fact sheet. Never invent amenities, distances, school names, prices, room counts or features. If something isn't in the fact sheet, leave it out.
 - Name real places from the fact sheet where it helps (for example "a 6-minute walk to Loblaws").
 - Times to nearby places are for the travel mode in "travelTimesBy" (walking, cycling or driving). Describe them that way ("a 6-minute walk", "a 5-minute bike ride", "a 4-minute drive"); never call a cycling or driving time a walk. Commute destinations list their own drive and transit times.
 - Travel times marked "estimated" are approximate: write "about" or "roughly".
-- Schools: you may name nearby schools from the fact sheet and their travel time or distance. Never say or imply the property is in a school's catchment or boundary ("steps to", "in the district of" a specific school is fine only as distance). Suggest buyers confirm catchment with the board. EQAO results are context for the agent, not marketing claims; don't rank or call schools "top" or "best".
+- Schools: you may name nearby schools from the fact sheet and their travel time or distance. Never say or imply the property is in a school's catchment or boundary ("steps to", "in the district of" a specific school is fine only as distance). Suggest buyers confirm catchment with the school board or district. Test results (EQAO, for Ontario schools) are context for the agent, not marketing claims; don't rank or call schools "top" or "best".
 - Census figures describe current residents of the area. Use them to understand the housing stock and lifestyle (for example many renters, mostly detached houses). Never use them to say who should or shouldn't buy, and never describe residents by age, family status or ethnicity in marketing copy.
 - Places of worship, child care and similar amenities may be listed as conveniences ("a library, child care and places of worship within a short walk"). Never single out a faith or suggest the area suits a particular religion, family type or age group.
-- Future projects: you may mention nearby transit, schools or hospitals that are under construction or planned, with their status (for example "the Ontario Line's Exhibition Station, under construction about 200 m away"). Never promise opening dates beyond the fact sheet, never claim the home will rise in value, and treat nearby development applications as facts for the playbook, not marketing claims.
+- Future projects: you may mention nearby transit, schools or hospitals that are under construction or planned, with their status (for example "a new LRT station, under construction about 200 m away"). Never promise opening dates beyond the fact sheet, never claim the home will rise in value, and treat nearby development applications as facts for the playbook, not marketing claims.
 - Safety: never call an area "safe", "unsafe", "low-crime" or "high-crime" in marketing copy, social posts or emails. Crime, flood and noise facts may appear only in watch-outs and the playbook, stated as facts with their source.
-- Follow the Ontario Human Rights Code and RECO advertising rules: don't describe, target or exclude buyers by race, ancestry, place of origin, ethnicity, citizenship, creed or religion, sex, sexual orientation, gender identity, age, marital or family status, or disability. Describe buyers by needs and lifestyle (for example "commuting professionals", "buyers who want walkability").
+- Follow the province's human rights code and the provincial real estate regulator's advertising rules (RECO in Ontario, BCFSA in British Columbia, RECA in Alberta, OACIQ in Quebec, or the local equivalent): don't describe, target or exclude buyers by race, ancestry, place of origin, ethnicity, citizenship, creed or religion, sex, sexual orientation, gender identity, age, marital or family status, or disability. Describe buyers by needs and lifestyle (for example "commuting professionals", "buyers who want walkability").
 - Be truthful and specific. No exaggeration ("best", "perfect", "rare gem") unless the data supports it.
 - Use Canadian spelling and plain, confident language.`;
 
@@ -208,12 +208,12 @@ function buildFactSheet(
             area:
               safety.areaCrime.level === "service"
                 ? `${safety.areaCrime.service} police service area`
-                : "Ontario overall (no local figure published)",
+                : `${safety.areaCrime.province.name} overall (no local figure published)`,
             note: "Crime Severity Index: police-reported crime weighted by seriousness; 100 = Canada in 2006. Covers the whole police service area, not the neighbourhood.",
             index: safety.areaCrime.csi,
             violent: safety.areaCrime.violentCsi,
             nonViolent: safety.areaCrime.nonViolentCsi,
-            ontario: safety.areaCrime.ontario.csi,
+            [safety.areaCrime.province.name]: safety.areaCrime.province.csi,
             canada: safety.areaCrime.canadaCsi,
             trend: Object.fromEntries(
               safety.areaCrime.trend.map((v, i) => [

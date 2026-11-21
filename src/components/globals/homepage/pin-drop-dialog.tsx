@@ -23,8 +23,8 @@ const PinMap = dynamic(() => import("./pin-map").then((m) => m.PinMap), {
   loading: () => <Skeleton className="size-full" />,
 });
 
-/** Toronto, when there's nothing closer to start from. */
-const ONTARIO_START = { center: { lat: 43.6532, lng: -79.3832 }, zoom: 10 };
+/** All of southern Canada, when there's nothing closer to start from. */
+const CANADA_START = { center: { lat: 50.5, lng: -96 }, zoom: 3 };
 
 const formatPin = ({ lat, lng }: LatLng) =>
   `${lat.toFixed(5)}° N, ${Math.abs(lng).toFixed(5)}° W`;
@@ -50,7 +50,7 @@ export function PinDropDialog({
 }) {
   const [pin, setPin] = useState<LatLng | null>(null);
   const [label, setLabel] = useState(address);
-  const view = start ?? ONTARIO_START;
+  const view = start ?? CANADA_START;
 
   return (
     // The parent remounts this (new key) each time it opens, so the pin and
