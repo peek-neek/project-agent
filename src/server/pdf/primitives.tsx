@@ -96,6 +96,27 @@ function iconNode(icon: IconSource): IconNode {
   return forwardRef.render({}, null)?.props?.icon?.node ?? [];
 }
 
+/**
+ * Line height for text sitting beside an icon. The renderer puts the
+ * baseline one ascender (0.969em for Inter) below the top of the text box,
+ * so only Inter's natural height (1.21) centres the digits in it; the
+ * page's inherited 1.45 lifts them and the icons look low.
+ */
+export const ICON_TEXT_LINE_HEIGHT = 1.21;
+
+/**
+ * Optical centring: how far below centre an icon's drawing sits, as a share
+ * of its size, measured against Inter's digits (the bike's wheels and the
+ * car's body sit low in their 24px box). Icons are nudged up by this so a
+ * row of icon + time lines up.
+ */
+const OPTICAL_SHIFT = new Map<IconSource, number>([
+  [FootprintsIcon, 0.01],
+  [BikeIcon, 0.035],
+  [CarIcon, 0.05],
+  [TrainFrontIcon, 0.01],
+]);
+
 export function Icon({
   icon,
   size = 10,
@@ -118,7 +139,16 @@ export function Icon({
   };
   const n = (v?: string) => (v == null ? undefined : Number(v));
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={
+        OPTICAL_SHIFT.has(icon)
+          ? { position: "relative", top: -OPTICAL_SHIFT.get(icon)! * size }
+          : undefined
+      }
+    >
       {iconNode(icon).map(([tag, a], i) => {
         switch (tag) {
           case "path":
@@ -1056,7 +1086,14 @@ export function Times({
             size={size}
             color={C.muted}
           />
-          <Text style={{ fontSize: size, color: C.ink, fontWeight: 500 }}>
+          <Text
+            style={{
+              fontSize: size,
+              lineHeight: ICON_TEXT_LINE_HEIGHT,
+              color: C.ink,
+              fontWeight: 500,
+            }}
+          >
             {t.estimated ? "~" : ""}
             {fmtMin(t.minutes!)}
           </Text>
@@ -1073,13 +1110,17 @@ export function TimesLegend({ transit }: { transit?: boolean }) {
       {MODES.map((m) => (
         <View key={m} style={[s.row, { gap: 3, alignItems: "center" }]}>
           <Icon icon={MODE_ICONS[m]} size={8} color={C.muted} />
-          <Text style={s.small}>{MODE_LABELS[m]}</Text>
+          <Text style={[s.small, { lineHeight: ICON_TEXT_LINE_HEIGHT }]}>
+            {MODE_LABELS[m]}
+          </Text>
         </View>
       ))}
       {transit ? (
         <View style={[s.row, { gap: 3, alignItems: "center" }]}>
           <Icon icon={TransitIcon} size={8} color={C.muted} />
-          <Text style={s.small}>Transit</Text>
+          <Text style={[s.small, { lineHeight: ICON_TEXT_LINE_HEIGHT }]}>
+            Transit
+          </Text>
         </View>
       ) : null}
       <Text style={s.small}>~ estimated from distance</Text>
@@ -1099,7 +1140,14 @@ export function Rating({
   return (
     <View style={[s.row, { alignItems: "center", gap: 2 }]}>
       <Icon icon={StarIcon} size={7} color="#f59e0b" fill="#f59e0b" />
-      <Text style={{ fontSize: 7.5, color: C.ink, fontWeight: 600 }}>
+      <Text
+        style={{
+          fontSize: 7.5,
+          lineHeight: ICON_TEXT_LINE_HEIGHT,
+          color: C.ink,
+          fontWeight: 600,
+        }}
+      >
         {value.toFixed(1)}
       </Text>
       {count ? (
