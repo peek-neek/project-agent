@@ -17,14 +17,8 @@ import {
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BILLING_ERRORS } from "@/lib/billing";
-import { PlanPicker } from "./plan-picker";
-import type { Plan } from "@/generated/prisma/client";
-import {
-  getEntitlement,
-  getExtraReportPrice,
-  getPlanPrices,
-  PLANS,
-} from "@/server/billing";
+import { SeePlansPrompt } from "./see-plans-prompt";
+import { getEntitlement, getExtraReportPrice } from "@/server/billing";
 
 const dateFormat = new Intl.DateTimeFormat("en-CA", { dateStyle: "medium" });
 
@@ -64,7 +58,7 @@ function ManageButton({ label = "Manage billing" }: { label?: string }) {
 
 /**
  * Under the address search: the agent's plan and this period's report usage,
- * or the plan picker when they don't have one yet. Also explains why a report
+ * or a "See plans" link (opening the plans popup) when they don't have one. Also explains why a report
  * was refused (?billing=…) and confirms a finished checkout (?checkout=…).
  */
 export async function BillingPanel({
@@ -80,44 +74,23 @@ export async function BillingPanel({
   const reason = params.billing;
 
   if (!entitlement.active) {
-    const prices = await getPlanPrices();
+    if (justPaid) {
+      return (
+        <Alert>
+          <CheckCircle2Icon />
+          <AlertTitle>Payment received</AlertTitle>
+          <AlertDescription>
+            We&apos;re activating your plan. Refresh in a few seconds.
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    const ended = entitlement.status === "canceled" || entitlement.status === "unpaid";
     return (
-      <div className="grid gap-3">
-        {justPaid ? (
-          <Alert>
-            <CheckCircle2Icon />
-            <AlertTitle>Payment received</AlertTitle>
-            <AlertDescription>
-              We&apos;re activating your plan. Refresh in a few seconds.
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <Alert variant={reason ? "destructive" : "default"}>
-            <AlertCircleIcon />
-            <AlertTitle>
-              {entitlement.status === "canceled" || entitlement.status === "unpaid"
-                ? "Your plan has ended"
-                : "Choose a plan to run reports"}
-            </AlertTitle>
-            <AlertDescription>
-              Every report runs fresh lookups against live data. Prices in
-              Canadian dollars, plus applicable sales tax. Cancel anytime.
-            </AlertDescription>
-          </Alert>
-        )}
-        <PlanPicker
-          plans={(Object.keys(PLANS) as Plan[]).map((plan) => ({
-            id: plan,
-            name: PLANS[plan].name,
-            reports: PLANS[plan].reports,
-            chat: PLANS[plan].chat,
-            prices: {
-              monthly: prices[plan].monthly.amount,
-              annual: prices[plan].annual.amount,
-            },
-          }))}
-        />
-      </div>
+      <SeePlansPrompt
+        message={ended ? "Your plan has ended. Choose a plan to run reports." : undefined}
+        tone={reason || ended ? "destructive" : "muted"}
+      />
     );
   }
 

@@ -57,6 +57,7 @@ import {
   RenameReportDialog,
   type ReportToRename,
 } from "./rename-report-dialog";
+import { SidebarUsage } from "./sidebar-usage";
 import { SidebarUser } from "./sidebar-user";
 
 // Motion versions of the shadcn pieces (React 19 passes `ref` through props).
@@ -193,7 +194,7 @@ export function HistorySkeleton() {
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Reports</SidebarGroupLabel>
-      <SidebarMenu>
+      <SidebarMenu className="gap-2">
         {SKELETON_WIDTHS.map((width) => (
           <SidebarMenuItem
             key={width}
@@ -255,7 +256,7 @@ export function ReportHistory() {
             className="py-1"
           >
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-            <SidebarMenu className="relative">
+            <SidebarMenu className="relative gap-2">
               <AnimatePresence mode="popLayout">
                 {group.items.map((report) => {
                   const href = `/reports/${report.id}`;
@@ -438,7 +439,11 @@ export function DashboardSidebar({ history }: { history: React.ReactNode }) {
       {/* The signed-in agent: name, email, account and sign out. mt-auto
           keeps it at the bottom when collapsed (the history list is hidden
           then, so nothing else fills the space). */}
-      <SidebarFooter className="mt-auto border-t p-2">
+      {/* Reports left this month (or a plan prompt), above the account menu. */}
+      <div className="mt-auto p-2 group-data-[collapsible=icon]:px-2">
+        <SidebarUsage />
+      </div>
+      <SidebarFooter className="border-t p-2">
         <SidebarUser />
       </SidebarFooter>
       <SidebarRail />

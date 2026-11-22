@@ -26,15 +26,16 @@ export default function DashboardPage({ searchParams }: PageProps<"/dashboard">)
           variants={fadeUp}
           className="text-center text-3xl font-semibold tracking-tight text-balance sm:text-4xl"
         >
-          Which property are you selling?
+          Know more. Sell with confidence.
         </motion.h1>
-        <motion.p
+        {/* <motion.p
           variants={fadeUp}
           className="mt-3 text-center text-foreground/65 text-pretty"
         >
-          Enter a Canadian address. We&apos;ll build the report while you get on
-          with your day.
-        </motion.p>
+          The more you know about a home, the more confident you are, and the
+          more confident you are, the more you sell. Enter a Canadian address
+          and we&apos;ll build the report while you get on with your day.
+        </motion.p> */}
         <motion.div variants={fadeUp} className="mt-8">
           <AddressSearch />
         </motion.div>

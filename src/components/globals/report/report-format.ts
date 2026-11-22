@@ -52,6 +52,12 @@ export const formatMinutes = (minutes: number) =>
     ? `${minutes} min`
     : `${Math.floor(minutes / 60)} h ${minutes % 60 ? `${minutes % 60} min` : ""}`.trim();
 
+/** Compact form for tight spaces: "45m", "1h 20m", "2h". */
+export const formatMinutesShort = (minutes: number) =>
+  minutes < 60
+    ? `${minutes}m`
+    : `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ""}`;
+
 export const formatPrice = (value: number) =>
   new Intl.NumberFormat("en-CA", {
     style: "currency",

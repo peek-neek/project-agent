@@ -46,6 +46,29 @@ export function quotaWindow(periodStart: Date, now = new Date()) {
   return { start: addMonths(periodStart, months), end: addMonths(periodStart, months + 1) };
 }
 
+/**
+ * Plan reports created in a window (not those paid with extra-report
+ * credits). Read from ReportUsage, so deleting a report doesn't refund it.
+ */
+export function countPlanReports(userId: string, window: { start: Date; end: Date }) {
+  return db.reportUsage.count({
+    where: { userId, usedCredit: false, createdAt: { gte: window.start, lt: window.end } },
+  });
+}
+
+/** Logs a newly created report against the allowance (idempotent). */
+export async function recordReportUsage(opts: {
+  reportId: string;
+  userId: string;
+  usedCredit: boolean;
+}) {
+  await db.reportUsage.upsert({
+    where: { reportId: opts.reportId },
+    create: opts,
+    update: {},
+  });
+}
+
 export function countChatMessages(userId: string, window: { start: Date; end: Date }) {
   return db.chatMessageUsage.count({
     where: { userId, createdAt: { gte: window.start, lt: window.end } },

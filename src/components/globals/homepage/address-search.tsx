@@ -2,7 +2,8 @@
 
 import { useTravelMode } from "@/components/globals/travel-mode";
 import { Autocomplete } from "@base-ui/react/autocomplete";
-import { useMutation } from "@tanstack/react-query";
+import { useAuth } from "@clerk/nextjs";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { TRPCClientError } from "@trpc/client";
 import {
   AlertCircleIcon,
@@ -41,6 +42,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LocationBanner } from "./location-banner";
 import { PinDropDialog } from "./pin-drop-dialog";
+import {
+  type Gate,
+  ReportGateDialog,
+  takePendingAddress,
+} from "@/components/globals/dashboard/report-gate-dialog";
 import type { LatLng } from "./pin-map";
 import { useUserLocation } from "@/components/globals/location/location-provider";
 import {
@@ -100,6 +106,29 @@ export function AddressSearch({ className }: AddressSearchProps) {
   // made: the result decides between going ahead, "Did you mean…?" and a pin.
   const trpc = useTRPC();
   const resolve = useMutation(trpc.places.resolve.mutationOptions());
+  // Plan and allowance, for gating before anything runs (the server checks
+  // again). Signed-out visitors on the landing page skip this: submitting
+  // takes them to sign in first.
+  const { isSignedIn } = useAuth();
+  const { data: billing } = useQuery({
+    ...trpc.billing.status.queryOptions(),
+    enabled: Boolean(isSignedIn),
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: false,
+  });
+  const [gate, setGate] = useState<Gate | null>(null);
+  // Set for one submit after the agent agreed to spend an extra report.
+  const creditConfirmed = useRef(false);
+  const noPlan = billing != null && !billing.active;
+  // Back from Stripe Checkout: put the address they'd typed back in the box.
+  // Read after mount (sessionStorage doesn't exist during server rendering,
+  // so a lazy initial state would mismatch on hydration).
+  useEffect(() => {
+    const pending = takePendingAddress();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from browser storage
+    if (pending) setAddress(pending);
+  }, []);
   const [resolution, setResolution] = useState<
     AddressResolution | { outcome: "error"; message: string } | null
   >(null);
@@ -186,6 +215,22 @@ export function AddressSearch({ className }: AddressSearchProps) {
           if (busy || !address.trim()) {
             e.preventDefault();
             return;
+          }
+          // Plan gates come first, before the (paid) address lookup.
+          if (billing) {
+            const next: Gate | null = !billing.active
+              ? "no_plan"
+              : billing.blocked
+                ? "limit"
+                : billing.usesCredit && !creditConfirmed.current
+                  ? "credit"
+                  : null;
+            if (next) {
+              e.preventDefault();
+              setOpen(false);
+              setGate(next);
+              return;
+            }
           }
           const unchecked =
             mode === "single" && !placeId && !pin && !skipCheck.current;
@@ -336,14 +381,18 @@ export function AddressSearch({ className }: AddressSearchProps) {
                       ? "Checking address…"
                       : submitting
                         ? "Creating report…"
-                        : "Generate report"
+                        : noPlan
+                          ? "Choose a plan to generate reports"
+                          : "Generate report"
                   }
-                  aria-disabled={busy}
+                  aria-disabled={busy || noPlan}
                   className={cn(
                     "size-11 shadow-lg transition-transform sm:size-12",
                     busy
                       ? "pointer-events-none"
-                      : "hover:scale-105 active:scale-95",
+                      : noPlan
+                        ? "opacity-40 shadow-none"
+                        : "hover:scale-105 active:scale-95",
                   )}
                 >
                   {busy ? (
@@ -418,6 +467,18 @@ export function AddressSearch({ className }: AddressSearchProps) {
           </Autocomplete.Root>
         </div>
       </form>
+
+      <ReportGateDialog
+        gate={gate}
+        status={billing}
+        address={address.trim()}
+        onClose={() => setGate(null)}
+        onConfirmCredit={() => {
+          creditConfirmed.current = true;
+          setGate(null);
+          formRef.current?.requestSubmit();
+        }}
+      />
 
       {resolution && (
         <AddressCheckPanel

@@ -323,7 +323,8 @@ function pricePoint(
   };
 }
 
-const levelFor = (ease: number): MarketScore["level"] =>
+/** 0–1 ease → 1–5 level; the same cut-offs for the total and each factor. */
+export const levelFor = (ease: number): MarketScore["level"] =>
   ease >= 0.78 ? 5 : ease >= 0.63 ? 4 : ease >= 0.48 ? 3 : ease >= 0.33 ? 2 : 1;
 
 /**

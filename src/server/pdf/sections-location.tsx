@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { AMENITY_ICONS } from "@/components/globals/report/amenity-icons";
 import { TRANSIT_ICONS } from "@/components/globals/report/transit-icons";
-import { MARKET_LEVELS, type MarketFactor } from "@/lib/market-score";
+import { levelFor, MARKET_LEVELS, type MarketFactor } from "@/lib/market-score";
 import {
   AMENITY_CATEGORIES,
   EQAO_FIELDS,
@@ -137,8 +137,8 @@ function Kpis({
 }
 
 /**
- * Why a market-ease score is what it is: the two strongest helps (by weight)
- * and the biggest drag, each as its one-line detail.
+ * Why a market-ease score is what it is: the two strongest factors (by
+ * weight) and the weakest, each with its 1–5 rating and one-line detail.
  */
 function marketReasons(factors: MarketFactor[]) {
   const byWeight = (a: MarketFactor, b: MarketFactor) => b.weight - a.weight;
@@ -150,10 +150,36 @@ function marketReasons(factors: MarketFactor[]) {
     .filter((f) => f.score < 0.45)
     .sort((a, b) => a.score - b.score || b.weight - a.weight)
     .slice(0, helps.length < 2 ? 2 : 1);
-  return [
-    ...helps.map((f) => ({ good: true, text: `${f.label}: ${f.detail}` })),
-    ...drag.map((f) => ({ good: false, text: `${f.label}: ${f.detail}` })),
-  ];
+  return [...helps, ...drag].map((f) => ({
+    rating: levelFor(f.score),
+    text: `${f.label}: ${f.detail}`,
+  }));
+}
+
+/**
+ * A factor's 1–5 rating on the market ease scale: "4/5" plus five small
+ * segments filled up to it, in that level's colour.
+ */
+function FactorRating({ score }: { score: number }) {
+  const rating = levelFor(score);
+  const color = MARKET_LEVELS[rating].color;
+  return (
+    <View style={[s.row, { gap: 3, alignItems: "center" }]}>
+      <View style={[s.row, { gap: 1 }]}>
+        {[1, 2, 3, 4, 5].map((l) => (
+          <View
+            key={l}
+            style={{
+              width: 4,
+              height: 4,
+              backgroundColor: l <= rating ? color : C.line,
+            }}
+          />
+        ))}
+      </View>
+      <Text style={{ fontSize: 7, fontWeight: 700, color }}>{`${rating}/5`}</Text>
+    </View>
+  );
 }
 
 const nearestOf = <T extends { distanceMeters: number }>(places: T[]) =>
@@ -414,14 +440,15 @@ export function ScoresPage({ d, n }: { d: PdfData; n: number }) {
                   <View style={{ marginTop: 7, gap: 3 }}>
                     {marketReasons(score.factors).map((r, i) => (
                       <View key={i} style={[s.row, { gap: 4 }]}>
-                        <View
+                        <Text
                           style={{
-                            width: 5,
-                            height: 5,
-                            marginTop: 2.5,
-                            backgroundColor: r.good ? C.good : C.accent,
+                            fontSize: 7,
+                            fontWeight: 700,
+                            color: MARKET_LEVELS[r.rating].color,
                           }}
-                        />
+                        >
+                          {`${r.rating}/5`}
+                        </Text>
                         <Text style={{ fontSize: 7, color: C.body, flex: 1 }}>
                           {r.text}
                         </Text>
@@ -625,9 +652,6 @@ export function ContentsPage({
 // Overview
 // ---------------------------------------------------------------------------
 
-const FACTOR_DOT = (score: number) =>
-  score >= 0.66 ? C.good : score >= 0.33 ? C.warn : C.accent;
-
 export function OverviewPage({ d, n }: { d: PdfData; n: number }) {
   const factorIds = Array.from(
     new Set(MODES.flatMap((m) => d.market[m]?.factors.map((f) => f.id) ?? [])),
@@ -754,16 +778,9 @@ export function OverviewPage({ d, n }: { d: PdfData; n: number }) {
               const same = per.every((f) => f?.detail === first.detail);
               const cell = (f: typeof first | null) =>
                 f ? (
-                  <View style={[s.row, { gap: 4 }]}>
-                    <View
-                      style={{
-                        width: 5,
-                        height: 5,
-                        marginTop: 3,
-                        backgroundColor: FACTOR_DOT(f.score),
-                      }}
-                    />
-                    <Text style={{ fontSize: 7.8, flex: 1 }}>{f.detail}</Text>
+                  <View style={{ gap: 2 }}>
+                    <FactorRating score={f.score} />
+                    <Text style={{ fontSize: 7.8 }}>{f.detail}</Text>
                   </View>
                 ) : (
                   <Text style={{ fontSize: 7.8, color: C.faint }}>—</Text>
@@ -808,19 +825,21 @@ export function OverviewPage({ d, n }: { d: PdfData; n: number }) {
                 },
               ]}
             >
-              {[
-                [C.good, "Helps"],
-                [C.warn, "Neutral"],
-                [C.accent, "Holds back"],
-              ].map(([color, label]) => (
-                <View
-                  key={label}
-                  style={[s.row, { gap: 3, alignItems: "center" }]}
-                >
+              <Text style={s.small}>
+                Each factor rated on the market ease scale:
+              </Text>
+              {([1, 2, 3, 4, 5] as const).map((l) => (
+                <View key={l} style={[s.row, { gap: 3, alignItems: "center" }]}>
                   <View
-                    style={{ width: 5, height: 5, backgroundColor: color }}
+                    style={{
+                      width: 5,
+                      height: 5,
+                      backgroundColor: MARKET_LEVELS[l].color,
+                    }}
                   />
-                  <Text style={s.small}>{label}</Text>
+                  <Text style={s.small}>
+                    {l === 1 ? "1 hard" : l === 5 ? "5 easy" : String(l)}
+                  </Text>
                 </View>
               ))}
             </View>

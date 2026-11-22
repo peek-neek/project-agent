@@ -259,3 +259,15 @@ model ChatMessageUsage {
 
   @@index([userId, createdAt])
 }
+
+/// One report created by an agent, for the plan's monthly report allowance.
+/// Separate from Report so deleting a report doesn't give the allowance back.
+model ReportUsage {
+  reportId  String   @id
+  userId    String
+  /// Paid with an extra-report credit (beyond the monthly allowance).
+  usedCredit Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}

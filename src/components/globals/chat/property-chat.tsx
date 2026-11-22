@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react";
 import type { UIMessage } from "ai";
 import {
@@ -20,8 +20,16 @@ import {
   SquarePenIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import type { BillingStatus } from "@/components/globals/dashboard/plans-dialog";
+import { SeePlansPrompt } from "@/components/globals/dashboard/see-plans-prompt";
 import {
   InputGroup,
   InputGroupAddon,
@@ -234,7 +242,8 @@ function EmptyState({
   onAsk: (q: string) => void;
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col items-center px-4 py-10 text-center">
+    // m-auto: centred both ways in the (full-height, flex) conversation area.
+    <div className="m-auto flex w-full max-w-3xl flex-col items-center px-4 py-10 text-center">
       <span className="grid size-11 place-items-center bg-primary text-primary-foreground">
         <SparklesIcon aria-hidden className="size-5" />
       </span>
@@ -360,9 +369,29 @@ function ChatSession({
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const busy = status === "submitted" || status === "streaming";
+
+  // Monthly AI chat allowance: block the composer up front (the agent and
+  // the first-message route refuse too), and refresh usage after each answer.
+  const trpcClient = useTRPC();
+  const queryClient = useQueryClient();
+  const { data: billing } = useQuery({
+    ...trpcClient.billing.status.queryOptions(),
+    staleTime: 0,
+    retry: false,
+  });
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (wasBusy.current && !busy) {
+      void queryClient.invalidateQueries(trpcClient.billing.status.queryFilter());
+    }
+    wasBusy.current = busy;
+  }, [busy, queryClient, trpcClient]);
+  const chatLeft = billing?.active ? Math.max(0, billing.chatLimit - billing.chatUsed) : null;
+  const chatBlocked = billing != null && (!billing.active || chatLeft === 0);
+
   const send = (text: string) => {
     const t = text.trim();
-    if (!t || busy) return;
+    if (!t || busy || chatBlocked) return;
     sendMessage({ text: t });
     setInput("");
   };
@@ -477,6 +506,10 @@ function ChatSession({
 
       {/* Composer: Enter sends, Shift+Enter for a new line. */}
       <div className="shrink-0 border-t bg-background/85 px-4 py-3 backdrop-blur-md sm:px-6">
+        {/* Monthly messages used up (no plan: the "See plans" line below). */}
+        {chatBlocked && billing?.active && (
+          <ChatAllowanceNotice billing={billing} className="mx-auto mb-3 w-full max-w-3xl" />
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -501,15 +534,24 @@ function ChatSession({
                 }
               }}
               ref={inputRef}
-              autoFocus
-              placeholder={`Ask anything about ${street}…`}
+              autoFocus={!chatBlocked}
+              disabled={chatBlocked}
+              placeholder={
+                chatBlocked
+                  ? billing?.active
+                    ? "You've used this month's AI chat messages"
+                    : "Choose a plan to use AI chat"
+                  : `Ask anything about ${street}…`
+              }
               aria-label="Message"
               rows={1}
               className="max-h-40 min-h-12 px-3.5 pt-3 text-[15px] text-foreground placeholder:text-foreground/50"
             />
             <InputGroupAddon align="block-end" className="justify-between">
               <span className="text-xs text-foreground/55">
-                Uses the report, Google Maps and the web · check before sharing
+                {chatLeft != null && chatLeft > 0 && chatLeft <= 10
+                  ? `${chatLeft} of ${billing?.active ? billing.chatLimit : ""} chat messages left this month · check before sharing`
+                  : "Uses the report, Google Maps and the web · check before sharing"}
               </span>
               {busy ? (
                 <InputGroupButton
@@ -527,6 +569,7 @@ function ChatSession({
                   variant="default"
                   size="icon-sm"
                   aria-label="Send"
+                  disabled={chatBlocked}
                   onClick={(e) => {
                     // Nothing typed yet: put the cursor in the box instead.
                     if (!input.trim()) {
@@ -541,7 +584,48 @@ function ChatSession({
             </InputGroupAddon>
           </InputGroup>
         </form>
+        {billing && !billing.active && (
+          <div className="mx-auto mt-2 w-full max-w-3xl">
+            <SeePlansPrompt message="Choose a plan to use AI chat." />
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+const chatDate = new Intl.DateTimeFormat("en-CA", { dateStyle: "medium" });
+
+/** Why the composer is off: this month's messages are used. */
+function ChatAllowanceNotice({
+  billing,
+  className,
+}: {
+  billing: Extract<BillingStatus, { active: true }>;
+  className?: string;
+}) {
+  const resets = billing.reportsResetAt ? chatDate.format(new Date(billing.reportsResetAt)) : null;
+  const starter = billing.plan === "starter";
+  return (
+    <Alert className={className}>
+      <AlertCircleIcon />
+      <AlertTitle>
+        You&apos;ve used your {billing.chatLimit} AI chat messages this month
+      </AlertTitle>
+      <AlertDescription>
+        {resets ? `More on ${resets}. ` : ""}
+        {starter
+          ? "Pro includes 100 a month; you pay only the prorated difference to switch."
+          : "The report itself stays fully available."}
+      </AlertDescription>
+      {starter && (
+        <AlertAction>
+          {/* Plain <a>: the route creates a Stripe session, so no prefetch. */}
+          <Button size="sm" nativeButton={false} render={<a href="/billing/portal" />}>
+            Upgrade to Pro
+          </Button>
+        </AlertAction>
+      )}
+    </Alert>
   );
 }

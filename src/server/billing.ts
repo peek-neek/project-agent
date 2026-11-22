@@ -5,6 +5,7 @@ import { BILLING_INTERVALS, type BillingInterval } from "@/lib/billing";
 import { db } from "@/server/db";
 import {
   countChatMessages,
+  countPlanReports,
   hasActiveSubscription,
   PLAN_LIMITS,
   quotaWindow,
@@ -389,9 +390,7 @@ export async function getEntitlement(userId: string) {
   const window = account.currentPeriodStart ? quotaWindow(account.currentPeriodStart) : null;
   const [reportsUsed, chatUsed] = window
     ? await Promise.all([
-        db.report.count({
-          where: { userId, createdAt: { gte: window.start, lt: window.end } },
-        }),
+        countPlanReports(userId, window),
         countChatMessages(userId, window),
       ])
     : [0, 0];

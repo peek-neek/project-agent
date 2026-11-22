@@ -34,6 +34,7 @@ import {
   getEntitlement,
   returnExtraReportCredit,
 } from "@/server/billing";
+import { recordReportUsage } from "@/server/entitlements";
 import { createTRPCRouter, protectedProcedure } from "../init";
 
 const token = (max: number) =>
@@ -111,6 +112,8 @@ export const reportRouter = createTRPCRouter({
         if (usedCredit) await returnExtraReportCredit(ctx.userId);
         return report;
       }
+      // Counts toward the allowance even if the report is deleted later.
+      await recordReportUsage({ reportId: report.id, userId: ctx.userId, usedCredit });
       await reportStore.setSection(report.id, SECTION_KEYS.copySettings, {
         travelMode,
       });

@@ -8,6 +8,7 @@ import {
   LoaderCircleIcon,
   type LucideIcon,
   MapPinIcon,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used by the hidden Regenerate button (see the header)
   RefreshCwIcon,
   RouteIcon,
   ShieldCheckIcon,
@@ -114,6 +115,7 @@ const SHORTCUT_MOTION = {
   transition: { duration: 0.2, ease: "easeOut" },
 } as const;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- used by the hidden Regenerate button (see the header)
 const MODE_GERUND = {
   walk: "walking",
   bike: "cycling",
@@ -160,6 +162,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
   const [amenityFilter, setAmenityFilter] = useState<AmenityFilter>("all");
   const [stopFilter, setStopFilter] = useState<StopFilter>("all");
   const travel = useTravelMode();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used by the hidden Regenerate button (see the header)
   const [detailsChanged, setDetailsChanged] = useState(false);
   const tabsTopRef = useRef<HTMLDivElement>(null);
   const rerun = useRerunJob(report.id);
@@ -299,6 +302,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
   // AI copy written for another travel mode (older copy: walk).
   // Older copy written for one mode only: offer to write it for this one.
   const copyMeta = getSection(report, SECTION_KEYS.marketing, aiMetaSchema);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used by the hidden Regenerate button (see the header)
   const copyModeStale =
     copyMeta != null &&
     !hasCopyForMode(report, SECTION_KEYS.marketing, travel.mode) &&
@@ -350,12 +354,11 @@ export function ReportDashboard({ report }: { report: ReportData }) {
     <div className="mx-auto w-full max-w-[90rem] space-y-4">
       {/* Address with the home's details, actions; amenities underneath. */}
       <header className="space-y-4">
-        {/* Two columns: address and the home's details on the left, the
-            actions pinned top-right (they never wrap under the details when
-            the sidebar narrows the page). Stacked on phones. */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
-          <div className="min-w-0 flex-1 space-y-3">
-            <div className="min-w-0">
+        {/* Address with the actions on its right (every screen size, so they
+            never jump above the address on phones); details underneath. */}
+        <div className="space-y-3">
+          <div className="flex items-start gap-3 sm:gap-6">
+            <div className="min-w-0 flex-1">
               <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
                 {street}
               </h1>
@@ -366,178 +369,188 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                 <span className="shrink-0">{formatDate(report.createdAt)}</span>
               </p>
             </div>
-            <HomeFacts
-              report={report}
-              listing={data.listing}
-              onSaved={() => setDetailsChanged(true)}
-            />
+
+            <div className="flex shrink-0 items-center gap-2">
+              {/* Regenerate AI copy: hidden for now. The logic (regenerate,
+                  detailsChanged, copyModeStale) is still wired up; uncomment
+                  this block to bring the button back.
+              {detailsChanged || (copyModeStale && !regenerating) ? (
+                <Button
+                  onClick={regenerate}
+                  disabled={regenerating}
+                  className="h-10 px-4"
+                >
+                  <RefreshCwIcon data-icon="inline-start" />
+                  {detailsChanged
+                    ? "Regenerate copy"
+                    : `Rewrite copy for ${MODE_GERUND[travel.mode]}`}
+                </Button>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={regenerate}
+                        disabled={regenerating}
+                        aria-label="Regenerate AI copy"
+                        className="size-10 bg-card"
+                      />
+                    }
+                  >
+                    <RefreshCwIcon
+                      className={regenerating ? "animate-spin" : undefined}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>Regenerate AI copy</TooltipContent>
+                </Tooltip>
+              )}
+              */}
+              {/* Fixed width: "PDF" / "Preparing…" / "Try again" don't shift the row. */}
+              <DownloadPdfButton
+                reportId={report.id}
+                disabled={working}
+                className="h-10 w-28 px-3 sm:w-32 sm:px-4"
+              />
+            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 max-sm:order-first max-sm:self-end">
-            {detailsChanged || (copyModeStale && !regenerating) ? (
-              <Button
-                onClick={regenerate}
-                disabled={regenerating}
-                className="h-10 px-4"
-              >
-                <RefreshCwIcon data-icon="inline-start" />
-                {detailsChanged
-                  ? "Regenerate copy"
-                  : `Rewrite copy for ${MODE_GERUND[travel.mode]}`}
-              </Button>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={regenerate}
-                      disabled={regenerating}
-                      aria-label="Regenerate AI copy"
-                      className="size-10 bg-card"
-                    />
-                  }
-                >
-                  <RefreshCwIcon
-                    className={regenerating ? "animate-spin" : undefined}
-                  />
-                </TooltipTrigger>
-                <TooltipContent>Regenerate AI copy</TooltipContent>
-              </Tooltip>
-            )}
-            {/* Fixed width: "PDF" / "Preparing…" / "Try again" don't shift the row. */}
-            <DownloadPdfButton
-              reportId={report.id}
-              disabled={working}
-              className="h-10 w-32 px-4"
-            />
-          </div>
+          <HomeFacts
+            report={report}
+            listing={data.listing}
+            onSaved={() => setDetailsChanged(true)}
+          />
         </div>
 
-        {/* Instant tooltips; moving along the row switches them at once. */}
+        {/* "Within 15 min walk" on its own line, the tiles underneath.
+            Instant tooltips; moving along the row switches them at once. */}
         <TooltipProvider delay={0} closeDelay={0}>
-          <ul
-            aria-label={`Reachable within ${REACH_MINUTES} minutes ${REACH_PHRASE[travel.mode]}`}
-            className="flex min-h-9 flex-wrap items-center gap-1.5"
-          >
-            <AnimatePresence initial={false} mode="popLayout">
-              {amenityShortcuts.map(({ category, nearest, count }) => {
-                const Icon = AMENITY_ICONS[category.id];
-                const tip = `${category.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`;
-                return (
-                  <motion.li key={category.id} {...SHORTCUT_MOTION}>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            aria-label={tip}
-                            onClick={() => goTo("amenities", category.id)}
-                            className={SHORTCUT_TILE}
+          <div className="space-y-2">
+            <p
+              id="reach-heading"
+              className="text-xs font-medium text-foreground/55"
+            >
+              {!shortcutsLoading &&
+              amenityShortcuts.length + transitShortcuts.length === 0
+                ? `Nothing within ${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`
+                : `Within ${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`}
+            </p>
+            <ul
+              aria-labelledby="reach-heading"
+              className="flex min-h-9 flex-wrap items-center gap-1.5"
+            >
+              <AnimatePresence initial={false} mode="popLayout">
+                {amenityShortcuts.map(({ category, nearest, count }) => {
+                  const Icon = AMENITY_ICONS[category.id];
+                  const tip = `${category.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`;
+                  return (
+                    <motion.li key={category.id} {...SHORTCUT_MOTION}>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              aria-label={tip}
+                              onClick={() => goTo("amenities", category.id)}
+                              className={SHORTCUT_TILE}
+                            />
+                          }
+                        >
+                          <Icon aria-hidden style={{ color: category.color }} />
+                          <ShortcutTime
+                            icon={travel.icon}
+                            minutes={travel.time(nearest).minutes}
                           />
-                        }
-                      >
-                        <Icon aria-hidden style={{ color: category.color }} />
-                        <ShortcutTime
-                          icon={travel.icon}
-                          minutes={travel.time(nearest).minutes}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent className="p-0">
-                        <ShortcutTip
-                          icon={Icon}
-                          color={category.color}
-                          label={category.label}
-                          place={nearest}
-                          time={`${travel.minutes(nearest)} ${travel.verb}`}
-                          count={count}
-                          reach={`${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`}
-                          rating={nearest.rating}
-                          action="See all on the Amenities tab"
-                        />
-                      </TooltipContent>
-                    </Tooltip>
-                  </motion.li>
-                );
-              })}
-
-              {/* Transit overview; the Commute tab has the detail. */}
-              {amenityShortcuts.length > 0 && transitShortcuts.length > 0 && (
-                <motion.li
-                  key="divider"
-                  aria-hidden
-                  className="flex h-9 px-1"
-                  {...SHORTCUT_MOTION}
-                >
-                  <Separator orientation="vertical" />
-                </motion.li>
-              )}
-              {transitShortcuts.map(({ kind, nearest, count }) => {
-                const meta = TRANSIT_KINDS[kind];
-                const Icon = TRANSIT_ICONS[kind];
-                const tip = `${meta.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`;
-                return (
-                  <motion.li key={kind} {...SHORTCUT_MOTION}>
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            aria-label={tip}
-                            onClick={() => goTo("commute", kind)}
-                            className={SHORTCUT_TILE}
+                        </TooltipTrigger>
+                        <TooltipContent className="p-0">
+                          <ShortcutTip
+                            icon={Icon}
+                            color={category.color}
+                            label={category.label}
+                            place={nearest}
+                            time={`${travel.minutes(nearest)} ${travel.verb}`}
+                            count={count}
+                            reach={`${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`}
+                            rating={nearest.rating}
+                            action="See all on the Amenities tab"
                           />
-                        }
-                      >
-                        <Icon aria-hidden style={{ color: meta.color }} />
-                        <ShortcutTime
-                          icon={travel.icon}
-                          minutes={travel.time(nearest).minutes}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent className="p-0">
-                        <ShortcutTip
-                          icon={Icon}
-                          color={meta.color}
-                          label={meta.label}
-                          place={nearest}
-                          time={`${travel.minutes(nearest)} ${travel.verb}`}
-                          count={count}
-                          reach={`${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`}
-                          action="See all on the Commute tab"
-                        />
-                      </TooltipContent>
-                    </Tooltip>
-                  </motion.li>
-                );
-              })}
+                        </TooltipContent>
+                      </Tooltip>
+                    </motion.li>
+                  );
+                })}
 
-              <motion.li
-                key="reach"
-                layout="position"
-                className="pl-1 text-xs text-foreground/50"
-              >
-                {shortcutsLoading &&
-                amenityShortcuts.length + transitShortcuts.length === 0 ? (
-                  <span
-                    className="flex gap-1.5"
-                    aria-label="Finding places nearby"
+                {/* Transit overview; the Commute tab has the detail. */}
+                {amenityShortcuts.length > 0 && transitShortcuts.length > 0 && (
+                  <motion.li
+                    key="divider"
+                    aria-hidden
+                    className="flex h-9 px-1"
+                    {...SHORTCUT_MOTION}
                   >
-                    {Array.from({ length: 8 }, (_, i) => (
-                      <Skeleton key={i} className="size-9" />
-                    ))}
-                  </span>
-                ) : amenityShortcuts.length + transitShortcuts.length === 0 ? (
-                  `Nothing within ${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`
-                ) : (
-                  `Within ${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`
+                    <Separator orientation="vertical" />
+                  </motion.li>
                 )}
-              </motion.li>
-            </AnimatePresence>
-          </ul>
+                {transitShortcuts.map(({ kind, nearest, count }) => {
+                  const meta = TRANSIT_KINDS[kind];
+                  const Icon = TRANSIT_ICONS[kind];
+                  const tip = `${meta.label} · ${travel.minutes(nearest)} ${travel.verb} · ${nearest.name}`;
+                  return (
+                    <motion.li key={kind} {...SHORTCUT_MOTION}>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              aria-label={tip}
+                              onClick={() => goTo("commute", kind)}
+                              className={SHORTCUT_TILE}
+                            />
+                          }
+                        >
+                          <Icon aria-hidden style={{ color: meta.color }} />
+                          <ShortcutTime
+                            icon={travel.icon}
+                            minutes={travel.time(nearest).minutes}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent className="p-0">
+                          <ShortcutTip
+                            icon={Icon}
+                            color={meta.color}
+                            label={meta.label}
+                            place={nearest}
+                            time={`${travel.minutes(nearest)} ${travel.verb}`}
+                            count={count}
+                            reach={`${REACH_MINUTES} min ${REACH_PHRASE[travel.mode]}`}
+                            action="See all on the Commute tab"
+                          />
+                        </TooltipContent>
+                      </Tooltip>
+                    </motion.li>
+                  );
+                })}
+
+                {/* Placeholder tiles while the places load. */}
+                {shortcutsLoading &&
+                  amenityShortcuts.length + transitShortcuts.length === 0 && (
+                    <motion.li
+                      key="loading"
+                      className="flex gap-1.5"
+                      aria-label="Finding places nearby"
+                      {...SHORTCUT_MOTION}
+                    >
+                      {Array.from({ length: 8 }, (_, i) => (
+                        <Skeleton key={i} className="size-9" />
+                      ))}
+                    </motion.li>
+                  )}
+              </AnimatePresence>
+            </ul>
+          </div>
         </TooltipProvider>
       </header>
 

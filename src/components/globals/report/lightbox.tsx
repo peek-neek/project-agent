@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  ArrowUpRightIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   type LucideIcon,
+  MapPinIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { useRef } from "react";
@@ -30,6 +32,10 @@ export type LightboxItem = {
   fullSrc?: string;
   title: string;
   subtitle?: string;
+  /** A place's street address, shown under its name. */
+  address?: string | null;
+  /** Where the address links to (Google Maps). */
+  addressHref?: string;
   icon?: LucideIcon;
   /** Items sharing a group (a place's photos) show as a thumbnail strip. */
   group?: string;
@@ -151,6 +157,29 @@ export function Lightbox({
                 )}
                 <span className="truncate">{item.title}</span>
               </DialogTitle>
+              {item.address &&
+                (item.addressHref ? (
+                  <Button
+                    variant="link"
+                    nativeButton={false}
+                    render={
+                      <a href={item.addressHref} target="_blank" rel="noreferrer" />
+                    }
+                    title={`${item.address} (opens Google Maps)`}
+                    className="h-auto max-w-full justify-start gap-1.5 p-0 text-sm font-normal text-foreground/70 hover:text-primary"
+                  >
+                    <MapPinIcon aria-hidden className="size-3.5 shrink-0" />
+                    <span className="truncate">{item.address}</span>
+                    <ArrowUpRightIcon aria-hidden className="size-3.5 shrink-0" />
+                  </Button>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-sm text-foreground/70">
+                    <MapPinIcon aria-hidden className="size-3.5 shrink-0" />
+                    <span className="truncate" title={item.address}>
+                      {item.address}
+                    </span>
+                  </p>
+                ))}
               <DialogDescription className="flex items-center justify-between gap-3">
                 <span className="truncate">{item.subtitle}</span>
               </DialogDescription>

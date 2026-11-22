@@ -49,7 +49,9 @@ These are shadcn components in the **`base-nova`** style, built on **Base UI (`@
 
 `.claude/skills/` and `.agents/skills/` contain Clerk skills installed from `clerk/skills` (pinned in `skills-lock.json`). The Clerk SDK isn't in `package.json` yet. Use the `clerk-setup` / `clerk-nextjs-patterns` skills when adding auth, which would replace the stub `userId` in `createTRPCContext`.
 
-USE SHADCN COMPONENTS WHEREVER YOU CAN
+### USE SHADCN COMPONENTS WHEREVER YOU CAN
+
+Build every piece of UI from `src/components/ui` (shadcn, base-nova): `Button`, `Input`, `Dialog`/`AlertDialog`, `Alert`, `Badge`, `Item`, `Progress`, `ToggleGroup`/`ButtonGroup`, `Tooltip`, `Skeleton` and the rest. Don't hand-roll a raw `<button>`, `<input>`, `<select>`, dialog or pill styled with Tailwind when a shadcn component exists, and that includes UI rendered into third-party containers (map controls, portals, popups). Links that look like buttons are `Button` with `nativeButton={false}` and `render={<Link … />}` (or `<a>`). If a needed component is missing, add it with `npx shadcn add <name>` instead of writing one. If a third-party stylesheet would restyle a shadcn component (e.g. MapLibre's `.maplibregl-ctrl-group button`), keep the shadcn component and drop the conflicting class.
 
 <!-- TRIGGER.DEV SKILLS START -->
 ## Trigger.dev agent skills

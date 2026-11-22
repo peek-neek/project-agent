@@ -222,7 +222,7 @@ export function AmenitiesSkeleton() {
 export function CommuteSkeleton() {
   return (
     <Busy label="Calculating commute times">
-      <TileGridSkeleton count={4} className="md:grid-cols-2" visual={false} />
+      <TileGridSkeleton count={3} className="md:grid-cols-2 lg:grid-cols-3" visual={false} />
       <Line box="h-4" bar="h-3 w-64" />
       <Line box="mt-4 h-5" bar="h-3.5 w-32" />
       <ChipRowSkeleton count={6} />

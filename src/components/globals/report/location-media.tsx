@@ -22,7 +22,7 @@ import { AMENITY_ICONS } from "./amenity-icons";
 import { DashCard } from "./dash-card";
 import { Lightbox, type LightboxItem, photoAtWidth } from "./lightbox";
 import { MapImage } from "./map-image";
-import { type ReportData } from "./report-format";
+import { googleMapsUrl, type ReportData } from "./report-format";
 
 type View = "street" | "photos";
 
@@ -44,6 +44,9 @@ type PlaceTile = {
   id: string;
   title: string;
   subtitle: string;
+  address: string | null;
+  /** Opens the place in Google Maps. */
+  mapsUrl: string;
   categoryId: AmenityCategoryId;
   photos: {
     src: string;
@@ -92,6 +95,14 @@ function placeTiles(
       id: place.id,
       title: place.name,
       subtitle: `${label} · ${timeLabel(place)}`,
+      address: place.address,
+      mapsUrl: googleMapsUrl({
+        name: place.name,
+        address: place.address,
+        placeId: place.id,
+        lat: place.lat,
+        lng: place.lng,
+      }),
       categoryId,
       photos: list.map((ph, i) => ({
         src: i === 0 ? base : `${base}?i=${i}`,
@@ -155,6 +166,8 @@ export function LocationMedia({
         fullSrc: photoAtWidth(ph.src, 3200),
         title: t.title,
         subtitle: t.subtitle,
+        address: t.address,
+        addressHref: t.mapsUrl,
         icon: AMENITY_ICONS[t.categoryId],
         group: t.id,
         credit: ph.credit,

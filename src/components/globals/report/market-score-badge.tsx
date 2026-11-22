@@ -14,7 +14,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MARKET_LEVELS, marketScore } from "@/lib/market-score";
+import { levelFor, MARKET_LEVELS, marketScore } from "@/lib/market-score";
 import {
   amenitiesSchema,
   commuteSchema,
@@ -147,39 +147,39 @@ function Badge({ reportId }: { reportId: string }) {
           ))}
         </div>
 
+        {/* Each factor rated 1–5 on the same scale (and colours) as the
+            total, as five segments filled up to its rating. */}
         <ul className="space-y-2.5">
-          {factors.map((f) => (
-            <li key={f.id} className="space-y-1">
-              <span className="flex items-center justify-between gap-2 text-xs">
-                <span className="font-medium">{f.label}</span>
-                <span
-                  className={cn(
-                    "tabular-nums",
-                    f.score >= 0.6
-                      ? "text-emerald-700"
-                      : f.score < 0.35
-                        ? "text-amber-700"
-                        : "text-foreground/55",
-                  )}
-                >
-                  {f.score >= 0.6
-                    ? "Helps"
-                    : f.score < 0.35
-                      ? "Hurts"
-                      : "Neutral"}
+          {factors.map((f) => {
+            const rating = levelFor(f.score);
+            const color = MARKET_LEVELS[rating].color;
+            return (
+              <li key={f.id} className="space-y-1">
+                <span className="flex items-center justify-between gap-2 text-xs">
+                  <span className="font-medium">{f.label}</span>
+                  <span className="font-semibold tabular-nums" style={{ color }}>
+                    {rating}/5
+                  </span>
                 </span>
-              </span>
-              <span className="block h-1 bg-muted">
                 <span
-                  className="block h-full bg-foreground/60"
-                  style={{ width: `${Math.max(4, f.score * 100)}%` }}
-                />
-              </span>
-              <span className="block text-[11px] leading-snug text-foreground/55">
-                {f.detail}
-              </span>
-            </li>
-          ))}
+                  role="img"
+                  aria-label={`${f.label}: ${rating} of 5`}
+                  className="grid grid-cols-5 gap-0.5"
+                >
+                  {LEVELS.map((l) => (
+                    <span
+                      key={l}
+                      className={cn("block h-1.5", l > rating && "bg-muted")}
+                      style={l <= rating ? { backgroundColor: color } : undefined}
+                    />
+                  ))}
+                </span>
+                <span className="block text-[11px] leading-snug text-foreground/55">
+                  {f.detail}
+                </span>
+              </li>
+            );
+          })}
         </ul>
 
         <p className="border-t pt-2 text-[11px] leading-snug text-foreground/50">

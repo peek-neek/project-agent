@@ -5,13 +5,16 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import {
   ArrowUpRightIcon,
   HouseIcon,
+  LocateFixedIcon,
   type LucideIcon,
   StarIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { getVersion, setWorkerUrl } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Popup as MaplibrePopup, StyleSpecification } from "maplibre-gl";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { loadMapStyle } from "./map-style";
 import Map, {
@@ -19,6 +22,7 @@ import Map, {
   Marker,
   NavigationControl,
   Popup,
+  useControl,
 } from "react-map-gl/maplibre";
 
 // Same-origin copy of MapLibre's worker (scripts/copy-maplibre-worker.mjs):
@@ -156,6 +160,44 @@ function PinCard({ pin, hidePhoto }: { pin: MapPin; hidePhoto?: boolean }) {
 }
 
 /**
+ * A MapLibre control under the zoom buttons (same look): back to the home
+ * and its pins. Highlighted when the home has been panned out of view.
+ */
+function RecenterControl({ onClick, away }: { onClick: () => void; away: boolean }) {
+  // The control's box, made once; MapLibre stacks it under the earlier
+  // top-right controls (the zoom buttons). Only "maplibregl-ctrl" (layout):
+  // "maplibregl-ctrl-group" restyles every <button> inside and would fight
+  // the shadcn Button below.
+  const [container] = useState(() => {
+    const el = document.createElement("div");
+    el.className = "maplibregl-ctrl";
+    return el;
+  });
+  useControl(
+    () => ({ onAdd: () => container, onRemove: () => container.remove() }),
+    { position: "top-right" },
+  );
+  return createPortal(
+    // Same 29px width as MapLibre's zoom buttons above it.
+    <Button
+      type="button"
+      variant="outline"
+      size="icon-sm"
+      onClick={onClick}
+      title="Recenter on the property"
+      aria-label="Recenter on the property"
+      className="size-[29px] bg-card shadow-[0_0_0_2px_rgb(0_0_0/0.1)]"
+    >
+      <LocateFixedIcon
+        aria-hidden
+        className={cn(away ? "text-primary" : "text-foreground")}
+      />
+    </Button>,
+    container,
+  );
+}
+
+/**
  * Interactive map of places around the home: category icon pins with a
  * number badge; hover (or click) a pin for its card. Fits to the pins
  * whenever they change.
@@ -225,6 +267,16 @@ export function PlacesMap({
 
   // True once the style and first tiles are drawn (the map fades in).
   const [loaded, setLoaded] = useState(false);
+
+  // Panned or zoomed so the home is off screen: highlight the recenter
+  // button (under the zoom buttons).
+  const [homeVisible, setHomeVisible] = useState(true);
+  const checkHome = () => {
+    const map = ref.current;
+    if (map) setHomeVisible(map.getBounds().contains([home.lng, home.lat]));
+  };
+  const backToHome = () =>
+    ref.current?.fitBounds(bounds, { ...FIT, duration: 700 });
   // The app-themed style (fetched once, then cached for every map).
   const [mapStyle, setMapStyle] = useState<StyleSpecification | string | null>(
     null,
@@ -286,6 +338,7 @@ export function PlacesMap({
             if (screen) screen.style.display = "none";
             setLoaded(true);
           }}
+          onMoveEnd={checkHome}
           onClick={() => onSelect(null)}
           style={{
             width: "100%",
@@ -295,8 +348,16 @@ export function PlacesMap({
           }}
         >
           <NavigationControl position="top-right" showCompass={false} />
+          <RecenterControl onClick={backToHome} away={!homeVisible} />
 
-          <Marker longitude={home.lng} latitude={home.lat} anchor="bottom">
+          {/* Stacking: pins 1 (2 when selected or hovered), the house 3 so
+              it's never hidden behind a pin, place cards 10 (globals.css). */}
+          <Marker
+            longitude={home.lng}
+            latitude={home.lat}
+            anchor="bottom"
+            style={{ zIndex: 3 }}
+          >
             <span
               title="The property"
               className="grid size-9 place-items-center border-2 border-white bg-foreground text-background shadow-md"
@@ -321,15 +382,18 @@ export function PlacesMap({
                   onSelect(pin.id);
                 }}
               >
-                <button
+                {/* The pin's category colour (inline) overrides the default
+                    variant's background, hover included. */}
+                <Button
                   type="button"
+                  size="icon"
                   aria-label={`${pin.badge}. ${pin.title}`}
                   onMouseEnter={() => hoverIn(pin.id)}
                   onMouseLeave={hoverOut}
                   onFocus={() => hoverIn(pin.id)}
                   onBlur={hoverOut}
                   className={cn(
-                    "relative grid place-items-center border-2 border-white text-white shadow-md transition-transform",
+                    "relative rounded-none border-2 border-white text-white shadow-md transition-transform",
                     active ? "size-10 scale-110" : "size-8 hover:scale-110",
                   )}
                   style={{ backgroundColor: pin.color }}
@@ -338,7 +402,7 @@ export function PlacesMap({
                   <span className="absolute -top-2 -right-2 grid h-4 min-w-4 place-items-center border border-foreground/15 bg-white px-0.5 text-[10px] leading-none font-semibold text-foreground tabular-nums">
                     {pin.badge}
                   </span>
-                </button>
+                </Button>
               </Marker>
             );
           })}
@@ -368,6 +432,7 @@ export function PlacesMap({
           )}
         </Map>
       )}
+
     </div>
   );
 }

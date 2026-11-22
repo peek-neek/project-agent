@@ -24,7 +24,12 @@ import {
 import { chipClass, MapsLink, Thumb } from "./amenities-tab";
 import { TileGrid } from "./dash-card";
 import { InteractiveMap, type MapPin } from "./interactive-map";
-import { formatDistance, formatMinutes, googleMapsUrl } from "./report-format";
+import {
+  formatDistance,
+  formatMinutes,
+  formatMinutesShort,
+  googleMapsUrl,
+} from "./report-format";
 import { useTravelMode } from "@/components/globals/travel-mode";
 import { destinationTime, TRAVEL_MODES } from "@/lib/travel";
 import { TRANSIT_ICONS } from "./transit-icons";
@@ -125,9 +130,23 @@ function DestinationTile({
           <StatIcon aria-hidden className="size-3.5" /> {label}
         </span>
         <span className="mt-1 block text-[1.75rem] leading-none font-semibold tracking-tight tabular-nums">
-          {minutes != null
-            ? `${estimated ? "~" : ""}${formatMinutes(minutes)}`
-            : "—"}
+          {minutes != null ? (
+            <>
+              {/* By the tile's own width (container query): "45m" when
+                  narrow (3 across, or beside the sidebar), "45 min" when
+                  there's room. */}
+              <span className="@min-[19rem]:hidden">
+                {estimated ? "~" : ""}
+                {formatMinutesShort(minutes)}
+              </span>
+              <span className="hidden @min-[19rem]:inline">
+                {estimated ? "~" : ""}
+                {formatMinutes(minutes)}
+              </span>
+            </>
+          ) : (
+            "—"
+          )}
         </span>
         {extra && (
           <span
@@ -154,7 +173,7 @@ function DestinationTile({
       style={solid ? { backgroundColor: "#1d4ed8" } : undefined}
       className={cn(
         WIDGET,
-        "flex min-h-[8.5rem] min-w-0 flex-col p-4",
+        "@container flex min-h-[8.5rem] min-w-0 flex-col p-4",
         solid && "text-white",
       )}
     >
@@ -270,7 +289,7 @@ export function CommuteTab({
           }))}
         />
       )}
-      <TileGrid className="md:grid-cols-2">
+      <TileGrid className="md:grid-cols-2 lg:grid-cols-3">
         {destinations.map((d, i) => (
           <DestinationTile key={d.id} destination={d} solid={i === 0} />
         ))}
