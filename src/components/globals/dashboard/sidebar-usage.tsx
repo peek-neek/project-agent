@@ -27,14 +27,44 @@ const money = (n: number) => `C$${n.toLocaleString("en-CA")}`;
 const EXPANDED = "group-data-[collapsible=icon]:hidden";
 const COLLAPSED = "hidden group-data-[collapsible=icon]:block";
 
-/** A small ring for the collapsed sidebar: the share of reports left. */
-function UsageRing({ left, limit, empty }: { left: number; limit: number; empty: boolean }) {
+/**
+ * Colours by reports left, shared by the ring (collapsed) and the bar
+ * (expanded): 4+ green, 2–3 orange, 0–1 red. Full class names so Tailwind
+ * picks them up.
+ */
+function usageTone(left: number) {
+  if (left >= 4)
+    return {
+      stroke: "stroke-emerald-600 dark:stroke-emerald-500",
+      text: "text-emerald-600 dark:text-emerald-500",
+      bar: "**:data-[slot=progress-indicator]:bg-emerald-600 dark:**:data-[slot=progress-indicator]:bg-emerald-500",
+    };
+  if (left >= 2)
+    return {
+      stroke: "stroke-orange-500",
+      text: "text-orange-600 dark:text-orange-500",
+      bar: "**:data-[slot=progress-indicator]:bg-orange-500",
+    };
+  return {
+    stroke: "stroke-destructive",
+    text: "text-destructive",
+    bar: "**:data-[slot=progress-indicator]:bg-destructive",
+  };
+}
+
+/**
+ * A small ring for the collapsed sidebar: the share of reports left, with
+ * the count centred inside. The SVG needs `size-full!`: the sidebar button
+ * forces every nested svg to 16px (`[&_svg]:size-4`).
+ */
+function UsageRing({ left, limit }: { left: number; limit: number }) {
   const r = 9;
   const c = 2 * Math.PI * r;
   const share = limit > 0 ? Math.min(1, left / limit) : 0;
+  const tone = usageTone(left);
   return (
-    <span className="relative grid size-6 shrink-0 place-items-center">
-      <svg viewBox="0 0 24 24" className="absolute inset-0 -rotate-90" aria-hidden>
+    <span className="relative grid size-7 shrink-0 place-items-center">
+      <svg viewBox="0 0 24 24" className="absolute inset-0 size-full! -rotate-90" aria-hidden>
         <circle cx="12" cy="12" r={r} fill="none" strokeWidth="2.5" className="stroke-sidebar-border" />
         <circle
           cx="12"
@@ -45,13 +75,16 @@ function UsageRing({ left, limit, empty }: { left: number; limit: number; empty:
           strokeLinecap="round"
           strokeDasharray={c}
           strokeDashoffset={c * (1 - share)}
-          className={cn(
-            "transition-[stroke-dashoffset] duration-500",
-            empty ? "stroke-destructive" : "stroke-primary",
-          )}
+          className={cn("transition-[stroke-dashoffset] duration-500", tone.stroke)}
         />
       </svg>
-      <span className={cn("text-[10px] font-semibold tabular-nums", empty && "text-destructive")}>
+      <span
+        className={cn(
+          "relative leading-none font-semibold tabular-nums",
+          left >= 10 ? "text-[9px] tracking-tighter" : "text-[11px]",
+          tone.text,
+        )}
+      >
         {left}
       </span>
     </span>
@@ -126,7 +159,7 @@ export function SidebarUsage() {
 
   // A plan: reports left this month.
   const { reportsLeft: left, reportsLimit: limit, extraReportCredits: extras } = status;
-  const empty = left === 0 && extras === 0;
+  const tone = usageTone(left);
   const resets = status.reportsResetAt ? dateFormat.format(new Date(status.reportsResetAt)) : null;
   const summary = `${left} of ${limit} reports left${extras ? `, +${extras} extra` : ""}`;
 
@@ -137,9 +170,11 @@ export function SidebarUsage() {
           <SidebarMenuButton
             tooltip={`${summary}${resets ? ` · resets ${resets}` : ""}`}
             onClick={() => (status.blocked ? setLimitOpen(true) : setOpen(true))}
-            className="justify-center"
+            // No padding when collapsed: the 28px ring sits centred in the
+            // 32px button instead of overflowing its 16px content box.
+            className="justify-center group-data-[collapsible=icon]:p-0!"
           >
-            <UsageRing left={left} limit={limit} empty={empty} />
+            <UsageRing left={left} limit={limit} />
             <span className="sr-only">{summary}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -148,17 +183,12 @@ export function SidebarUsage() {
       <div className={cn("grid gap-2 border bg-background p-3", EXPANDED)}>
         <Progress
           value={limit > 0 ? (left / limit) * 100 : 0}
-          className={cn("gap-2", empty && "[&_[data-slot=progress-indicator]]:bg-destructive")}
+          className={cn("gap-2", tone.bar)}
         >
           <ProgressLabel className="text-xs font-medium text-foreground/70">
             Reports left
           </ProgressLabel>
-          <span
-            className={cn(
-              "ml-auto text-xs font-semibold tabular-nums",
-              empty && "text-destructive",
-            )}
-          >
+          <span className={cn("ml-auto text-xs font-semibold tabular-nums", tone.text)}>
             {left} of {limit}
           </span>
         </Progress>

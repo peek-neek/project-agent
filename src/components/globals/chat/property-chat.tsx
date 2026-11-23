@@ -2,7 +2,10 @@
 
 import { useChat } from "@ai-sdk/react";
 import { useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { useTriggerChatTransport } from "@trigger.dev/sdk/chat/react";
+import {
+  type UseTriggerChatTransportOptions,
+  useTriggerChatTransport,
+} from "@trigger.dev/sdk/chat/react";
 import type { UIMessage } from "ai";
 import {
   AlertCircleIcon,
@@ -20,7 +23,7 @@ import {
   SquarePenIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   Alert,
   AlertAction,
@@ -54,6 +57,7 @@ import {
 import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace";
 import { useTravelMode } from "@/components/globals/travel-mode";
 import { isChatRefusal } from "@/lib/billing";
+import type { comparisonChat } from "@/trigger/comparison-chat";
 import type { propertyChat } from "@/trigger/property-chat";
 import { useTRPC } from "@/trpc/client";
 import {
@@ -218,8 +222,10 @@ function ChatMessage({
   );
 }
 
+export type ChatSuggestion = { icon: typeof FileTextIcon; question: string };
+
 /** One of each kind: from the report, beyond it (tools), and writing. */
-const SUGGESTIONS: { icon: typeof FileTextIcon; question: string }[] = [
+const SUGGESTIONS: ChatSuggestion[] = [
   {
     icon: FileTextIcon,
     question: "What are the 3 strongest selling points for this home?",
@@ -234,11 +240,18 @@ const SUGGESTIONS: { icon: typeof FileTextIcon; question: string }[] = [
   },
 ];
 
+/** What the empty conversation says: a heading, a line, three questions. */
+export type ChatIntro = {
+  title: string;
+  description: string;
+  suggestions: ChatSuggestion[];
+};
+
 function EmptyState({
-  street,
+  intro,
   onAsk,
 }: {
-  street: string;
+  intro: ChatIntro;
   onAsk: (q: string) => void;
 }) {
   return (
@@ -248,14 +261,13 @@ function EmptyState({
         <SparklesIcon aria-hidden className="size-5" />
       </span>
       <h2 className="mt-4 text-xl font-semibold tracking-tight text-balance">
-        Ask anything about {street}
+        {intro.title}
       </h2>
       <p className="mt-1.5 max-w-lg text-sm text-foreground/60">
-        Answers draw on this whole report, Google Maps and the web, with the
-        sources named. Times follow your walk / bike / car setting.
+        {intro.description}
       </p>
       <div className="mt-8 grid w-full gap-2 text-left md:grid-cols-3">
-        {SUGGESTIONS.map(({ icon: Icon, question }) => (
+        {intro.suggestions.map(({ icon: Icon, question }) => (
           <Button
             key={question}
             variant="outline"
@@ -304,6 +316,8 @@ export function PropertyChat({ reportId }: { reportId: string }) {
       </p>
     );
   }
+  const full = report.property?.formattedAddress ?? report.inputAddress;
+  const street = full.split(",")[0]!.trim();
   return (
     <ChatSession
       key={thread.chatId}
@@ -311,45 +325,82 @@ export function PropertyChat({ reportId }: { reportId: string }) {
       // Saved by the agent as UI messages; tRPC's JSON typing loses that.
       initialMessages={thread.messages as unknown as UIMessage[]}
       session={thread.session}
-      address={report.property?.formattedAddress ?? report.inputAddress}
+      agent={{
+        task: "property-chat",
+        accessToken: ({ chatId }) => mintPropertyChatToken(chatId),
+        startSession: ({ chatId, clientData }) =>
+          startPropertyChat({ chatId, clientData }),
+        // First message of a new chat: step 1 runs in our warm server while
+        // the agent boots (Head Start). Later messages go to the agent direct.
+        headStart: `/api/reports/${reportId}/chat`,
+      }}
+      context={
+        <>
+          <MapPinIcon aria-hidden className="size-4 shrink-0 text-primary" />
+          <span className="min-w-0 truncate text-sm font-medium" title={full}>
+            {full}
+          </span>
+        </>
+      }
+      intro={{
+        title: `Ask anything about ${street}`,
+        description:
+          "Answers draw on this whole report, Google Maps and the web, with the sources named. Times follow your walk / bike / car setting.",
+        suggestions: SUGGESTIONS,
+      }}
+      placeholder={`Ask anything about ${street}…`}
+      hint="Uses the report, Google Maps and the web · check before sharing"
       onNewChat={startNewChat}
       startingNewChat={starting}
     />
   );
 }
 
+/** Either chat agent; they take the same client data (travel mode). */
+type ChatTask = typeof propertyChat | typeof comparisonChat;
+
+/** Which agent a session talks to, and the server actions that admit it. */
+export type ChatAgentConfig = Pick<
+  UseTriggerChatTransportOptions<ChatTask>,
+  "task" | "accessToken" | "startSession" | "headStart"
+>;
+
 /**
  * One conversation, backed by a durable Trigger.dev chat agent: answers keep
  * running if the tab closes, and a reload reconnects to the live stream.
+ * Shared by the property chat and the comparison chat: `agent` picks the
+ * backend, `context` fills the bar on top, `intro` the empty conversation.
  */
-function ChatSession({
+export function ChatSession({
   chatId,
   initialMessages,
   session,
-  address,
+  agent,
+  context,
+  intro,
+  placeholder,
+  hint,
   onNewChat,
   startingNewChat,
 }: {
   chatId: string;
   initialMessages: UIMessage[];
   session: { publicAccessToken: string; lastEventId?: string } | null;
-  address: string;
+  agent: ChatAgentConfig;
+  context: ReactNode;
+  intro: ChatIntro;
+  placeholder: string;
+  hint: string;
   onNewChat: () => void;
   startingNewChat: boolean;
 }) {
   const travel = useTravelMode();
-  const transport = useTriggerChatTransport<typeof propertyChat>({
-    task: "property-chat",
-    accessToken: ({ chatId }) => mintPropertyChatToken(chatId),
-    startSession: ({ chatId, clientData }) =>
-      startPropertyChat({ chatId, clientData }),
+  const transport = useTriggerChatTransport<ChatTask>({
+    ...agent,
     // Sent with every message; the hook keeps it current.
     clientData: { travelMode: travel.mode },
     // An existing conversation: resume from where the browser left off.
     sessions: session ? { [chatId]: session } : undefined,
-    // First message of a new chat: step 1 runs in our warm server while
-    // the agent boots (Head Start). Later messages go to the agent direct.
-    headStart: `/api/reports/${chatId.split(".")[0]}/chat`,
   });
   const {
     messages,
@@ -405,18 +456,13 @@ function ChatSession({
     onNewChat();
   };
 
-  const full = address;
-  const street = full.split(",")[0]!.trim();
   const last = messages.at(-1);
 
   return (
     <div className="flex h-[calc(100svh-3.5rem)] flex-col">
-      {/* Which property, and a fresh start. */}
+      {/* What the chat is about, and a fresh start. */}
       <div className="flex h-11 shrink-0 items-center gap-2 border-b px-4 sm:px-6">
-        <MapPinIcon aria-hidden className="size-4 shrink-0 text-primary" />
-        <span className="min-w-0 truncate text-sm font-medium" title={full}>
-          {full}
-        </span>
+        {context}
         <Button
           variant="ghost"
           size="sm"
@@ -434,7 +480,7 @@ function ChatSession({
           <MessageScrollerViewport aria-label="Conversation">
             <MessageScrollerContent className="mx-auto w-full max-w-3xl gap-6 px-4 py-6 sm:px-6">
               {messages.length === 0 ? (
-                <EmptyState street={street} onAsk={send} />
+                <EmptyState intro={intro} onAsk={send} />
               ) : (
                 messages.map((m) => (
                   <MessageScrollerItem
@@ -541,7 +587,7 @@ function ChatSession({
                   ? billing?.active
                     ? "You've used this month's AI chat messages"
                     : "Choose a plan to use AI chat"
-                  : `Ask anything about ${street}…`
+                  : placeholder
               }
               aria-label="Message"
               rows={1}
@@ -551,7 +597,7 @@ function ChatSession({
               <span className="text-xs text-foreground/55">
                 {chatLeft != null && chatLeft > 0 && chatLeft <= 10
                   ? `${chatLeft} of ${billing?.active ? billing.chatLimit : ""} chat messages left this month · check before sharing`
-                  : "Uses the report, Google Maps and the web · check before sharing"}
+                  : hint}
               </span>
               {busy ? (
                 <InputGroupButton

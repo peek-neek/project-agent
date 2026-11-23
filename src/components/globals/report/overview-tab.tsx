@@ -39,7 +39,13 @@ import {
   upsideScore,
 } from "@/lib/section-scores";
 import { ListSkeleton, ParagraphSkeleton } from "./report-skeletons";
-import { destinationTime, type TravelTimes } from "@/lib/travel";
+import {
+  destinationTime,
+  TRAVEL_MODES,
+  type TravelMode,
+  type TravelTimes,
+  travelTime,
+} from "@/lib/travel";
 import {
   AMENITY_CATEGORIES,
   type AmenitiesData,
@@ -77,8 +83,11 @@ export type ReportSectionsData = {
   upside: UpsideData | null;
 };
 
-/** Five segments filled to the score, coloured like the market score. */
-function ScoreBar({ score }: { score: number }) {
+/**
+ * Five segments filled to the score, coloured like the market score.
+ * Comparison tiles use it too (the A/B chip carries the side's colour).
+ */
+export function ScoreBar({ score }: { score: number }) {
   const color =
     MARKET_LEVELS[
       Math.min(5, Math.max(1, Math.round(score))) as 1 | 2 | 3 | 4 | 5
@@ -104,40 +113,33 @@ const Muted = ({ children }: { children: React.ReactNode }) => (
   <p className="text-sm text-foreground/55">{children}</p>
 );
 
-export function OverviewTab({
-  report,
-  data,
-  onNavigate,
-}: {
-  report: ReportData;
-  data: ReportSectionsData;
-  onNavigate: (tab: TabId, focus?: string) => void;
-}) {
-  const {
-    amenities,
-    commute,
-    schools,
-    demographics,
-    safety,
-    insights,
-    upside,
-  } = data;
-  const busy = (kind: JobKind) => isJobActive(getJob(report, kind));
-  const travel = useTravelMode();
-  const mins = (p: TravelTimes) => travel.time(p).minutes;
-  const unit = `min ${travel.verb}`;
-  /** Time in the selected mode, or distance when walking is too far. */
-  const timeOrDistance = (s: TravelTimes) =>
-    travel.showsTime(s)
-      ? { value: mins(s), unit }
-      : { value: (s.distanceMeters / 1000).toFixed(1), unit: "km" };
+export type SectionTile = {
+  id: "amenities" | "commute" | "schools" | "safety" | "neighbourhood" | "upside";
+  label: string;
+  icon: LucideIcon;
+  accent: string;
+  tab: TabId;
+  job: JobKind;
+  score: SectionScore | null;
+  caption: string;
+  empty: string;
+};
+
+/**
+ * The Overview's section tiles: one 1–5 score per section with a caption.
+ * Score and caption both follow the travel mode. Shared with comparisons.
+ */
+export function sectionTiles(
+  data: ReportSectionsData,
+  mode: TravelMode,
+): SectionTile[] {
+  const { amenities, commute, schools, demographics, safety, upside } = data;
+  const mins = (p: TravelTimes) => travelTime(p, mode).minutes;
+  const unit = `min ${TRAVEL_MODES[mode].verb}`;
   const crimeKpi = safety ? crimeTile(safety) : null;
   const nearbySchools = allSchools(schools).slice(0, 4);
   const homeType = dominantHomeType(demographics);
   const area = demographics?.area.values;
-  const city = demographics?.city?.values;
-
-  // Section tiles: score and caption both follow the travel mode.
   const fastest = (places: TravelTimes[]) =>
     places.length ? Math.min(...places.map(mins)) : null;
   const amenityTimes = amenities
@@ -149,7 +151,7 @@ export function OverviewTab({
   const tripTimes = (commute?.destinations ?? []).flatMap((d) => {
     const options = [
       d.transitMinutes,
-      destinationTime(d, travel.mode).minutes,
+      destinationTime(d, mode).minutes,
     ].filter((m): m is number => m != null);
     return options.length ? [Math.min(...options)] : [];
   });
@@ -163,17 +165,7 @@ export function OverviewTab({
     Math.round(values.reduce((a, b) => a + b, 0) / values.length);
   const applications = upside?.development?.applications.length ?? 0;
 
-  const tiles: {
-    id: string;
-    label: string;
-    icon: LucideIcon;
-    accent: string;
-    tab: TabId;
-    job: JobKind;
-    score: SectionScore | null;
-    caption: string;
-    empty: string;
-  }[] = [
+  return [
     {
       id: "amenities",
       label: "Amenities",
@@ -181,7 +173,7 @@ export function OverviewTab({
       accent: "#2563eb",
       tab: "amenities",
       job: JOB_KINDS.amenities,
-      score: amenitiesScore(amenities, travel.mode),
+      score: amenitiesScore(amenities, mode),
       caption: amenityTimes.length
         ? `avg ${average(amenityTimes)} ${unit} · ${amenityTimes.filter((m) => m <= 15).length} of ${AMENITY_CATEGORIES.length} within 15`
         : "Nothing found nearby",
@@ -194,7 +186,7 @@ export function OverviewTab({
       accent: "#0f766e",
       tab: "commute",
       job: JOB_KINDS.commute,
-      score: commuteScore(commute, travel.mode),
+      score: commuteScore(commute, mode),
       caption: tripTimes.length
         ? `avg ${average(tripTimes)} min to ${tripTimes.length} destinations`
         : "Transit access nearby",
@@ -207,7 +199,7 @@ export function OverviewTab({
       accent: "#7c3aed",
       tab: "schools",
       job: JOB_KINDS.schools,
-      score: schoolsScore(schools, travel.mode),
+      score: schoolsScore(schools, mode),
       caption: schoolEqaos.length
         ? `EQAO avg ${average(schoolEqaos)}%${ontarioEqao != null ? ` · Ontario ${Math.round(ontarioEqao)}%` : ""}`
         : `${nearbySchools.length} schools nearby`,
@@ -254,6 +246,33 @@ export function OverviewTab({
       empty: "No project data",
     },
   ];
+}
+
+export function OverviewTab({
+  report,
+  data,
+  onNavigate,
+}: {
+  report: ReportData;
+  data: ReportSectionsData;
+  onNavigate: (tab: TabId, focus?: string) => void;
+}) {
+  const { amenities, schools, demographics, safety, insights, upside } = data;
+  const busy = (kind: JobKind) => isJobActive(getJob(report, kind));
+  const travel = useTravelMode();
+  const mins = (p: TravelTimes) => travel.time(p).minutes;
+  const unit = `min ${travel.verb}`;
+  /** Time in the selected mode, or distance when walking is too far. */
+  const timeOrDistance = (s: TravelTimes) =>
+    travel.showsTime(s)
+      ? { value: mins(s), unit }
+      : { value: (s.distanceMeters / 1000).toFixed(1), unit: "km" };
+  const nearbySchools = allSchools(schools).slice(0, 4);
+  const homeType = dominantHomeType(demographics);
+  const area = demographics?.area.values;
+  const city = demographics?.city?.values;
+
+  const tiles = sectionTiles(data, travel.mode);
 
   return (
     <div className="space-y-4">

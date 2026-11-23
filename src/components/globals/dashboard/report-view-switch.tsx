@@ -1,7 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { FileTextIcon, SparklesIcon } from "lucide-react";
+import {
+  FileTextIcon,
+  GitCompareArrowsIcon,
+  type LucideIcon,
+  SparklesIcon,
+} from "lucide-react";
 import { cn } from "cn";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -22,15 +27,21 @@ const VIEWS = [
 
 /**
  * The property's Street View photo in the Report button, fading in over the
- * document icon (same fixed-size slot, so nothing moves). Client-only, after
+ * icon (same fixed-size slot, so nothing moves). Client-only, after
  * hydration: the server can't know the photo's version. Reads the history
  * the sidebar already loaded; never fetches. No photo: the icon stays.
  */
-function ReportPhoto({ reportId }: { reportId: string | null }) {
+function ReportPhoto({
+  reportId,
+  icon: Icon,
+}: {
+  reportId: string | null;
+  icon: LucideIcon;
+}) {
   const hydrated = useHydrated();
   return (
     <span className="relative grid size-5 shrink-0 place-items-center">
-      <FileTextIcon aria-hidden className="size-4" />
+      <Icon aria-hidden className="size-4" />
       {/* After hydration only: a query in the header during the server
           render would block the page's prefetched data from hydrating. */}
       {hydrated && reportId ? (
@@ -63,17 +74,25 @@ function Photo({ reportId }: { reportId: string }) {
 }
 
 /**
- * Report | Chat switch in the app header. `reportId` is null in the
- * prerendered shell: it renders identically, just without links yet, so
- * nothing moves or changes when the real one takes over.
+ * Report | Chat switch in the app header, on reports and comparisons.
+ * `base` (e.g. `/reports/<id>`) is null in the prerendered shell: it renders
+ * identically, just without links yet, so nothing moves or changes when the
+ * real one takes over. `photoReportId` puts that report's Street View photo
+ * in the Report button (reports only). `kind` picks the Report button's
+ * icon (a plain string: server components render this too).
  */
 export function ReportViewSwitch({
   active,
-  reportId,
+  base,
+  photoReportId = null,
+  kind = "report",
 }: {
   active: View;
-  reportId: string | null;
+  base: string | null;
+  photoReportId?: string | null;
+  kind?: "report" | "comparison";
 }) {
+  const icon = kind === "comparison" ? GitCompareArrowsIcon : FileTextIcon;
   return (
     <ButtonGroup aria-label="Report view">
       {VIEWS.map((v) => {
@@ -86,14 +105,14 @@ export function ReportViewSwitch({
         const body = (
           <>
             {v.id === "report" ? (
-              <ReportPhoto reportId={reportId} />
+              <ReportPhoto reportId={photoReportId} icon={icon} />
             ) : (
               <v.icon data-icon="inline-start" />
             )}
             {v.label}
           </>
         );
-        return reportId ? (
+        return base ? (
           <Button
             key={v.id}
             variant="outline"
@@ -102,7 +121,7 @@ export function ReportViewSwitch({
             aria-current={current ? "page" : undefined}
             render={
               <Link
-                href={`/reports/${reportId}${v.path}`}
+                href={`${base}${v.path}`}
                 onNavigate={current ? undefined : startNavigationProgress}
               />
             }
@@ -126,8 +145,29 @@ export function ReportViewSwitch({
   );
 }
 
-/** The live switch: reads the report id from the URL. */
-export function ReportViewSwitchLive({ active }: { active: View }) {
-  const { reportId } = useParams<{ reportId: string }>();
-  return <ReportViewSwitch active={active} reportId={reportId} />;
+/** The live switch: reads the report or comparison id from the URL. */
+export function ReportViewSwitchLive({
+  active,
+  kind,
+}: {
+  active: View;
+  kind: "report" | "comparison";
+}) {
+  const { reportId, comparisonId } = useParams<{
+    reportId?: string;
+    comparisonId?: string;
+  }>();
+  return kind === "report" ? (
+    <ReportViewSwitch
+      active={active}
+      base={reportId ? `/reports/${reportId}` : null}
+      photoReportId={reportId ?? null}
+    />
+  ) : (
+    <ReportViewSwitch
+      active={active}
+      base={comparisonId ? `/compare/${comparisonId}` : null}
+      kind="comparison"
+    />
+  );
 }

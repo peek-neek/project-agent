@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { baseProcedure, createTRPCRouter, protectedProcedure } from "../init";
 import { billingRouter } from "./billing";
+import { comparisonRouter } from "./comparison";
 import { placesRouter } from "./places";
 import { reportRouter } from "./report";
 
@@ -20,6 +21,7 @@ export const appRouter = createTRPCRouter({
     return { userId: ctx.userId };
   }),
   billing: billingRouter,
+  comparison: comparisonRouter,
   places: placesRouter,
   report: reportRouter,
 });

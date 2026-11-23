@@ -39,6 +39,8 @@ export type MapPin = {
   /** Badge text, e.g. "1". */
   badge: string;
   color: string;
+  /** Icon colour on `color`; white when not given. */
+  textColor?: string;
   icon: LucideIcon;
   title: string;
   /** Small coloured label above the title, e.g. "Café". */
@@ -98,7 +100,7 @@ function PinCard({ pin, hidePhoto }: { pin: MapPin; hidePhoto?: boolean }) {
     <div className="flex w-68 animate-in gap-2.5 bg-card p-2 font-sans text-foreground duration-150 fade-in-0 zoom-in-95">
       <div
         className="relative grid size-18 shrink-0 place-items-center overflow-hidden text-white"
-        style={{ backgroundColor: pin.color }}
+        style={{ backgroundColor: pin.color, color: pin.textColor }}
       >
         <Icon aria-hidden className="size-6" />
         {showPhoto && (
@@ -204,19 +206,34 @@ function RecenterControl({ onClick, away }: { onClick: () => void; away: boolean
  */
 export function PlacesMap({
   home,
+  homes,
   pins,
   selectedId,
   onSelect,
   className,
 }: {
   home: { lat: number; lng: number };
+  /**
+   * Several homes, each with a letter and colour (a comparison). Replaces
+   * the single house marker; `home` stays the recenter anchor.
+   */
+  homes?: {
+    lat: number;
+    lng: number;
+    label: string;
+    color: string;
+    textColor: string;
+  }[];
   pins: MapPin[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   className?: string;
 }) {
   const ref = useRef<MapRef>(null);
-  const bounds = useMemo(() => boundsOf([home, ...pins]), [home, pins]);
+  const bounds = useMemo(
+    () => boundsOf([home, ...(homes ?? []), ...pins]),
+    [home, homes, pins],
+  );
   const pinKey = pins.map((p) => p.id).join(",");
   const selected = pins.find((p) => p.id === selectedId) ?? null;
 
@@ -352,19 +369,42 @@ export function PlacesMap({
 
           {/* Stacking: pins 1 (2 when selected or hovered), the house 3 so
               it's never hidden behind a pin, place cards 10 (globals.css). */}
-          <Marker
-            longitude={home.lng}
-            latitude={home.lat}
-            anchor="bottom"
-            style={{ zIndex: 3 }}
-          >
-            <span
-              title="The property"
-              className="grid size-9 place-items-center border-2 border-white bg-foreground text-background shadow-md"
+          {homes ? (
+            homes.map((h) => (
+              <Marker
+                key={h.label}
+                longitude={h.lng}
+                latitude={h.lat}
+                anchor="bottom"
+                style={{ zIndex: 3 }}
+              >
+                <span
+                  title={`Property ${h.label}`}
+                  className="relative grid size-9 place-items-center border-2 border-white text-white shadow-md"
+                  style={{ backgroundColor: h.color, color: h.textColor }}
+                >
+                  <HouseIcon aria-hidden className="size-4.5" />
+                  <span className="absolute -top-2 -right-2 grid size-4 place-items-center border border-foreground/15 bg-white text-[10px] leading-none font-bold text-black">
+                    {h.label}
+                  </span>
+                </span>
+              </Marker>
+            ))
+          ) : (
+            <Marker
+              longitude={home.lng}
+              latitude={home.lat}
+              anchor="bottom"
+              style={{ zIndex: 3 }}
             >
-              <HouseIcon aria-hidden className="size-4.5" />
-            </span>
-          </Marker>
+              <span
+                title="The property"
+                className="grid size-9 place-items-center border-2 border-white bg-foreground text-background shadow-md"
+              >
+                <HouseIcon aria-hidden className="size-4.5" />
+              </span>
+            </Marker>
+          )}
 
           {pins.map((pin) => {
             const active = pin.id === selectedId;
@@ -396,7 +436,10 @@ export function PlacesMap({
                     "relative rounded-none border-2 border-white text-white shadow-md transition-transform",
                     active ? "size-10 scale-110" : "size-8 hover:scale-110",
                   )}
-                  style={{ backgroundColor: pin.color }}
+                  style={{
+                    backgroundColor: pin.color,
+                    color: pin.textColor,
+                  }}
                 >
                   <Icon aria-hidden className={active ? "size-5" : "size-4"} />
                   <span className="absolute -top-2 -right-2 grid h-4 min-w-4 place-items-center border border-foreground/15 bg-white px-0.5 text-[10px] leading-none font-semibold text-foreground tabular-nums">

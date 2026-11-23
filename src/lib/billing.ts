@@ -9,6 +9,8 @@ export function isBillingInterval(value: unknown): value is BillingInterval {
 export const BILLING_ERRORS = {
   required: "subscription_required",
   limit: "report_limit_reached",
+  /** A comparison needs more new reports than are left (it makes none). */
+  compareLimit: "compare_needs_more_reports",
 } as const;
 
 export type BillingError = (typeof BILLING_ERRORS)[keyof typeof BILLING_ERRORS];

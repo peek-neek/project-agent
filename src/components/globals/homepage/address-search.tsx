@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { TRPCClientError } from "@trpc/client";
 import {
   AlertCircleIcon,
+  ArrowLeftRightIcon,
   ArrowUpIcon,
   MapPinIcon,
   MapPinnedIcon,
@@ -14,7 +15,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { cn } from "cn";
-import { useEffect, useId, useRef, useState } from "react";
+import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type {
   AddressCandidate,
@@ -38,6 +39,11 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import {
+  SideChip,
+  type Side,
+} from "@/components/globals/compare/compare-shared";
 import { Spinner } from "@/components/ui/spinner";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LocationBanner } from "./location-banner";
@@ -48,11 +54,15 @@ import {
   takePendingAddress,
 } from "@/components/globals/dashboard/report-gate-dialog";
 import type { LatLng } from "./pin-map";
-import { useUserLocation } from "@/components/globals/location/location-provider";
+import {
+  type Coords,
+  useUserLocation,
+} from "@/components/globals/location/location-provider";
 import {
   type AddressSuggestion,
   formatDistance,
   MIN_QUERY_LENGTH,
+  type SuggestionStatus,
   suggestionLabel,
   useAddressSuggestions,
 } from "./use-address-suggestions";
@@ -66,7 +76,7 @@ const modes = [
   {
     id: "compare",
     label: "Compare",
-    placeholder: "Up to 3 addresses, separated by semicolons",
+    placeholder: "First property address",
   },
   {
     id: "bulk",
@@ -98,6 +108,25 @@ export function AddressSearch({ className }: AddressSearchProps) {
     return () => window.removeEventListener("pageshow", onShow);
   }, []);
   const [address, setAddress] = useState("");
+  // Compare mode: property A and B, each with the suggestion picked (if any).
+  const [compare, setCompare] = useState<[ComparePick, ComparePick]>([
+    EMPTY_PICK,
+    EMPTY_PICK,
+  ]);
+  const [swaps, setSwaps] = useState(0);
+  const [first, second] = compare;
+  const sameProperty =
+    first.address.trim() !== "" &&
+    (first.address.trim().toLowerCase() ===
+      second.address.trim().toLowerCase() ||
+      (first.placeId !== "" && first.placeId === second.placeId));
+  const [showSame, setShowSame] = useState(false);
+  const submitAddress =
+    mode === "compare"
+      ? first.address.trim() && second.address.trim()
+        ? first.address.trim()
+        : ""
+      : address.trim();
   const [open, setOpen] = useState(false);
   const [placeId, setPlaceId] = useState("");
   const [pickedSessionToken, setPickedSessionToken] = useState("");
@@ -149,14 +178,6 @@ export function AddressSearch({ className }: AddressSearchProps) {
     enabled: suggestionsOpen,
   });
 
-  const heading = {
-    idle: `Type at least ${MIN_QUERY_LENGTH} characters to see suggestions`,
-    loading: "Searching addresses…",
-    limited: "Suggestions paused",
-    error: "Suggestions unavailable",
-    ready: coords ? "Suggested addresses near you" : "Suggested addresses",
-  }[status];
-
   /** Fills the form with the confirmed address and submits it. */
   const submitWith = (next: {
     address?: string;
@@ -192,28 +213,56 @@ export function AddressSearch({ className }: AddressSearchProps) {
   const checking = resolve.isPending;
   const busy = submitting || checking;
 
-  const emptyMessage =
-    status === "limited"
-      ? "You've searched a lot in a short time. Suggestions will be back shortly; press Enter to search anyway."
-      : status === "error"
-        ? "We couldn't load suggestions. Press Enter to search for this address anyway."
-        : status === "ready"
-          ? "No suggestions. Press Enter and we'll look it up."
-          : null;
+  const submitControl = (
+    <InputGroupButton
+      type="submit"
+      variant="default"
+      size="icon-sm"
+      aria-label={
+        checking
+          ? "Checking address…"
+          : submitting
+            ? "Creating report…"
+            : noPlan
+              ? "Choose a plan to generate reports"
+              : "Generate report"
+      }
+      aria-disabled={busy || noPlan}
+      className={cn(
+        "size-11 shadow-lg transition-transform sm:size-12",
+        busy
+          ? "pointer-events-none"
+          : noPlan
+            ? "opacity-40 shadow-none"
+            : "hover:scale-105 active:scale-95",
+      )}
+    >
+      {busy ? (
+        <Spinner className="size-5" />
+      ) : (
+        <ArrowUpIcon className="size-5" />
+      )}
+    </InputGroupButton>
+  );
 
   return (
     <div className={cn("w-full", className)}>
       <form
         ref={formRef}
-        action="/reports/new"
+        action={mode === "compare" ? "/compare/new" : "/reports/new"}
         method="get"
         role="search"
         aria-label="Generate a property report"
         aria-busy={busy}
         onSubmit={(e) => {
           // One report per submit: ignore repeats while it's being created.
-          if (busy || !address.trim()) {
+          if (busy || !submitAddress) {
             e.preventDefault();
+            return;
+          }
+          if (mode === "compare" && sameProperty) {
+            e.preventDefault();
+            setShowSame(true);
             return;
           }
           // Plan gates come first, before the (paid) address lookup.
@@ -276,7 +325,20 @@ export function AddressSearch({ className }: AddressSearchProps) {
           value={[mode]}
           onValueChange={(value) => {
             const next = value[0] as Mode | undefined;
-            if (next) setMode(next);
+            if (!next) return;
+            // Carry a typed address over as the first property to compare.
+            if (next === "compare" && !first.address.trim()) {
+              setCompare(([, b]) => [
+                {
+                  address,
+                  placeId,
+                  sessionToken: placeId ? pickedSessionToken : "",
+                },
+                b,
+              ]);
+            }
+            setResolution(null);
+            setMode(next);
           }}
           className="relative z-10 bg-card p-1.5 pb-0"
         >
@@ -302,176 +364,179 @@ export function AddressSearch({ className }: AddressSearchProps) {
           ))}
         </ToggleGroup>
 
+        <input type="hidden" name="mode" value={mode} />
+        <input type="hidden" name="travelMode" value={travelMode} />
+
         <div
           ref={anchorRef}
           className="-mt-px bg-card p-2 shadow-[0_24px_60px_-20px_oklch(0.2_0_0/0.35)] sm:p-2.5"
         >
-          <Autocomplete.Root<AddressSuggestion>
-            items={suggestions}
-            filter={null}
-            value={address}
-            onValueChange={(value, details) => {
-              setAddress(value);
-              if (details.reason === "item-press") {
-                const picked = suggestions.find(
-                  (s) => suggestionLabel(s) === value,
-                );
-                setPlaceId(picked?.id ?? "");
-                // Place Details reuses this token to close the billing session.
-                setPickedSessionToken(sessionToken ?? "");
-                setSessionToken(undefined);
-              } else {
-                setPlaceId("");
-                setPickedSessionToken("");
-              }
-              // Editing the address drops any earlier check or pin.
-              setResolution(null);
-              setPin(null);
-            }}
-            open={suggestionsOpen}
-            onOpenChange={(next) => {
-              setOpen(next);
-              if (next) setSessionToken((t) => t ?? crypto.randomUUID());
-            }}
-            itemToStringValue={suggestionLabel}
-            openOnInputClick
-          >
-            <Label htmlFor={`${id}-address`} className="sr-only">
-              Property address
-            </Label>
-            <InputGroup className="h-auto border-0 bg-card has-[[data-slot=input-group-control]:focus-visible]:ring-0">
-              <InputGroupAddon className="pl-4 sm:pl-5">
-                <MapPinIcon aria-hidden className="size-5 text-primary" />
-              </InputGroupAddon>
-              <Autocomplete.Input
-                id={`${id}-address`}
-                name="address"
-                required
-                autoComplete="off"
+          {mode === "compare" ? (
+            // Two equal address columns with the swap between them and the
+            // submit button in its own column, so neither box loses width to
+            // it. On phones A spans the row; B shares its row with the button.
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto]">
+              {/* A in the usual report fields, B in their compare twins. */}
+              <CompareHiddenFields pick={first} prefix="" />
+              <CompareHiddenFields pick={second} prefix="compare" />
+              <CompareAddressField
+                id={`${id}-compare-first`}
+                className="col-span-2 sm:col-span-1"
+                side="a"
+                label="First property address"
                 placeholder={active.placeholder}
-                render={
-                  <InputGroupInput className="h-14 text-base placeholder:text-foreground/50 sm:h-16 md:text-base" />
-                }
+                value={first.address}
+                onPick={(pick) => {
+                  setShowSame(false);
+                  setCompare(([, b]) => [pick, b]);
+                }}
+                near={coords}
               />
-              <input type="hidden" name="mode" value={mode} />
-              <input type="hidden" name="travelMode" value={travelMode} />
-              {placeId && (
-                <input type="hidden" name="placeId" value={placeId} />
-              )}
-              {pin && (
-                <>
-                  <input type="hidden" name="lat" value={pin.lat.toFixed(6)} />
-                  <input type="hidden" name="lng" value={pin.lng.toFixed(6)} />
-                </>
-              )}
-              {placeId && pickedSessionToken && (
-                <input
-                  type="hidden"
-                  name="sessionToken"
-                  value={pickedSessionToken}
+              <div className="relative z-10 col-span-2 flex h-px shrink-0 items-center justify-center sm:col-span-1 sm:h-auto sm:px-3">
+                <Separator className="absolute inset-x-0 sm:hidden" />
+                <Separator
+                  orientation="vertical"
+                  className="absolute inset-y-2 left-1/2 hidden sm:block"
                 />
-              )}
-              <InputGroupAddon align="inline-end" className="pr-2">
-                <InputGroupButton
-                  type="submit"
-                  variant="default"
-                  size="icon-sm"
-                  aria-label={
-                    checking
-                      ? "Checking address…"
-                      : submitting
-                        ? "Creating report…"
-                        : noPlan
-                          ? "Choose a plan to generate reports"
-                          : "Generate report"
-                  }
-                  aria-disabled={busy || noPlan}
-                  className={cn(
-                    "size-11 shadow-lg transition-transform sm:size-12",
-                    busy
-                      ? "pointer-events-none"
-                      : noPlan
-                        ? "opacity-40 shadow-none"
-                        : "hover:scale-105 active:scale-95",
-                  )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Swap addresses"
+                  onClick={() => {
+                    setCompare(([a, b]) => [b, a]);
+                    setSwaps((n) => n + 1);
+                  }}
+                  className="relative rounded-full bg-card shadow-sm hover:bg-muted"
                 >
-                  {busy ? (
-                    <Spinner className="size-5" />
-                  ) : (
-                    <ArrowUpIcon className="size-5" />
-                  )}
-                </InputGroupButton>
-              </InputGroupAddon>
-            </InputGroup>
-
-            <Autocomplete.Portal>
-              <Autocomplete.Positioner
-                anchor={anchorRef}
-                side="bottom"
-                sideOffset={0}
-                collisionAvoidance={{ side: "none" }}
-                className="isolate z-50"
-              >
-                <Autocomplete.Popup className="flex max-h-[calc(var(--available-height)-0.75rem)] w-(--anchor-width) max-w-(--available-width) flex-col overflow-hidden bg-card text-card-foreground transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0">
-                  <LocationBanner className="mx-2 mt-2 w-auto shrink-0" />
-                  <p
-                    aria-live="polite"
-                    className={cn(
-                      "flex shrink-0 items-center gap-2 px-5 pt-3.5 text-xs font-medium text-foreground/65",
-                      status === "idle" ? "pb-4" : "pb-1",
-                    )}
+                  <motion.span
+                    animate={{ rotate: swaps * 180 }}
+                    transition={{
+                      type: "spring",
+                      bounce: 0.2,
+                      visualDuration: 0.35,
+                    }}
+                    className="grid place-items-center"
                   >
-                    {status === "loading" && <Spinner className="size-3.5" />}
-                    {heading}
-                  </p>
-                  <Autocomplete.Empty className="px-5 pt-1 pb-5 text-sm text-foreground/65 empty:hidden">
-                    {emptyMessage}
-                  </Autocomplete.Empty>
-                  <Autocomplete.List className="min-h-0 flex-1 scroll-py-2 overflow-y-auto overscroll-contain p-2 pt-1 data-empty:hidden">
-                    {(item: AddressSuggestion) => (
-                      <Autocomplete.Item
-                        key={item.id}
-                        value={item}
-                        className="flex cursor-default items-center gap-3 px-3 py-2 outline-none select-none data-highlighted:bg-muted"
-                      >
-                        <span className="grid size-8 shrink-0 place-items-center bg-muted text-foreground/70">
-                          <MapPinIcon aria-hidden className="size-4" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium sm:text-base">
-                            {item.primary}
-                          </span>
-                          <span className="block truncate text-xs text-foreground/65 sm:text-sm">
-                            {item.secondary}
-                          </span>
-                        </span>
-                        {item.distanceMeters ? (
-                          <span className="shrink-0 text-xs text-foreground/65 tabular-nums">
-                            {formatDistance(item.distanceMeters)}
-                          </span>
-                        ) : null}
-                      </Autocomplete.Item>
-                    )}
-                  </Autocomplete.List>
-                  {suggestions.length > 0 && (
-                    <p
-                      translate="no"
-                      className="shrink-0 px-5 pt-1 pb-3 text-right text-[11px] text-foreground/50"
-                    >
-                      Google Maps
-                    </p>
-                  )}
-                </Autocomplete.Popup>
-              </Autocomplete.Positioner>
-            </Autocomplete.Portal>
-          </Autocomplete.Root>
+                    <ArrowLeftRightIcon className="rotate-90 sm:rotate-0" />
+                  </motion.span>
+                </Button>
+              </div>
+              <CompareAddressField
+                id={`${id}-compare-second`}
+                side="b"
+                label="Second property address"
+                placeholder="Second property address"
+                value={second.address}
+                onPick={(pick) => {
+                  setShowSame(false);
+                  setCompare(([a]) => [a, pick]);
+                }}
+                near={coords}
+              />
+              <div className="flex items-center pr-2 pl-3">{submitControl}</div>
+            </div>
+          ) : (
+            <Autocomplete.Root<AddressSuggestion>
+              items={suggestions}
+              filter={null}
+              value={address}
+              onValueChange={(value, details) => {
+                setAddress(value);
+                if (details.reason === "item-press") {
+                  const picked = suggestions.find(
+                    (s) => suggestionLabel(s) === value,
+                  );
+                  setPlaceId(picked?.id ?? "");
+                  // Place Details reuses this token to close the billing session.
+                  setPickedSessionToken(sessionToken ?? "");
+                  setSessionToken(undefined);
+                } else {
+                  setPlaceId("");
+                  setPickedSessionToken("");
+                }
+                // Editing the address drops any earlier check or pin.
+                setResolution(null);
+                setPin(null);
+              }}
+              open={suggestionsOpen}
+              onOpenChange={(next) => {
+                setOpen(next);
+                if (next) setSessionToken((t) => t ?? crypto.randomUUID());
+              }}
+              itemToStringValue={suggestionLabel}
+              openOnInputClick
+            >
+              <Label htmlFor={`${id}-address`} className="sr-only">
+                Property address
+              </Label>
+              <InputGroup className="h-auto border-0 bg-card has-[[data-slot=input-group-control]:focus-visible]:ring-0">
+                <InputGroupAddon className="pl-4 sm:pl-5">
+                  <MapPinIcon aria-hidden className="size-5 text-primary" />
+                </InputGroupAddon>
+                <Autocomplete.Input
+                  id={`${id}-address`}
+                  name="address"
+                  required
+                  autoComplete="off"
+                  placeholder={active.placeholder}
+                  render={
+                    <InputGroupInput className="h-14 text-base placeholder:text-foreground/50 sm:h-16 md:text-base" />
+                  }
+                />
+                {placeId && (
+                  <input type="hidden" name="placeId" value={placeId} />
+                )}
+                {pin && (
+                  <>
+                    <input
+                      type="hidden"
+                      name="lat"
+                      value={pin.lat.toFixed(6)}
+                    />
+                    <input
+                      type="hidden"
+                      name="lng"
+                      value={pin.lng.toFixed(6)}
+                    />
+                  </>
+                )}
+                {placeId && pickedSessionToken && (
+                  <input
+                    type="hidden"
+                    name="sessionToken"
+                    value={pickedSessionToken}
+                  />
+                )}
+                <InputGroupAddon align="inline-end" className="pr-2">
+                  {submitControl}
+                </InputGroupAddon>
+              </InputGroup>
+
+              <SuggestionsPopup
+                anchorRef={anchorRef}
+                suggestions={suggestions}
+                status={status}
+                nearby={Boolean(coords)}
+              />
+            </Autocomplete.Root>
+          )}
         </div>
       </form>
+
+      {mode === "compare" && showSame && sameProperty && (
+        <p
+          role="alert"
+          className="mt-2 bg-card px-4 py-3 text-sm text-destructive"
+        >
+          These are the same property. Pick two different addresses to compare.
+        </p>
+      )}
 
       <ReportGateDialog
         gate={gate}
         status={billing}
-        address={address.trim()}
+        address={mode === "compare" ? "" : address.trim()}
         onClose={() => setGate(null)}
         onConfirmCredit={() => {
           creditConfirmed.current = true;
@@ -525,6 +590,227 @@ export function AddressSearch({ className }: AddressSearchProps) {
           ))}
         </div>
       )} */}
+    </div>
+  );
+}
+
+/** The address suggestions dropdown, shown under `anchorRef`. */
+function SuggestionsPopup({
+  anchorRef,
+  suggestions,
+  status,
+  nearby,
+}: {
+  anchorRef: RefObject<HTMLDivElement | null>;
+  suggestions: AddressSuggestion[];
+  status: SuggestionStatus;
+  nearby: boolean;
+}) {
+  const heading = {
+    idle: `Type at least ${MIN_QUERY_LENGTH} characters to see suggestions`,
+    loading: "Searching addresses…",
+    limited: "Suggestions paused",
+    error: "Suggestions unavailable",
+    ready: nearby ? "Suggested addresses near you" : "Suggested addresses",
+  }[status];
+
+  const emptyMessage =
+    status === "limited"
+      ? "You've searched a lot in a short time. Suggestions will be back shortly; press Enter to search anyway."
+      : status === "error"
+        ? "We couldn't load suggestions. Press Enter to search for this address anyway."
+        : status === "ready"
+          ? "No suggestions. Press Enter and we'll look it up."
+          : null;
+
+  return (
+    <Autocomplete.Portal>
+      <Autocomplete.Positioner
+        anchor={anchorRef}
+        side="bottom"
+        sideOffset={0}
+        collisionAvoidance={{ side: "none" }}
+        className="isolate z-50"
+      >
+        <Autocomplete.Popup className="flex max-h-[calc(var(--available-height)-0.75rem)] w-(--anchor-width) max-w-(--available-width) flex-col overflow-hidden bg-card text-card-foreground transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0">
+          <LocationBanner className="mx-2 mt-2 w-auto shrink-0" />
+          <p
+            aria-live="polite"
+            className={cn(
+              "flex shrink-0 items-center gap-2 px-5 pt-3.5 text-xs font-medium text-foreground/65",
+              status === "idle" ? "pb-4" : "pb-1",
+            )}
+          >
+            {status === "loading" && <Spinner className="size-3.5" />}
+            {heading}
+          </p>
+          <Autocomplete.Empty className="px-5 pt-1 pb-5 text-sm text-foreground/65 empty:hidden">
+            {emptyMessage}
+          </Autocomplete.Empty>
+          <Autocomplete.List className="min-h-0 flex-1 scroll-py-2 overflow-y-auto overscroll-contain p-2 pt-1 data-empty:hidden">
+            {(item: AddressSuggestion) => (
+              <Autocomplete.Item
+                key={item.id}
+                value={item}
+                className="flex cursor-default items-center gap-3 px-3 py-2 outline-none select-none data-highlighted:bg-muted"
+              >
+                <span className="grid size-8 shrink-0 place-items-center bg-muted text-foreground/70">
+                  <MapPinIcon aria-hidden className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium sm:text-base">
+                    {item.primary}
+                  </span>
+                  <span className="block truncate text-xs text-foreground/65 sm:text-sm">
+                    {item.secondary}
+                  </span>
+                </span>
+                {item.distanceMeters ? (
+                  <span className="shrink-0 text-xs text-foreground/65 tabular-nums">
+                    {formatDistance(item.distanceMeters)}
+                  </span>
+                ) : null}
+              </Autocomplete.Item>
+            )}
+          </Autocomplete.List>
+          {suggestions.length > 0 && (
+            <p
+              translate="no"
+              className="shrink-0 px-5 pt-1 pb-3 text-right text-[11px] text-foreground/50"
+            >
+              Google Maps
+            </p>
+          )}
+        </Autocomplete.Popup>
+      </Autocomplete.Positioner>
+    </Autocomplete.Portal>
+  );
+}
+
+type ComparePick = { address: string; placeId: string; sessionToken: string };
+const EMPTY_PICK: ComparePick = { address: "", placeId: "", sessionToken: "" };
+
+/**
+ * One property's hidden form fields in compare mode: `address`, `placeId`
+ * and `sessionToken`, or with `prefix="compare"` their compare twins.
+ */
+function CompareHiddenFields({
+  pick,
+  prefix,
+}: {
+  pick: ComparePick;
+  prefix: "" | "compare";
+}) {
+  const name = (field: "address" | "placeId" | "sessionToken") =>
+    prefix ? `${prefix}${field[0].toUpperCase()}${field.slice(1)}` : field;
+  return (
+    <>
+      <input type="hidden" name={name("address")} value={pick.address.trim()} />
+      {pick.placeId && (
+        <input type="hidden" name={name("placeId")} value={pick.placeId} />
+      )}
+      {pick.placeId && pick.sessionToken && (
+        <input
+          type="hidden"
+          name={name("sessionToken")}
+          value={pick.sessionToken}
+        />
+      )}
+    </>
+  );
+}
+
+/** One of the two address boxes in compare mode, with its own suggestions. */
+function CompareAddressField({
+  id,
+  className,
+  side,
+  label,
+  placeholder,
+  value,
+  onPick,
+  near,
+}: {
+  id: string;
+  className?: string;
+  side: Side;
+  label: string;
+  placeholder: string;
+  value: string;
+  /** The typed address, plus the suggestion's place when one was picked. */
+  onPick: (pick: ComparePick) => void;
+  near: Coords | null;
+}) {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [sessionToken, setSessionToken] = useState<string>();
+  const { suggestions, status } = useAddressSuggestions(value, {
+    near,
+    sessionToken,
+    enabled: open,
+  });
+
+  return (
+    <div ref={anchorRef} className={cn("min-w-0", className)}>
+      <Autocomplete.Root<AddressSuggestion>
+        items={suggestions}
+        filter={null}
+        value={value}
+        onValueChange={(next, details) => {
+          if (details.reason === "item-press") {
+            const picked = suggestions.find((s) => suggestionLabel(s) === next);
+            // Place Details reuses the token to close the billing session;
+            // a pick ends it, and typing again starts a new one.
+            onPick({
+              address: next,
+              placeId: picked?.id ?? "",
+              sessionToken: picked ? (sessionToken ?? "") : "",
+            });
+            setSessionToken(undefined);
+          } else {
+            onPick({ address: next, placeId: "", sessionToken: "" });
+          }
+        }}
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (next) setSessionToken((t) => t ?? crypto.randomUUID());
+        }}
+        itemToStringValue={suggestionLabel}
+        openOnInputClick
+      >
+        <Label htmlFor={id} className="sr-only">
+          {label}
+        </Label>
+        <InputGroup className="h-auto border-0 bg-card has-[[data-slot=input-group-control]:focus-visible]:ring-0">
+          {/* Side by side (sm+), trim the padding facing the swap button. */}
+          <InputGroupAddon
+            className={cn("pl-4", side === "a" ? "sm:pl-5" : "sm:pl-1")}
+          >
+            <SideChip side={side} className="size-6 text-xs" />
+          </InputGroupAddon>
+          <Autocomplete.Input
+            id={id}
+            required
+            autoComplete="off"
+            placeholder={placeholder}
+            render={
+              <InputGroupInput
+                className={cn(
+                  "h-14 text-base placeholder:text-foreground/50 sm:h-16 md:text-base",
+                  side === "a" && "sm:pr-1",
+                )}
+              />
+            }
+          />
+        </InputGroup>
+        <SuggestionsPopup
+          anchorRef={anchorRef}
+          suggestions={suggestions}
+          status={status}
+          nearby={Boolean(near)}
+        />
+      </Autocomplete.Root>
     </div>
   );
 }

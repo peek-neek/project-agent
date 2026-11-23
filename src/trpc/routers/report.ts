@@ -71,6 +71,70 @@ export const createReportInput = z.object({
     .catch(undefined),
 });
 
+export type CreateReportInput = z.infer<typeof createReportInput>;
+
+/**
+ * Creates a report and queues its generation: checks the plan, spends an
+ * extra-report credit when the month's allowance is gone, and logs the
+ * usage. A double submit returns the report it already started. Shared by
+ * single reports and comparisons (one call per property).
+ */
+export async function startReport(userId: string, input: CreateReportInput) {
+  const { sessionToken, travelMode, lat, lng, ...data } = input;
+  const pin = lat != null && lng != null ? { lat, lng } : null;
+  // Each report runs paid lookups, so it needs a plan with reports left
+  // this billing period.
+  const entitlement = await getEntitlement(userId);
+  if (!entitlement.active) {
+    throw new TRPCError({ code: "FORBIDDEN", message: BILLING_ERRORS.required });
+  }
+  // Over the monthly allowance: spend an extra report (bought at C$15).
+  let usedCredit = false;
+  if (entitlement.reportsUsed >= entitlement.reportsLimit) {
+    usedCredit = await consumeExtraReportCredit(userId);
+    if (!usedCredit) {
+      throw new TRPCError({ code: "FORBIDDEN", message: BILLING_ERRORS.limit });
+    }
+  }
+  // A double submit returns the report it already started.
+  const { report, created } = await reportStore
+    .createUnlessRecent({ userId, ...data })
+    .catch(async (error: unknown) => {
+      if (usedCredit) await returnExtraReportCredit(userId);
+      throw error;
+    });
+  if (!created) {
+    // Nothing new was made, so the credit goes back.
+    if (usedCredit) await returnExtraReportCredit(userId);
+    return report;
+  }
+  // Counts toward the allowance even if the report is deleted later.
+  await recordReportUsage({ reportId: report.id, userId, usedCredit });
+  await reportStore.setSection(report.id, SECTION_KEYS.copySettings, {
+    travelMode,
+  });
+  if (pin) {
+    // The identity step sees the pin and fills in the town and province
+    // from it.
+    const asOf = new Date().toISOString();
+    await reportStore.saveIdentity(
+      report.id,
+      {
+        formattedAddress: data.address,
+        latitude: pin.lat,
+        longitude: pin.lng,
+        country: "CA",
+      },
+      {
+        formattedAddress: { source: "agent", asOf },
+        location: { source: "pin", asOf },
+      },
+    );
+  }
+  await queueReportGeneration(report.id, { sessionToken });
+  return report;
+}
+
 /** AI rewrites per agent: generous for real use, a ceiling on runaway cost. */
 const rewriteLimiter = createRateLimiter("report:rewrite", [
   { limit: 30, windowMs: 10 * 60_000 },
@@ -82,62 +146,7 @@ const jobKind = z.enum(Object.values(JOB_KINDS) as [JobKind, ...JobKind[]]);
 export const reportRouter = createTRPCRouter({
   create: protectedProcedure
     .input(createReportInput)
-    .mutation(async ({ ctx, input }) => {
-      const { sessionToken, travelMode, lat, lng, ...data } = input;
-      const pin = lat != null && lng != null ? { lat, lng } : null;
-      // Each report runs paid lookups, so it needs a plan with reports left
-      // this billing period.
-      const entitlement = await getEntitlement(ctx.userId);
-      if (!entitlement.active) {
-        throw new TRPCError({ code: "FORBIDDEN", message: BILLING_ERRORS.required });
-      }
-      // Over the monthly allowance: spend an extra report (bought at C$15).
-      let usedCredit = false;
-      if (entitlement.reportsUsed >= entitlement.reportsLimit) {
-        usedCredit = await consumeExtraReportCredit(ctx.userId);
-        if (!usedCredit) {
-          throw new TRPCError({ code: "FORBIDDEN", message: BILLING_ERRORS.limit });
-        }
-      }
-      // A double submit returns the report it already started.
-      const { report, created } = await reportStore.createUnlessRecent({
-        userId: ctx.userId,
-        ...data,
-      }).catch(async (error: unknown) => {
-        if (usedCredit) await returnExtraReportCredit(ctx.userId);
-        throw error;
-      });
-      if (!created) {
-        // Nothing new was made, so the credit goes back.
-        if (usedCredit) await returnExtraReportCredit(ctx.userId);
-        return report;
-      }
-      // Counts toward the allowance even if the report is deleted later.
-      await recordReportUsage({ reportId: report.id, userId: ctx.userId, usedCredit });
-      await reportStore.setSection(report.id, SECTION_KEYS.copySettings, {
-        travelMode,
-      });
-      if (pin) {
-        // The identity step sees the pin and fills in the town and province
-        // from it.
-        const asOf = new Date().toISOString();
-        await reportStore.saveIdentity(
-          report.id,
-          {
-            formattedAddress: data.address,
-            latitude: pin.lat,
-            longitude: pin.lng,
-            country: "CA",
-          },
-          {
-            formattedAddress: { source: "agent", asOf },
-            location: { source: "pin", asOf },
-          },
-        );
-      }
-      await queueReportGeneration(report.id, { sessionToken });
-      return report;
-    }),
+    .mutation(({ ctx, input }) => startReport(ctx.userId, input)),
 
   /** Report history for the dashboard sidebar. */
   list: protectedProcedure.query(({ ctx }) =>

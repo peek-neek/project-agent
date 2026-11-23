@@ -151,6 +151,22 @@ export async function BillingPanel({
           </AlertDescription>
         </Alert>
       )}
+      {reason === BILLING_ERRORS.compareLimit && !(atLimit && credits === 0) && (
+        <Alert variant="destructive">
+          <AlertCircleIcon />
+          <AlertTitle>Not enough reports left for this comparison</AlertTitle>
+          <AlertDescription>
+            Comparing two new addresses uses two reports, and you have{" "}
+            {Math.max(0, reportsLimit - reportsUsed) + credits} left. Nothing
+            was used. Buy extra reports at C${extraPrice} each, or compare
+            with a property you already have a report for (from the last 30
+            days), which is free.
+          </AlertDescription>
+          <AlertAction>
+            <BuyExtraButton />
+          </AlertAction>
+        </Alert>
+      )}
       {((atLimit && credits === 0) || reason === BILLING_ERRORS.limit) && (
         <Alert variant="destructive">
           <AlertCircleIcon />

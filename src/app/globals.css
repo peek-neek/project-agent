@@ -19,6 +19,8 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-compare-a: var(--compare-a);
+  --color-compare-b: var(--compare-b);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -109,6 +111,9 @@
 :root {
   --background: oklch(0.9706 0.0017 67.8024);
   --foreground: oklch(0.1994 0.0039 106.749);
+  /* Comparisons: property A is black, property B is blue. */
+  --compare-a: oklch(0.1994 0.0039 106.749);
+  --compare-b: oklch(0.546 0.245 262.881);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.1994 0.0039 106.749);
   --popover: oklch(1 0 0);
@@ -171,6 +176,9 @@
 .dark {
   --background: oklch(0.2308 0 0);
   --foreground: oklch(1 0 0);
+  /* Black disappears on a dark page: A turns white there. */
+  --compare-a: oklch(0.97 0 0);
+  --compare-b: oklch(0.707 0.165 254.624);
   --card: oklch(0.2308 0 0);
   --card-foreground: oklch(1 0 0);
   --popover: oklch(0.2308 0 0);

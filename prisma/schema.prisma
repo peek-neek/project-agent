@@ -41,7 +41,33 @@ model Report {
   jobs     ReportJob[]
   sections ReportSection[]
 
+  comparisonsAsA Comparison[] @relation("ComparisonA")
+  comparisonsAsB Comparison[] @relation("ComparisonB")
+
   @@index([userId, createdAt(sort: Desc)])
+}
+
+/// Two reports compared side by side. Each property is an ordinary report
+/// (made by the usual pipeline, or reused); deleting either one deletes the
+/// comparison, never the other report.
+model Comparison {
+  id        String   @id @default(uuid())
+  /// Clerk user ID of the agent who created the comparison.
+  userId    String
+  reportAId String
+  reportA   Report   @relation("ComparisonA", fields: [reportAId], references: [id], onDelete: Cascade)
+  reportBId String
+  reportB   Report   @relation("ComparisonB", fields: [reportBId], references: [id], onDelete: Cascade)
+  /// Agent's own label (sidebar); null shows "A vs B".
+  name      String?
+  /// The comparison chat thread (Trigger.dev chat id, transcript, cursors).
+  chat      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([reportAId])
+  @@index([reportBId])
 }
 
 /// Property basics: identification (address, unit, legal description, PIN, roll).

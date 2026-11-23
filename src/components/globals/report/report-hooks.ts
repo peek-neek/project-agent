@@ -2,10 +2,23 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { z } from "zod";
-import { copySectionKey, type JobKind } from "@/lib/report-sections";
+import {
+  amenitiesSchema,
+  commuteSchema,
+  copySectionKey,
+  demographicsSchema,
+  insightsSchema,
+  type JobKind,
+  listingSchema,
+  SECTION_KEYS,
+  safetySchema,
+  schoolsSchema,
+  upsideSchema,
+} from "@/lib/report-sections";
 import type { TravelMode } from "@/lib/travel";
 import { useTravelMode } from "@/components/globals/travel-mode";
 import { useTRPC } from "@/trpc/client";
+import type { ReportSectionsData } from "./overview-tab";
 import type { ReportData, ReportJob } from "./report-format";
 
 const ACTIVE = new Set(["queued", "running"]);
@@ -36,6 +49,33 @@ export function getCopySection<S extends z.ZodType>(
     getSection(report, copySectionKey(key, mode), schema) ??
     getSection(report, key, schema)
   );
+}
+
+/** Every location section of a report, with AI copy for this travel mode. */
+export function getReportSections(
+  report: ReportData,
+  mode: TravelMode,
+): ReportSectionsData {
+  return {
+    amenities: getSection(report, SECTION_KEYS.amenities, amenitiesSchema),
+    commute: getSection(report, SECTION_KEYS.commute, commuteSchema),
+    schools: getSection(report, SECTION_KEYS.schools, schoolsSchema),
+    demographics: getSection(
+      report,
+      SECTION_KEYS.demographics,
+      demographicsSchema,
+    ),
+    safety: getSection(report, SECTION_KEYS.safety, safetySchema),
+    upside: getSection(report, SECTION_KEYS.upside, upsideSchema),
+    // AI copy follows the travel mode (each mode has its own copy).
+    insights: getCopySection(
+      report,
+      SECTION_KEYS.insights,
+      insightsSchema,
+      mode,
+    ),
+    listing: getSection(report, SECTION_KEYS.listing, listingSchema),
+  };
 }
 
 /** Whether the report has copy written specifically for this mode. */

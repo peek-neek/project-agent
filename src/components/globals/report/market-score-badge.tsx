@@ -27,6 +27,11 @@ import {
 import { useTRPC } from "@/trpc/client";
 import { useHydrated, useTravelMode } from "@/components/globals/travel-mode";
 import { getSection, isJobActive } from "./report-hooks";
+import {
+  SIDE,
+  SideChip,
+  type Side,
+} from "@/components/globals/compare/compare-shared";
 
 const LEVELS = [1, 2, 3, 4, 5] as const;
 const TRAVEL_PHRASE = {
@@ -41,18 +46,38 @@ const TRAVEL_PHRASE = {
  * report from the page's query cache; renders nothing elsewhere.
  */
 export function MarketScoreBadge() {
-  const { reportId } = useParams<{ reportId?: string }>();
+  const { reportId, comparisonId } = useParams<{
+    reportId?: string;
+    comparisonId?: string;
+  }>();
   // The header can't know the saved mode until the page hydrates: wait, so
   // the badge never shows a walking score and then switches. Waiting also
   // keeps this query out of the server render: the header renders before the
   // page, and an empty entry here would stop the page's prefetched report
   // from hydrating (it would then refetch without cookies: UNAUTHORIZED).
   const hydrated = useHydrated();
-  if (!reportId || !hydrated) return null;
+  if (!hydrated) return null;
+  if (comparisonId) return <ComparisonBadges comparisonId={comparisonId} />;
+  if (!reportId) return null;
   return <Badge reportId={reportId} />;
 }
 
-function Badge({ reportId }: { reportId: string }) {
+/** On a comparison: one badge per property, each with its A/B chip. */
+function ComparisonBadges({ comparisonId }: { comparisonId: string }) {
+  const trpc = useTRPC();
+  const { data: comparison } = useQuery(
+    trpc.comparison.byId.queryOptions({ id: comparisonId }),
+  );
+  if (!comparison) return null;
+  return (
+    <span className="flex items-center gap-1.5">
+      <Badge reportId={comparison.reportAId} side="a" />
+      <Badge reportId={comparison.reportBId} side="b" />
+    </span>
+  );
+}
+
+function Badge({ reportId, side }: { reportId: string; side?: Side }) {
   const trpc = useTRPC();
   // The score follows the walk / bike / car choice, like the Overview tiles.
   const travel = useTravelMode();
@@ -95,18 +120,23 @@ function Badge({ reportId }: { reportId: string }) {
             variant="outline"
             size="sm"
             className="h-7 gap-1.5 bg-card px-2"
-            aria-label={`Market ease ${score.level} of 5: ${score.label}. Show details`}
+            aria-label={`${side ? `Property ${SIDE[side].letter}: ` : ""}Market ease ${score.level} of 5: ${score.label}. Show details`}
           />
         }
       >
+        {side && <SideChip side={side} className="size-4.5" />}
         <span
           className="grid size-4.5 place-items-center text-[11px] font-bold text-white tabular-nums"
           style={{ backgroundColor: meta.color }}
         >
           {score.level}
         </span>
-        <span className="hidden text-xs sm:inline">{score.label}</span>
-        <span className="text-xs sm:hidden">/5</span>
+        <span className={cn("hidden text-xs", side ? "lg:inline" : "sm:inline")}>
+          {score.label}
+        </span>
+        <span className={cn("text-xs", side ? "lg:hidden" : "sm:hidden")}>
+          /5
+        </span>
         <ChevronDownIcon aria-hidden className="size-3.5 text-foreground/50" />
       </PopoverTrigger>
 
@@ -114,6 +144,7 @@ function Badge({ reportId }: { reportId: string }) {
         <PopoverHeader>
           <PopoverTitle className="flex items-center gap-2">
             <GaugeIcon aria-hidden className="size-4 text-primary" />
+            {side && <SideChip side={side} className="size-4.5" />}
             Market ease: {score.level}/5 · {score.label}
           </PopoverTitle>
           <PopoverDescription className="text-xs">

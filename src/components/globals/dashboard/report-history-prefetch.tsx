@@ -10,6 +10,7 @@ import { ReportHistory } from "./dashboard-sidebar";
 export async function ReportHistoryPrefetch() {
   await connection();
   prefetch(trpc.report.list.queryOptions());
+  prefetch(trpc.comparison.list.queryOptions());
   return (
     <HydrateClient>
       <ReportHistory />

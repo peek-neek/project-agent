@@ -3,6 +3,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   FileTextIcon,
+  GitCompareArrowsIcon,
   MoreVerticalIcon,
   PencilIcon,
   PlusIcon,
@@ -96,7 +97,7 @@ type HistoryItem = {
   id: string;
   name: string | null;
   inputAddress: string;
-  createdAt: Date | string;
+  createdAt?: Date | string;
   property: {
     formattedAddress: string | null;
     city: string | null;
@@ -106,6 +107,51 @@ type HistoryItem = {
     updatedAt?: Date | string;
   } | null;
 };
+
+/** A comparison in the history: its two reports. */
+type ComparisonItem = {
+  id: string;
+  name: string | null;
+  createdAt: Date | string;
+  reportA: HistoryItem;
+  reportB: HistoryItem;
+};
+
+/** A history row: a report, or a comparison of two. */
+type Entry =
+  | {
+      kind: "report";
+      id: string;
+      createdAt: Date | string;
+      report: HistoryItem;
+    }
+  | {
+      kind: "comparison";
+      id: string;
+      createdAt: Date | string;
+      comparison: ComparisonItem;
+    };
+
+/**
+ * A comparison's row: "12 Main St vs 4 Oak Ave" / "Toronto", or with a
+ * custom name, the name over "12 Main St vs 4 Oak Ave".
+ */
+function describeComparison(item: ComparisonItem) {
+  const a = describe(item.reportA);
+  const b = describe(item.reportB);
+  const pair = `${a.title} vs ${b.title}`;
+  const places = [...new Set([a.subtitle, b.subtitle].filter(Boolean))].join(
+    " · ",
+  );
+  return item.name
+    ? { full: `${a.full} vs ${b.full}`, title: item.name, subtitle: pair }
+    : { full: `${a.full} vs ${b.full}`, title: pair, subtitle: places };
+}
+
+const describeEntry = (entry: Entry) =>
+  entry.kind === "report"
+    ? describe(entry.report)
+    : describeComparison(entry.comparison);
 
 /**
  * Title and subtitle for a history row. Without a custom name:
@@ -146,36 +192,83 @@ function ReportThumb({ report }: { report: HistoryItem }) {
       </span>
     );
   }
-  const version = encodeURIComponent(String(p.updatedAt ?? ""));
   return (
     <span className="relative size-9 shrink-0 overflow-hidden bg-sidebar-accent">
-      <FadeImg
-        src={`/api/reports/${report.id}/street-view?size=thumb&v=${version}`}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        onError={() => setFailed(true)}
-        className="absolute inset-0 size-full object-cover"
-      />
+      <StreetViewImg report={report} onError={() => setFailed(true)} />
     </span>
   );
 }
 
-function groupByAge(items: HistoryItem[]) {
+function StreetViewImg({
+  report,
+  onError,
+}: {
+  report: HistoryItem;
+  onError: () => void;
+}) {
+  const version = encodeURIComponent(String(report.property?.updatedAt ?? ""));
+  return (
+    <FadeImg
+      src={`/api/reports/${report.id}/street-view?size=thumb&v=${version}`}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={onError}
+      className="absolute inset-0 size-full object-cover"
+    />
+  );
+}
+
+/**
+ * A comparison's thumbnail: both Street View photos, A on the left and B
+ * on the right; the compare icon when neither has one.
+ */
+function CompareThumb({ comparison }: { comparison: ComparisonItem }) {
+  const [failed, setFailed] = useState({ a: false, b: false });
+  const sides = (["a", "b"] as const).map((side) => {
+    const report = side === "a" ? comparison.reportA : comparison.reportB;
+    const p = report.property;
+    const ok = p?.latitude != null && p.longitude != null && !failed[side];
+    return { side, report, ok };
+  });
+  if (!sides.some((s) => s.ok)) {
+    return (
+      <span className="grid size-9 shrink-0 place-items-center bg-sidebar-accent">
+        <GitCompareArrowsIcon aria-hidden className="text-foreground/50" />
+      </span>
+    );
+  }
+  return (
+    <span className="grid size-9 shrink-0 grid-cols-2 gap-px overflow-hidden bg-sidebar-accent">
+      {sides.map(({ side, report, ok }) => (
+        <span key={side} className="relative overflow-hidden bg-sidebar-accent">
+          {ok && (
+            <StreetViewImg
+              report={report}
+              onError={() => setFailed((f) => ({ ...f, [side]: true }))}
+            />
+          )}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function groupByAge(items: Entry[]) {
   const startOfToday = new Date().setHours(0, 0, 0, 0);
   const groups = [
-    { label: "Today", from: startOfToday, items: [] as HistoryItem[] },
+    { label: "Today", from: startOfToday, items: [] as Entry[] },
     {
       label: "Previous 7 days",
       from: startOfToday - 7 * DAY,
-      items: [] as HistoryItem[],
+      items: [] as Entry[],
     },
     {
       label: "Previous 30 days",
       from: startOfToday - 30 * DAY,
-      items: [] as HistoryItem[],
+      items: [] as Entry[],
     },
-    { label: "Older", from: -Infinity, items: [] as HistoryItem[] },
+    { label: "Older", from: -Infinity, items: [] as Entry[] },
   ];
   for (const item of items) {
     const time = new Date(item.createdAt).getTime();
@@ -222,15 +315,41 @@ export function ReportHistory() {
   const pathname = usePathname();
   const { search, onNavigate } = use(HistoryContext);
   const { data } = useSuspenseQuery(trpc.report.list.queryOptions());
+  const { data: comparisons } = useSuspenseQuery(
+    trpc.comparison.list.queryOptions(),
+  );
   const [toDelete, setToDelete] = useState<ReportToDelete | null>(null);
   const [toRename, setToRename] = useState<ReportToRename | null>(null);
 
   const term = search.trim().toLowerCase();
-  const reports = data.filter(
-    (r) =>
-      !term ||
-      `${r.name ?? ""} ${describe(r).full}`.toLowerCase().includes(term),
+  // A report that's part of a comparison is listed once, as the comparison
+  // (its A/B views open it). Deleting the comparison brings it back here.
+  const inComparison = new Set(
+    comparisons.flatMap((c) => [c.reportA.id, c.reportB.id]),
   );
+  const entries: Entry[] = [
+    ...data
+      .filter((report) => !inComparison.has(report.id))
+      .map((report) => ({
+        kind: "report" as const,
+        id: report.id,
+        createdAt: report.createdAt,
+        report,
+      })),
+    ...comparisons.map((comparison) => ({
+      kind: "comparison" as const,
+      id: comparison.id,
+      createdAt: comparison.createdAt,
+      comparison,
+    })),
+  ].sort(
+    (x, y) => new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime(),
+  );
+  const reports = entries.filter((entry) => {
+    if (!term) return true;
+    const { title, full } = describeEntry(entry);
+    return `${title} ${full}`.toLowerCase().includes(term);
+  });
   if (reports.length === 0) {
     return (
       <p className="px-5 py-3 text-sm text-foreground/60">
@@ -258,12 +377,19 @@ export function ReportHistory() {
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarMenu className="relative gap-2">
               <AnimatePresence mode="popLayout">
-                {group.items.map((report) => {
-                  const href = `/reports/${report.id}`;
-                  const { full, title, subtitle } = describe(report);
+                {group.items.map((entry) => {
+                  const href =
+                    entry.kind === "report"
+                      ? `/reports/${entry.id}`
+                      : `/compare/${entry.id}`;
+                  const { full, title, subtitle } = describeEntry(entry);
+                  const name =
+                    entry.kind === "report"
+                      ? entry.report.name
+                      : entry.comparison.name;
                   return (
                     <MotionSidebarMenuItem
-                      key={report.id}
+                      key={`${entry.kind}:${entry.id}`}
                       layout
                       custom={rowIndex++}
                       variants={rowVariants}
@@ -288,7 +414,11 @@ export function ReportHistory() {
                         }
                         className="h-auto py-2"
                       >
-                        <ReportThumb report={report} />
+                        {entry.kind === "report" ? (
+                          <ReportThumb report={entry.report} />
+                        ) : (
+                          <CompareThumb comparison={entry.comparison} />
+                        )}
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">
                             {title}
@@ -323,9 +453,10 @@ export function ReportHistory() {
                           <DropdownMenuItem
                             onClick={() =>
                               setToRename({
-                                id: report.id,
-                                name: report.name,
+                                id: entry.id,
+                                name,
                                 address: full,
+                                kind: entry.kind,
                               })
                             }
                           >
@@ -336,7 +467,11 @@ export function ReportHistory() {
                           <DropdownMenuItem
                             variant="destructive"
                             onClick={() =>
-                              setToDelete({ id: report.id, label: title })
+                              setToDelete({
+                                id: entry.id,
+                                label: title,
+                                kind: entry.kind,
+                              })
                             }
                           >
                             <Trash2Icon />

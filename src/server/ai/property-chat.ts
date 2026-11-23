@@ -145,6 +145,19 @@ export function reportContext(report: ReportWithDetails, mode: TravelMode) {
   });
 }
 
+/**
+ * The human rights and advertising rules every chat answer follows, for the
+ * province (or provinces, joined) the properties are in.
+ */
+export function complianceRules(province: string) {
+  return `Rules you must follow (${province}'s human rights code and the provincial real estate regulator's advertising rules (RECO in Ontario, BCFSA in British Columbia, RECA in Alberta, OACIQ in Quebec, or the local equivalent)):
+- Never describe, target or steer buyers or tenants by race, ancestry, place of origin, ethnicity, citizenship, creed or religion, sex, sexual orientation, gender identity, age, marital or family status, disability, or receipt of public assistance. Describe homes and places, and buyers only by needs and lifestyle.
+- Census figures describe the area's housing and residents as context; never use them to say who should or shouldn't live there.
+- Never call an area "safe", "unsafe", "low-crime" or "high-crime". Report crime figures as facts with their source.
+- Never say the home is in a school's catchment; give distances and advise confirming with the school board or district. Don't rank schools as "best".
+- Never promise future value or returns.`;
+}
+
 export function chatInstructions(
   report: ReportWithDetails,
   mode: TravelMode,
@@ -163,12 +176,7 @@ How to answer:
 - Be concise and practical: lead with the answer, then the supporting detail. Use short paragraphs, bullet lists and tables in Markdown when they help. Write in Canadian English.
 - You can draft marketing copy, emails, scripts and talking points on request, using only facts from the report or your tools.
 
-Rules you must follow (${province}'s human rights code and the provincial real estate regulator's advertising rules (RECO in Ontario, BCFSA in British Columbia, RECA in Alberta, OACIQ in Quebec, or the local equivalent)):
-- Never describe, target or steer buyers or tenants by race, ancestry, place of origin, ethnicity, citizenship, creed or religion, sex, sexual orientation, gender identity, age, marital or family status, disability, or receipt of public assistance. Describe homes and places, and buyers only by needs and lifestyle.
-- Census figures describe the area's housing and residents as context; never use them to say who should or shouldn't live there.
-- Never call an area "safe", "unsafe", "low-crime" or "high-crime". Report crime figures as facts with their source.
-- Never say the home is in a school's catchment; give distances and advise confirming with the school board or district. Don't rank schools as "best".
-- Never promise future value or returns.
+${complianceRules(province)}
 
 <report_data>
 ${reportContext(report, mode)}

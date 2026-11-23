@@ -26,8 +26,9 @@ export type ReportToRename = {
   id: string;
   /** Current custom name, if any. */
   name: string | null;
-  /** The address, shown when the name is cleared. */
+  /** The address ("A vs B" for a comparison), shown when the name is cleared. */
   address: string;
+  kind?: "report" | "comparison";
 };
 
 const MAX_LENGTH = 120;
@@ -68,7 +69,7 @@ function RenameForm({
   const queryClient = useQueryClient();
   const [name, setName] = useState(report.name ?? "");
 
-  const mutation = useMutation(
+  const reportMutation = useMutation(
     trpc.report.rename.mutationOptions({
       onSuccess: ({ id, name }) => {
         queryClient.setQueryData(trpc.report.list.queryKey(), (old) =>
@@ -78,6 +79,22 @@ function RenameForm({
       },
     }),
   );
+  const comparisonMutation = useMutation(
+    trpc.comparison.rename.mutationOptions({
+      onSuccess: ({ id, name }) => {
+        queryClient.setQueryData(trpc.comparison.list.queryKey(), (old) =>
+          old?.map((c) => (c.id === id ? { ...c, name } : c)),
+        );
+        void queryClient.invalidateQueries(
+          trpc.comparison.byId.queryFilter({ id }),
+        );
+        onDone();
+      },
+    }),
+  );
+  const isComparison = report.kind === "comparison";
+  const mutation = isComparison ? comparisonMutation : reportMutation;
+  const noun = isComparison ? "comparison" : "report";
 
   const unchanged = name.trim() === (report.name ?? "");
   const tooLong = name.trim().length > MAX_LENGTH;
@@ -94,10 +111,10 @@ function RenameForm({
       className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4"
     >
       <DialogHeader>
-        <DialogTitle>Rename report</DialogTitle>
+        <DialogTitle>Rename {noun}</DialogTitle>
         <DialogDescription>
-          The name only appears in your report list. Leave it empty to show the
-          address.
+          The name only appears in your report list. Leave it empty to show{" "}
+          {isComparison ? "both addresses" : "the address"}.
         </DialogDescription>
       </DialogHeader>
 
@@ -118,12 +135,12 @@ function RenameForm({
         ) : mutation.isError ? (
           <FieldError>
             {mutation.error.data?.code === "NOT_FOUND"
-              ? "This report no longer exists."
-              : "We couldn't rename the report. Try again."}
+              ? `This ${noun} no longer exists.`
+              : `We couldn't rename the ${noun}. Try again.`}
           </FieldError>
         ) : (
           <FieldDescription className="truncate">
-            Address: {report.address}
+            {isComparison ? "Comparing" : "Address"}: {report.address}
           </FieldDescription>
         )}
       </Field>

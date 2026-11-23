@@ -42,36 +42,24 @@ import {
 import {
   aiMetaSchema,
   AMENITY_CATEGORIES,
-  amenitiesSchema,
-  commuteSchema,
-  demographicsSchema,
-  insightsSchema,
   JOB_KINDS,
   type JobKind,
-  listingSchema,
-  marketingSchema,
-  campaignSchema,
-  showingSchema,
   SECTION_KEYS,
-  safetySchema,
   TRANSIT_KINDS,
   type TransitKind,
-  schoolsSchema,
-  upsideSchema,
 } from "@/lib/report-sections";
 import { type AmenityFilter, AmenitiesTab } from "./amenities-tab";
 import { AMENITY_ICONS } from "./amenity-icons";
 import { CommuteTab, type StopFilter } from "./commute-tab";
 import { NeighbourhoodTab } from "./neighbourhood-tab";
-import { MarketingTab } from "./marketing-tab";
 import { HomeFacts } from "./home-facts";
-import { OverviewTab, type ReportSectionsData } from "./overview-tab";
-import { PlaybookTab } from "./playbook-tab";
+import { OverviewTab } from "./overview-tab";
+import { MarketingPanel, PlaybookPanel } from "./copy-panels";
 import { DownloadPdfButton } from "./download-pdf-button";
 import { formatDate, formatDistance, type ReportData } from "./report-format";
 import {
-  getCopySection,
   getJob,
+  getReportSections,
   getSection,
   hasCopyForMode,
   isJobActive,
@@ -90,9 +78,7 @@ import { SectionGate } from "./section-gate";
 import {
   AmenitiesSkeleton,
   CommuteSkeleton,
-  MarketingSkeleton,
   NeighbourhoodSkeleton,
-  PlaybookSkeleton,
   SafetySkeleton,
   SchoolsSkeleton,
   UpsideSkeleton,
@@ -193,45 +179,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
     }
   };
 
-  const data: ReportSectionsData = {
-    amenities: getSection(report, SECTION_KEYS.amenities, amenitiesSchema),
-    commute: getSection(report, SECTION_KEYS.commute, commuteSchema),
-    schools: getSection(report, SECTION_KEYS.schools, schoolsSchema),
-    demographics: getSection(
-      report,
-      SECTION_KEYS.demographics,
-      demographicsSchema,
-    ),
-    safety: getSection(report, SECTION_KEYS.safety, safetySchema),
-    upside: getSection(report, SECTION_KEYS.upside, upsideSchema),
-    // AI copy follows the travel mode (each mode has its own copy).
-    insights: getCopySection(
-      report,
-      SECTION_KEYS.insights,
-      insightsSchema,
-      travel.mode,
-    ),
-    listing: getSection(report, SECTION_KEYS.listing, listingSchema),
-  };
-  const marketing = getCopySection(
-    report,
-    SECTION_KEYS.marketing,
-    marketingSchema,
-    travel.mode,
-  );
-  const campaign = getCopySection(
-    report,
-    SECTION_KEYS.campaign,
-    campaignSchema,
-    travel.mode,
-  );
-  const showing = getCopySection(
-    report,
-    SECTION_KEYS.showing,
-    showingSchema,
-    travel.mode,
-  );
-
+  const data = getReportSections(report, travel.mode);
   const jobs = Object.values(JOB_KINDS).map((kind) => ({
     kind,
     job: getJob(report, kind),
@@ -892,73 +840,21 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                 )}
 
                 {t.id === "marketing" && (
-                  <>
-                    <SectionGate
-                      report={report}
-                      kind={JOB_KINDS.ai}
-                      skeleton={<MarketingSkeleton />}
-                      data={
-                        data.insights && marketing
-                          ? { insights: data.insights, marketing }
-                          : null
-                      }
-                      labels={{
-                        pending: "Writing the marketing kit…",
-                        failed: "We couldn't write the marketing kit",
-                        empty:
-                          "The marketing kit appears once the location data is ready.",
-                      }}
-                    >
-                      {(ai) => (
-                        <MarketingTab
-                          reportId={report.id}
-                          insights={ai.insights}
-                          marketing={ai.marketing}
-                          campaign={campaign}
-                          campaignPending={regenerating}
-                          onGenerate={regenerate}
-                        />
-                      )}
-                    </SectionGate>
-                  </>
+                  <MarketingPanel
+                    report={report}
+                    data={data}
+                    regenerating={regenerating}
+                    onGenerate={regenerate}
+                  />
                 )}
 
                 {t.id === "playbook" && (
-                  <>
-                    <SectionGate
-                      report={report}
-                      kind={JOB_KINDS.ai}
-                      skeleton={<PlaybookSkeleton />}
-                      data={marketing}
-                      labels={{
-                        pending: "Writing the agent playbook…",
-                        failed: "We couldn't write the agent playbook",
-                        empty:
-                          "The playbook appears once the location data is ready.",
-                      }}
-                    >
-                      {(m) => (
-                        <PlaybookTab
-                          reportId={report.id}
-                          insights={data.insights}
-                          playbook={m.playbook}
-                          showing={showing}
-                          showingPending={regenerating}
-                          onGenerate={regenerate}
-                          data={data}
-                          home={
-                            report.property?.latitude != null &&
-                            report.property.longitude != null
-                              ? {
-                                  lat: report.property.latitude,
-                                  lng: report.property.longitude,
-                                }
-                              : null
-                          }
-                        />
-                      )}
-                    </SectionGate>
-                  </>
+                  <PlaybookPanel
+                    report={report}
+                    data={data}
+                    regenerating={regenerating}
+                    onGenerate={regenerate}
+                  />
                 )}
               </motion.div>
             </TabsContent>

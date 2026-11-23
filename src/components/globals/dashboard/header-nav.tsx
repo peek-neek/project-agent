@@ -12,8 +12,21 @@ export function HeaderTitle() {
  */
 export function ReportHeaderNav({ active }: { active: "report" | "chat" }) {
   return (
-    <Suspense fallback={<ReportViewSwitch active={active} reportId={null} />}>
-      <ReportViewSwitchLive active={active} />
+    <Suspense fallback={<ReportViewSwitch active={active} base={null} />}>
+      <ReportViewSwitchLive active={active} kind="report" />
+    </Suspense>
+  );
+}
+
+/** Report | Chat on comparison pages: the comparison, or its chat. */
+export function CompareHeaderNav({ active }: { active: "report" | "chat" }) {
+  return (
+    <Suspense
+      fallback={
+        <ReportViewSwitch active={active} base={null} kind="comparison" />
+      }
+    >
+      <ReportViewSwitchLive active={active} kind="comparison" />
     </Suspense>
   );
 }
