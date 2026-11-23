@@ -3,13 +3,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { XIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useHydrated } from "@/components/globals/travel-mode";
-import { SECTION_KEYS } from "@/lib/report-sections";
+import { notesSchema, SECTION_KEYS } from "@/lib/report-sections";
 import { useTRPC } from "@/trpc/client";
+import type { ReportData } from "./report-format";
+import { getSection } from "./report-hooks";
 
 /** Sticky-note colours: paper, its darker fold, and readable ink. */
 const COLORS = [
@@ -38,26 +41,59 @@ const SPRING = { type: "spring", bounce: 0.18, visualDuration: 0.45 } as const;
 const foldClip = (fold: number) =>
   `polygon(0 0, 100% 0, 100% calc(100% - ${fold}px), calc(100% - ${fold}px) 100%, 0 100%)`;
 
+/** The small note's sizes: next to a page heading, or to text-sm lines. */
+const SIZES = {
+  lg: {
+    button: "size-7 sm:size-8",
+    note: "size-6 sm:size-7",
+    fold: 6,
+    foldClass: "size-1.5",
+    lines: true,
+  },
+  sm: {
+    button: "size-5",
+    note: "size-4",
+    fold: 4,
+    foldClass: "size-1",
+    lines: false,
+  },
+} as const;
+
 /**
  * The agent's sticky note on a property: a small note after the address
  * (the address's size) that, when clicked, flies to the top right and opens
  * so they can jot their thoughts. Autosaves to the report; private (the AI
- * chat doesn't read it).
+ * chat doesn't read it). Shown on the report, the comparison and both chats;
+ * every copy of one property's note shares its colour and text.
  */
 export function StickyNote({
-  reportId,
+  report,
   street,
-  initialText,
+  size = "lg",
 }: {
-  reportId: string;
+  /** The live report (from its query), so copies of the note stay in step. */
+  report: ReportData;
   street: string;
-  initialText: string;
+  size?: keyof typeof SIZES;
 }) {
+  const reportId = report.id;
   const color = colorFor(reportId);
-  const layoutId = `sticky-note-${reportId}`;
+  const look = SIZES[size];
+  // Unique per copy: the same report's note can be on screen twice.
+  const layoutId = `sticky-note-${useId()}`;
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState(initialText);
+  const saved = getSection(report, SECTION_KEYS.notes, notesSchema)?.text ?? "";
+  const [text, setText] = useState(saved);
+  // Another copy of this note saved (the cache changed): pick it up while
+  // this one is closed. Adjusting state during render, not in an effect.
+  const [lastSaved, setLastSaved] = useState(saved);
+  if (saved !== lastSaved) {
+    setLastSaved(saved);
+    if (!open) setText(saved);
+  }
   const hydrated = useHydrated();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Autosave after a pause in typing, and right away on close.
   const trpc = useTRPC();
@@ -105,14 +141,25 @@ export function StickyNote({
     flush();
     setOpen(false);
   };
-  // Escape closes the note.
+  // Escape, or a click anywhere outside the note, closes it. (The small
+  // note is excluded: its own click would reopen it straight away.)
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (panelRef.current?.contains(target)) return;
+      if (triggerRef.current?.contains(target)) return;
+      close();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- close reads the latest text
   }, [open, text]);
 
@@ -123,12 +170,13 @@ export function StickyNote({
       {/* The small note: same size as the address text. Its slot stays
           while it's open, so the heading never shifts. */}
       <Button
+        ref={triggerRef}
         variant="ghost"
         size="icon"
         aria-label={hasText ? "Open your notes" : "Add a note"}
         aria-expanded={open}
-        onClick={() => setOpen(true)}
-        className="size-7 shrink-0 p-0 hover:bg-transparent sm:size-8"
+        onClick={() => (open ? close() : setOpen(true))}
+        className={cn("shrink-0 p-0 hover:bg-transparent", look.button)}
       >
         {!open && (
           <motion.span
@@ -138,18 +186,18 @@ export function StickyNote({
             whileHover={{ rotate: 0, scale: 1.08 }}
             style={{
               backgroundColor: color.paper,
-              clipPath: foldClip(6),
+              clipPath: foldClip(look.fold),
               rotate: -6,
             }}
-            className="relative block size-6 shadow-sm sm:size-7"
+            className={cn("relative block shadow-sm", look.note)}
           >
             {/* The fold, and a few lines when there's something written. */}
             <span
               aria-hidden
-              className="absolute right-0 bottom-0 size-1.5"
+              className={cn("absolute right-0 bottom-0", look.foldClass)}
               style={{ backgroundColor: color.fold }}
             />
-            {hasText && (
+            {hasText && look.lines && (
               <span
                 aria-hidden
                 className="absolute inset-x-1 top-1.5 space-y-1"
@@ -175,6 +223,7 @@ export function StickyNote({
             {open && (
               <motion.div
                 key="note"
+                ref={panelRef}
                 layoutId={layoutId}
                 transition={SPRING}
                 role="dialog"

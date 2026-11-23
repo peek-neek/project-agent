@@ -54,6 +54,7 @@ import {
   toProperty,
 } from "./compare-shared";
 import { CompareUpside } from "./compare-upside";
+import { StickyNote } from "@/components/globals/report/sticky-note";
 
 /** Height of the sticky dashboard header the tab bar sits under. */
 const STICKY_OFFSET = 56;
@@ -136,7 +137,13 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
                     label="Leads overall"
                     className="size-6 text-sm"
                   />
-                  <span className="truncate">{props[side].street}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{props[side].street}</span>
+                    <StickyNote
+                      report={props[side].report}
+                      street={props[side].street}
+                    />
+                  </span>
                   <span className="col-start-2 truncate text-sm font-normal tracking-normal text-foreground/60">
                     {props[side].place}
                   </span>

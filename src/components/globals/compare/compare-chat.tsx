@@ -19,6 +19,7 @@ import {
   type ChatSuggestion,
 } from "@/components/globals/chat/property-chat";
 import { useTRPC } from "@/trpc/client";
+import { StickyNote } from "@/components/globals/report/sticky-note";
 import { SideChip } from "./compare-shared";
 
 /** One of each kind: comparing from the reports, beyond them, and writing. */
@@ -106,6 +107,11 @@ export function CompareChat({ comparisonId }: { comparisonId: string }) {
               >
                 <SideChip side={side} />
                 <span className="truncate">{street[side]}</span>
+                <StickyNote
+                  report={side === "a" ? reportA : reportB}
+                  street={street[side]}
+                  size="sm"
+                />
               </span>
             </span>
           ))}

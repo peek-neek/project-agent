@@ -44,7 +44,6 @@ import {
   AMENITY_CATEGORIES,
   JOB_KINDS,
   type JobKind,
-  notesSchema,
   SECTION_KEYS,
   TRANSIT_KINDS,
   type TransitKind,
@@ -313,15 +312,7 @@ export function ReportDashboard({ report }: { report: ReportData }) {
                 <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
                   {street}
                 </h1>
-                <StickyNote
-                  key={report.id}
-                  reportId={report.id}
-                  street={street}
-                  initialText={
-                    getSection(report, SECTION_KEYS.notes, notesSchema)?.text ??
-                    ""
-                  }
-                />
+                <StickyNote key={report.id} report={report} street={street} />
               </div>
               <p className="mt-0.5 flex items-center gap-1.5 text-sm text-foreground/60">
                 <MapPinIcon aria-hidden className="size-3.5 shrink-0" />

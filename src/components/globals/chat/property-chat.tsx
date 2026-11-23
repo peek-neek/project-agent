@@ -66,6 +66,7 @@ import {
   startPropertyChat,
 } from "./actions";
 import { CopyButton } from "../report/copy-button";
+import { StickyNote } from "../report/sticky-note";
 import { Markdown } from "./markdown";
 
 type Part = UIMessage["parts"][number];
@@ -340,6 +341,7 @@ export function PropertyChat({ reportId }: { reportId: string }) {
           <span className="min-w-0 truncate text-sm font-medium" title={full}>
             {full}
           </span>
+          <StickyNote report={report} street={street} size="sm" />
         </>
       }
       intro={{
