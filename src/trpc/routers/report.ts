@@ -6,6 +6,7 @@ import {
   JOB_KINDS,
   type JobKind,
   listingInputSchema,
+  notesSchema,
   SECTION_KEYS,
 } from "@/lib/report-sections";
 import {
@@ -223,6 +224,27 @@ export const reportRouter = createTRPCRouter({
       const savedAt = new Date().toISOString();
       await reportStore.setSection(input.id, SECTION_KEYS.calculators, {
         ...input.inputs,
+        savedAt,
+      });
+      return { savedAt };
+    }),
+
+  /** The agent's sticky note on the property, autosaved as they type. */
+  saveNotes: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        text: notesSchema.shape.text,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const report = await reportStore.findById(input.id);
+      if (!report || report.userId !== ctx.userId) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      const savedAt = new Date().toISOString();
+      await reportStore.setSection(input.id, SECTION_KEYS.notes, {
+        text: input.text,
         savedAt,
       });
       return { savedAt };

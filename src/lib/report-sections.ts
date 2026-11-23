@@ -21,7 +21,16 @@ export const SECTION_KEYS = {
   showing: "showing",
   /** The agent's calculator inputs (partial; merged over the defaults). */
   calculators: "calculators",
+  /** The agent's own notes on the property (the sticky note). Private. */
+  notes: "notes",
 } as const;
+
+/** The sticky note: free text, autosaved. */
+export const notesSchema = z.object({
+  text: z.string().max(10_000),
+  savedAt: z.string().optional(),
+});
+export type NotesData = z.infer<typeof notesSchema>;
 
 export const JOB_KINDS = {
   identity: "property-identity",

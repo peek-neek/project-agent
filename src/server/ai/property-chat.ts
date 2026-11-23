@@ -118,7 +118,13 @@ export function reportContext(report: ReportWithDetails, mode: TravelMode) {
   const data: Record<string, unknown> = {};
   for (const s of report.sections) {
     // AI copy is added per mode below; settings aren't content.
-    if (s.key.includes(":") || s.key === SECTION_KEYS.copySettings) continue;
+    // Notes are the agent's private thoughts, not report content.
+    if (
+      s.key.includes(":") ||
+      s.key === SECTION_KEYS.copySettings ||
+      s.key === SECTION_KEYS.notes
+    )
+      continue;
     if ((AI_KEYS as readonly string[]).includes(s.key)) continue;
     data[s.key] = compact(s.data);
   }

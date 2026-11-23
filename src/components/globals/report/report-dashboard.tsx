@@ -44,6 +44,7 @@ import {
   AMENITY_CATEGORIES,
   JOB_KINDS,
   type JobKind,
+  notesSchema,
   SECTION_KEYS,
   TRANSIT_KINDS,
   type TransitKind,
@@ -72,6 +73,7 @@ import { parseTab, REPORT_TABS, type TabId } from "./report-tabs";
 import { SafetyTab } from "./safety-tab";
 import { UpsideTab } from "./upside-tab";
 import { CalculatorsTab } from "./calculators/calculators-tab";
+import { StickyNote } from "./sticky-note";
 import { savedCalculatorsSchema } from "@/lib/finance/scenario";
 import { SchoolsTab } from "./schools-tab";
 import { SectionGate } from "./section-gate";
@@ -307,9 +309,20 @@ export function ReportDashboard({ report }: { report: ReportData }) {
         <div className="space-y-3">
           <div className="flex items-start gap-3 sm:gap-6">
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
-                {street}
-              </h1>
+              <div className="flex min-w-0 items-center gap-2.5">
+                <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
+                  {street}
+                </h1>
+                <StickyNote
+                  key={report.id}
+                  reportId={report.id}
+                  street={street}
+                  initialText={
+                    getSection(report, SECTION_KEYS.notes, notesSchema)?.text ??
+                    ""
+                  }
+                />
+              </div>
               <p className="mt-0.5 flex items-center gap-1.5 text-sm text-foreground/60">
                 <MapPinIcon aria-hidden className="size-3.5 shrink-0" />
                 <span className="truncate">{place || "Canada"}</span>
