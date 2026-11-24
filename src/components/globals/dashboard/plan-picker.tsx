@@ -57,9 +57,10 @@ export function PlanPicker({ plans }: { plans: PickerPlan[] }) {
               aria-pressed={current}
               onClick={() => setInterval(value)}
               className={cn(
-                "h-8 bg-card px-3",
+                // dark: too, over the outline button's own dark background.
+                "h-8 bg-card px-3 dark:bg-card dark:hover:bg-muted",
                 current &&
-                  "bg-foreground text-background hover:bg-foreground/90 hover:text-background",
+                  "bg-foreground text-background hover:bg-foreground/90 hover:text-background dark:bg-foreground dark:hover:bg-foreground/90",
               )}
             >
               {label}

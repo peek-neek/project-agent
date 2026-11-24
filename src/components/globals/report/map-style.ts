@@ -8,7 +8,12 @@ import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
  */
 export const BASE_MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
 
-const C = {
+export type MapTheme = "light" | "dark";
+
+/** A road class's colours: [fill, casing]. */
+type Pair = readonly [fill: string, casing: string];
+
+const LIGHT = {
   // The app background (oklch 0.97 warm) and border tones.
   ground: "#f6f5f4",
   landuse: "rgba(233, 229, 224, 0.45)",
@@ -33,7 +38,44 @@ const C = {
   placeText: "#1f1d1b",
   poiText: "#7c746d",
   halo: "#ffffff",
-} as const;
+  wood: "#8a9a80",
+  sand: "#eee8dc",
+} satisfies Record<string, string | Pair>;
+
+type Palette = typeof LIGHT;
+
+/**
+ * Dark theme: the app's dark background (oklch 0.23, neutral) with roads a
+ * step lighter than the ground and light labels on a dark halo.
+ */
+const DARK: Palette = {
+  ground: "#1c1c1c",
+  landuse: "rgba(255, 255, 255, 0.03)",
+  hospital: "#262323",
+  school: "#242424",
+  green: "#1f2a1f",
+  water: "#17222b",
+  waterLine: "#22323f",
+  waterText: "#7f98aa",
+  building: "#2a2a2a",
+  buildingTop: "#303030",
+  buildingEdge: "#3a3a3a",
+  minor: ["#2e2e2e", "#262626"],
+  secondary: ["#363636", "#2a2a2a"],
+  primary: ["#404040", "#2e2e2e"],
+  motorway: ["#4a4a4a", "#333333"],
+  path: "#3a3a3a",
+  rail: "#3d3d3d",
+  boundary: "#444444",
+  roadText: "#c8c8c8",
+  placeText: "#ededed",
+  poiText: "#9a9a9a",
+  halo: "#1c1c1c",
+  wood: "#6f8a66",
+  sand: "#2b2924",
+};
+
+const PALETTES: Record<MapTheme, Palette> = { light: LIGHT, dark: DARK };
 
 type RoadClass = "minor" | "secondary" | "primary" | "motorway";
 
@@ -50,7 +92,10 @@ function roadClass(id: string): RoadClass | "path" | null {
 }
 
 /** Paint overrides for one layer of the base style, or null to keep it. */
-function paintFor(layer: LayerSpecification): Record<string, unknown> | null {
+function paintFor(
+  layer: LayerSpecification,
+  C: Palette,
+): Record<string, unknown> | null {
   const { id } = layer;
 
   if (id === "background") return { "background-color": C.ground };
@@ -73,9 +118,9 @@ function paintFor(layer: LayerSpecification): Record<string, unknown> | null {
     return { "fill-color": C.green };
   }
   if (id === "landcover-wood") {
-    return { "fill-color": "#8a9a80", "fill-opacity": 0.08 };
+    return { "fill-color": C.wood, "fill-opacity": 0.08 };
   }
-  if (id === "landcover-sand") return { "fill-color": "#eee8dc" };
+  if (id === "landcover-sand") return { "fill-color": C.sand };
   if (id === "water" || id === "water-intermittent") {
     return { "fill-color": C.water };
   }
@@ -94,7 +139,7 @@ function paintFor(layer: LayerSpecification): Record<string, unknown> | null {
   }
   if (id.startsWith("boundary")) return { "line-color": C.boundary };
 
-  // Labels: dark warm text on a white halo, so street names stay readable.
+  // Labels on a halo of the ground colour, so street names stay readable.
   if (id === "highway-name-path") {
     return { "text-color": C.poiText, "text-halo-color": C.halo };
   }
@@ -122,11 +167,15 @@ function paintFor(layer: LayerSpecification): Record<string, unknown> | null {
   return null;
 }
 
-export function themeMapStyle(style: StyleSpecification): StyleSpecification {
+export function themeMapStyle(
+  style: StyleSpecification,
+  theme: MapTheme = "light",
+): StyleSpecification {
+  const palette = PALETTES[theme];
   return {
     ...style,
     layers: style.layers.map((layer) => {
-      const paint = paintFor(layer);
+      const paint = paintFor(layer, palette);
       if (!paint) return layer;
       const current = "paint" in layer ? layer.paint : undefined;
       return {
@@ -137,22 +186,29 @@ export function themeMapStyle(style: StyleSpecification): StyleSpecification {
   };
 }
 
-let themed: Promise<StyleSpecification | string> | null = null;
+let base: Promise<StyleSpecification> | null = null;
+const themed: Partial<Record<MapTheme, Promise<StyleSpecification | string>>> =
+  {};
 
 /**
- * The themed style, fetched once per page. Falls back to the plain base
- * style URL if the fetch fails, so the map still renders.
+ * The style recoloured for the app's light or dark theme. The base style is
+ * fetched once per page and each theme built once. Falls back to the plain
+ * base style URL if the fetch fails, so the map still renders.
  */
-export function loadMapStyle(): Promise<StyleSpecification | string> {
-  themed ??= fetch(BASE_MAP_STYLE)
-    .then((r) => {
-      if (!r.ok) throw new Error(`Map style ${r.status}`);
-      return r.json() as Promise<StyleSpecification>;
-    })
-    .then(themeMapStyle)
+export function loadMapStyle(
+  theme: MapTheme = "light",
+): Promise<StyleSpecification | string> {
+  base ??= fetch(BASE_MAP_STYLE).then((r) => {
+    if (!r.ok) throw new Error(`Map style ${r.status}`);
+    return r.json() as Promise<StyleSpecification>;
+  });
+  themed[theme] ??= base
+    .then((style) => themeMapStyle(style, theme))
     .catch(() => {
-      themed = null; // retry on the next map
+      // Retry on the next map.
+      base = null;
+      delete themed[theme];
       return BASE_MAP_STYLE;
     });
-  return themed;
+  return themed[theme]!;
 }

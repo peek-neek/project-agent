@@ -10,6 +10,7 @@ import * as motion from "motion/react-client";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ModeToggle } from "@/components/globals/mode-toggle";
 import { navLinks } from "./content";
 import { Logo } from "./logo";
 import { MobileNav } from "./mobile-nav";
@@ -45,6 +46,7 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <ModeToggle className="size-10 bg-transparent" />
           <Suspense fallback={<div className="h-10 w-10 sm:w-40" />}>
             <Show when="signed-out">
               <SignInButton>

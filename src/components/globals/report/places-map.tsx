@@ -17,6 +17,7 @@ import type { Popup as MaplibrePopup, StyleSpecification } from "maplibre-gl";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { loadMapStyle } from "./map-style";
+import { useMapTheme } from "./use-map-theme";
 import Map, {
   type MapRef,
   Marker,
@@ -234,7 +235,14 @@ export function PlacesMap({
     () => boundsOf([home, ...(homes ?? []), ...pins]),
     [home, homes, pins],
   );
-  const pinKey = pins.map((p) => p.id).join(",");
+  // What the view frames: the pins and the homes (a comparison can show one
+  // home or both).
+  const pinKey = [
+    home.lat,
+    home.lng,
+    ...(homes ?? []).map((h) => h.label),
+    ...pins.map((p) => p.id),
+  ].join(",");
   const selected = pins.find((p) => p.id === selectedId) ?? null;
 
   // Hover shows a pin's card; leaving falls back to the selected pin's card.
@@ -294,19 +302,22 @@ export function PlacesMap({
   };
   const backToHome = () =>
     ref.current?.fitBounds(bounds, { ...FIT, duration: 700 });
-  // The app-themed style (fetched once, then cached for every map).
+  // The app-themed style (fetched once, then cached for every map), in the
+  // light or dark palette; switching theme restyles the map in place.
+  const mapTheme = useMapTheme();
   const [mapStyle, setMapStyle] = useState<StyleSpecification | string | null>(
     null,
   );
   useEffect(() => {
     let live = true;
-    loadMapStyle().then((style) => live && setMapStyle(style));
+    loadMapStyle(mapTheme).then((style) => live && setMapStyle(style));
     return () => {
       live = false;
     };
-  }, []);
+  }, [mapTheme]);
 
-  // Refit when the set of pins changes (e.g. another category).
+  // Refit when the pins or homes change (another category, or the other
+  // property in a comparison).
   useEffect(() => {
     ref.current?.fitBounds(bounds, { ...FIT, duration: 600 });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refit on a new pin set, not every render
@@ -384,7 +395,7 @@ export function PlacesMap({
                   style={{ backgroundColor: h.color, color: h.textColor }}
                 >
                   <HouseIcon aria-hidden className="size-4.5" />
-                  <span className="absolute -top-2 -right-2 grid size-4 place-items-center border border-foreground/15 bg-white text-[10px] leading-none font-bold text-black">
+                  <span className="absolute -top-2 -right-2 grid size-4 place-items-center border border-foreground/15 bg-card text-[10px] leading-none font-bold text-foreground">
                     {h.label}
                   </span>
                 </span>
@@ -442,7 +453,7 @@ export function PlacesMap({
                   }}
                 >
                   <Icon aria-hidden className={active ? "size-5" : "size-4"} />
-                  <span className="absolute -top-2 -right-2 grid h-4 min-w-4 place-items-center border border-foreground/15 bg-white px-0.5 text-[10px] leading-none font-semibold text-foreground tabular-nums">
+                  <span className="absolute -top-2 -right-2 grid h-4 min-w-4 place-items-center border border-foreground/15 bg-card px-0.5 text-[10px] leading-none font-semibold text-foreground tabular-nums">
                     {pin.badge}
                   </span>
                 </Button>

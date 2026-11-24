@@ -2,10 +2,16 @@
 
 import { GraduationCapIcon, SchoolIcon } from "lucide-react";
 import { cn } from "cn";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTravelMode } from "@/components/globals/travel-mode";
 import { eqaoMean } from "@/lib/section-scores";
-import { JOB_KINDS, SCHOOL_SYSTEMS, type School } from "@/lib/report-sections";
+import {
+  JOB_KINDS,
+  SCHOOL_SYSTEMS,
+  type School,
+  type SchoolSystemId,
+} from "@/lib/report-sections";
+import { FilterChips } from "@/components/globals/report/commute-tab";
 import { allSchools } from "@/components/globals/report/report-insights";
 import { WIDGET } from "@/components/globals/report/widget-styles";
 import { CompareMap } from "./compare-map";
@@ -26,6 +32,8 @@ import {
 } from "./compare-table";
 
 const REACH = 15;
+/** "All" on the map: each home's nearest few schools. */
+const ALL_NEAREST = 6;
 
 /** "~6 min walk" with the school and its EQAO average underneath. */
 function schoolCell(
@@ -119,49 +127,59 @@ export function CompareSchools({
       props[side].data.schools?.systems.some((s) => s.id === sys.id),
     ),
   );
-  const systemRows: CompareRow[] = systems.flatMap((sys) =>
-    (["elementary", "secondary"] as const).map((level) => {
-      const first = (p: CompareProperty) =>
-        [
-          ...(p.data.schools?.systems.find((s) => s.id === sys.id)?.[level] ??
-            []),
-        ].sort((x, y) => travel.time(x).minutes - travel.time(y).minutes)[0];
-      const n = { a: first(a), b: first(b) };
-      const eqao = (s?: School) => (s ? eqaoMean(s.results) : null);
-      return {
-        id: `${sys.id}-${level}`,
-        label: sys.label,
-        hint: level === "elementary" ? "Elementary" : "Secondary",
-        icon: GraduationCapIcon,
-        iconColor: sys.color,
-        a: schoolCell(n.a, travel),
-        b: schoolCell(n.b, travel),
-        // Results first; nearer only breaks a tie.
-        winner:
-          winner(eqao(n.a), eqao(n.b), { tolerance: 2 }) ??
-          winner(minutesTo(n.a, travel), minutesTo(n.b, travel), {
-            higher: false,
-            tolerance: 2,
-          }),
-      };
-    }),
-  );
+  // All systems, or one (map and table), like a single report's filter.
+  const [system, setSystem] = useState<SchoolSystemId | "all">("all");
+  const picked = SCHOOL_SYSTEMS.find((x) => x.id === system) ?? null;
+  const systemRows: CompareRow[] = systems
+    .filter((sys) => !picked || sys.id === picked.id)
+    .flatMap((sys) =>
+      (["elementary", "secondary"] as const).map((level) => {
+        const first = (p: CompareProperty) =>
+          [
+            ...(p.data.schools?.systems.find((s) => s.id === sys.id)?.[level] ??
+              []),
+          ].sort((x, y) => travel.time(x).minutes - travel.time(y).minutes)[0];
+        const n = { a: first(a), b: first(b) };
+        const eqao = (s?: School) => (s ? eqaoMean(s.results) : null);
+        return {
+          id: `${sys.id}-${level}`,
+          label: sys.label,
+          hint: level === "elementary" ? "Elementary" : "Secondary",
+          icon: GraduationCapIcon,
+          iconColor: sys.color,
+          a: schoolCell(n.a, travel),
+          b: schoolCell(n.b, travel),
+          // Results first; nearer only breaks a tie.
+          winner:
+            winner(eqao(n.a), eqao(n.b), { tolerance: 2 }) ??
+            winner(minutesTo(n.a, travel), minutesTo(n.b, travel), {
+              higher: false,
+              tolerance: 2,
+            }),
+        };
+      }),
+    );
 
+  /** One side's schools on the map: the nearest few, or all of a system. */
+  const mapSchools = (p: CompareProperty) => {
+    const list = allSchools(p.data.schools);
+    return picked
+      ? list.filter((s) => s.systemLabel === picked.label)
+      : list.slice(0, ALL_NEAREST);
+  };
   const pins = useMemo(
     () =>
       SIDES.flatMap((side) =>
-        sidePins(
-          props[side],
-          allSchools(props[side].data.schools).slice(0, 6),
-          {
-            icon: GraduationCapIcon,
-            eyebrow: "School",
-            travel,
-          },
-        ),
+        sidePins(props[side], mapSchools(props[side]), {
+          icon: GraduationCapIcon,
+          eyebrow: "School",
+          eyebrowFor: (s) => s.systemLabel,
+          colorFor: (s) => s.color,
+          travel,
+        }),
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuilt per data and mode
-    [a.data.schools, b.data.schools, travel.mode],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuilt per system, data and mode
+    [a.data.schools, b.data.schools, system, travel.mode],
   );
 
   return (
@@ -191,27 +209,39 @@ export function CompareSchools({
           />
         )}
       </div>
-      <div
-        className={cn(
-          WIDGET,
-          "overflow-hidden lg:sticky lg:top-32 lg:col-span-5",
+      <div className="space-y-3 lg:sticky lg:top-32 lg:col-span-5">
+        {systems.length > 1 && (
+          <FilterChips
+            label="School system"
+            value={system}
+            onChange={setSystem}
+            options={systems.map((sys) => ({
+              value: sys.id,
+              label: sys.label,
+              icon: GraduationCapIcon,
+              color: sys.color,
+            }))}
+          />
         )}
-      >
-        <CompareMap
-          a={a}
-          b={b}
-          pins={pins}
-          className="h-[24rem] lg:h-[34rem]"
-        />
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2.5 text-xs text-foreground/55">
-          <span className="font-medium text-foreground">Nearest schools</span>
-          {SIDES.map((side) => (
-            <span key={side} className="flex items-center gap-1.5">
-              <SideChip side={side} className="size-4 text-[10px]" />
-              {Math.min(6, allSchools(props[side].data.schools).length)} shown
+        <div className={cn(WIDGET, "overflow-hidden")}>
+          <CompareMap
+            a={a}
+            b={b}
+            pins={pins}
+            className="h-[24rem] lg:h-[34rem]"
+          />
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2.5 text-xs text-foreground/55">
+            <span className="font-medium text-foreground">
+              {picked ? picked.label : "Nearest schools"}
             </span>
-          ))}
-        </p>
+            {SIDES.map((side) => (
+              <span key={side} className="flex items-center gap-1.5">
+                <SideChip side={side} className="size-4 text-[10px]" />
+                {mapSchools(props[side]).length} shown
+              </span>
+            ))}
+          </p>
+        </div>
       </div>
     </div>
   );

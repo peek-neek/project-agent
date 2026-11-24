@@ -29,7 +29,6 @@ import { useHydrated, useTravelMode } from "@/components/globals/travel-mode";
 import { getSection, isJobActive } from "./report-hooks";
 import {
   SIDE,
-  SIDES,
   SideChip,
   type Side,
 } from "@/components/globals/compare/compare-shared";
@@ -65,8 +64,8 @@ export function MarketScoreBadge() {
 
 /**
  * On a comparison: one badge per property, each with its A/B chip. On
- * phones the two merge into one compact button (the header has no room for
- * both), whose popover shows both properties' breakdowns.
+ * phones each is just its chip, framed by a progress border (RingBadge):
+ * the header has no room for the full badges.
  */
 function ComparisonBadges({ comparisonId }: { comparisonId: string }) {
   const trpc = useTRPC();
@@ -81,8 +80,9 @@ function ComparisonBadges({ comparisonId }: { comparisonId: string }) {
         <Badge reportId={ids.a} side="a" />
         <Badge reportId={ids.b} side="b" />
       </span>
-      <span className="sm:hidden">
-        <CompactComparisonBadge ids={ids} />
+      <span className="flex items-center gap-1.5 sm:hidden">
+        <RingBadge reportId={ids.a} side="a" />
+        <RingBadge reportId={ids.b} side="b" />
       </span>
     </>
   );
@@ -152,7 +152,7 @@ function Badge({ reportId, side }: { reportId: string; side?: Side }) {
           <Button
             variant="outline"
             size="sm"
-            className="h-7 gap-1.5 bg-card px-2"
+            className="h-7 gap-1.5 bg-card px-2 dark:bg-card dark:hover:bg-muted"
             aria-label={`${side ? `Property ${SIDE[side].letter}: ` : ""}Market ease ${score.level} of 5: ${score.label}. Show details`}
           />
         }
@@ -178,80 +178,72 @@ function Badge({ reportId, side }: { reportId: string; side?: Side }) {
 }
 
 /**
- * Phones, on a comparison: both scores in one button ("A 4 · B 3"), and
- * both breakdowns in its popover, one after the other.
+ * Phones, on a comparison: the score (1–5) on the property's colour, in a
+ * white square whose border is a progress bar for it (a fifth per point,
+ * clockwise from the top, in the level's colour). The breakdown opens on tap.
  */
-function CompactComparisonBadge({ ids }: { ids: Record<Side, string> }) {
-  const a = useMarketScore(ids.a);
-  const b = useMarketScore(ids.b);
-  const sides = { a, b };
-  if (!a.score && !b.score) {
-    return a.loading || b.loading ? (
-      <Skeleton className="h-7 w-24" aria-label="Scoring these locations" />
+function RingBadge({ reportId, side }: { reportId: string; side: Side }) {
+  const { score, loading, mode } = useMarketScore(reportId);
+  if (!score) {
+    return loading ? (
+      <Skeleton className="size-7" aria-label="Scoring this location" />
     ) : null;
   }
-  const label = SIDES.map((side) => {
-    const s = sides[side].score;
-    return `Property ${SIDE[side].letter}: ${s ? `${s.level} of 5` : "not scored yet"}`;
-  }).join(", ");
-
+  const fill = (score.level / 5) * 100;
   return (
     <Popover>
       <PopoverTrigger
         render={
           <Button
-            variant="outline"
-            size="sm"
-            className="h-7 gap-1 bg-card px-1.5"
-            aria-label={`Market ease. ${label}. Show details`}
+            variant="ghost"
+            size="icon-sm"
+            className="relative size-7 bg-card p-0 hover:bg-card"
+            aria-label={`Property ${SIDE[side].letter}: Market ease ${score.level} of 5: ${score.label}. Show details`}
           />
         }
       >
-        {SIDES.map((side, i) => {
-          const s = sides[side].score;
-          return (
-            <span key={side} className="flex items-center gap-0.5">
-              {i > 0 && (
-                <span aria-hidden className="px-0.5 text-foreground/30">
-                  ·
-                </span>
-              )}
-              <SideChip side={side} className="size-4.5" />
-              {s ? (
-                <LevelSquare level={s.level} />
-              ) : (
-                <span className="grid size-4.5 place-items-center text-[11px] text-foreground/40">
-                  –
-                </span>
-              )}
-            </span>
-          );
-        })}
-        <ChevronDownIcon aria-hidden className="size-3.5 text-foreground/50" />
+        {/* The border: a track, then the score along it. The path starts
+            at the top centre; pathLength 100 makes the fill a percentage. */}
+        <svg
+          aria-hidden
+          viewBox="0 0 28 28"
+          className="pointer-events-none absolute inset-0 size-full!"
+        >
+          <path
+            d="M14 1.5 H26.5 V26.5 H1.5 V1.5 Z"
+            pathLength={100}
+            fill="none"
+            strokeWidth={3}
+            className="stroke-foreground/15"
+          />
+          <path
+            d="M14 1.5 H26.5 V26.5 H1.5 V1.5 Z"
+            pathLength={100}
+            fill="none"
+            strokeWidth={3}
+            strokeDasharray="100 100"
+            strokeDashoffset={100 - fill}
+            stroke={MARKET_LEVELS[score.level].color}
+            className="transition-[stroke-dashoffset] duration-500"
+          />
+        </svg>
+        {/* The score, on the property's colour (A black, B blue). */}
+        <span
+          aria-hidden
+          className="grid size-4 place-items-center text-[11px] leading-none font-bold tabular-nums"
+          style={{
+            backgroundColor: SIDE[side].color,
+            color: SIDE[side].onColor,
+          }}
+        >
+          {score.level}
+        </span>
       </PopoverTrigger>
-
       <PopoverContent
         align="end"
         className="max-h-[min(36rem,calc(100svh-5rem))] w-[min(20rem,calc(100vw-1.5rem))] gap-3 overflow-y-auto p-3"
       >
-        {SIDES.map((side, i) => {
-          const s = sides[side];
-          return (
-            <div
-              key={side}
-              className={cn("grid gap-3", i > 0 && "border-t pt-3")}
-            >
-              {s.score ? (
-                <MarketDetails score={s.score} side={side} mode={s.mode} />
-              ) : (
-                <p className="flex items-center gap-2 text-sm text-foreground/60">
-                  <SideChip side={side} className="size-4.5" />
-                  {s.loading ? "Scoring once the data is in…" : "Not scored."}
-                </p>
-              )}
-            </div>
-          );
-        })}
+        <MarketDetails score={score} side={side} mode={mode} />
       </PopoverContent>
     </Popover>
   );

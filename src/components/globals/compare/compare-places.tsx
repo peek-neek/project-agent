@@ -21,36 +21,48 @@ type Place = TravelTimes & {
 };
 
 /**
- * Map pins for one property's places, in that property's colour and
- * numbered nearest first ("A1", "B2"), so both homes share one map.
+ * Map pins for one property's places, numbered in the order given ("A1",
+ * "B2"), so both homes share one map: the badge says which home. In the
+ * property's colour, or with `colorFor` in each place's own colour (its
+ * kind, as on a single report). `iconFor` / `eyebrowFor` vary the icon and
+ * label per place (an "All" view mixing kinds).
  */
-export function sidePins(
+export function sidePins<P extends Place>(
   p: CompareProperty,
-  places: Place[],
+  places: P[],
   {
     icon,
     eyebrow,
+    iconFor,
+    eyebrowFor,
+    colorFor,
     travel,
     photoPath,
   }: {
     icon: LucideIcon;
     eyebrow: string;
+    iconFor?: (place: P) => LucideIcon;
+    eyebrowFor?: (place: P) => string;
+    colorFor?: (place: P) => string;
     travel: Travel;
-    /** Place-photo route segment (amenities only). */
+    /** Place-photo route segment (amenities and transit stops). */
     photoPath?: "place-photo";
   },
 ): MapPin[] {
   const letter = SIDE[p.side].letter;
+  const iconOf = iconFor ?? (() => icon);
+  const eyebrowOf = eyebrowFor ?? (() => eyebrow);
   return places.map((place, i) => ({
     id: `${p.side}:${place.id}`,
     lat: place.lat,
     lng: place.lng,
     badge: `${letter}${i + 1}`,
-    color: SIDE[p.side].color,
-    textColor: SIDE[p.side].onColor,
-    icon,
+    // A kind's colour takes white icons, like a single report's pins.
+    color: colorFor ? colorFor(place) : SIDE[p.side].color,
+    textColor: colorFor ? undefined : SIDE[p.side].onColor,
+    icon: iconOf(place),
     title: place.name,
-    eyebrow: `${eyebrow} · near ${letter}`,
+    eyebrow: `${eyebrowOf(place)} · near ${letter}`,
     facts: [
       { icon: travel.icon, label: `${travel.minutes(place)} ${travel.verb}` },
       { icon: RouteIcon, label: formatDistance(place.distanceMeters) },

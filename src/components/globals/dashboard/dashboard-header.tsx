@@ -4,6 +4,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { MarketScoreBadge } from "@/components/globals/report/market-score-badge";
 import { TravelModeToggle } from "@/components/globals/travel-mode";
 import { TopProgressBar } from "@/components/globals/top-progress";
+import { ModeToggle } from "@/components/globals/mode-toggle";
 
 export function DashboardHeader({ nav }: { nav: React.ReactNode }) {
   return (
@@ -31,6 +32,9 @@ export function DashboardHeader({ nav }: { nav: React.ReactNode }) {
         />
         {/* Walk / cycle / car: switches every travel time in the app. */}
         <TravelModeToggle />
+        {/* Light / dark / system. Phones: in the account menu instead (the
+            header is full there). */}
+        <ModeToggle className="hidden size-8 bg-card sm:inline-flex" />
       </div>
       {/* Loading bar along the bottom edge (pages, reports, chat). */}
       <Suspense fallback={null}>

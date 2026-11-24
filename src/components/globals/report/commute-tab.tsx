@@ -38,19 +38,19 @@ import { WIDGET, WIDGET_SELECTED } from "./widget-styles";
 type Destination = CommuteData["destinations"][number];
 type Station = CommuteData["stations"][number];
 
-/** Older reports don't store a destination's kind. */
-const destinationKind = (d: Destination): DestinationKind =>
+/** Older reports don't store a destination's kind. Shared with comparisons. */
+export const destinationKind = (d: Destination): DestinationKind =>
   d.kind ?? (/airport/i.test(d.label) ? "airport" : "downtown");
 
-const DESTINATION_ICONS: Record<DestinationKind, LucideIcon> = {
+export const DESTINATION_ICONS: Record<DestinationKind, LucideIcon> = {
   downtown: Building2Icon,
   airport: PlaneIcon,
 };
 
 export type StopFilter = TransitKind | "all";
 
-/** Single-choice chip row ("All" plus one chip per option). */
-function FilterChips<T extends string>({
+/** Single-choice chip row ("All" plus one chip per option). Shared with comparisons. */
+export function FilterChips<T extends string>({
   label,
   value,
   onChange,

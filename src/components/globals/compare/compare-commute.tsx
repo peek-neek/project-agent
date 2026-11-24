@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  LayoutGridIcon,
   MapPinnedIcon,
   PlaneIcon,
   RouteIcon,
@@ -13,11 +14,18 @@ import { useTravelMode } from "@/components/globals/travel-mode";
 import { destinationTime } from "@/lib/travel";
 import {
   type CommuteData,
+  DESTINATION_KINDS,
+  type DestinationKind,
   JOB_KINDS,
   TRANSIT_KINDS,
   type TransitKind,
 } from "@/lib/report-sections";
 import { chipClass } from "@/components/globals/report/amenities-tab";
+import {
+  DESTINATION_ICONS,
+  destinationKind,
+  FilterChips,
+} from "@/components/globals/report/commute-tab";
 import { TRANSIT_ICONS } from "@/components/globals/report/transit-icons";
 import { WIDGET } from "@/components/globals/report/widget-styles";
 import { CompareMap } from "./compare-map";
@@ -34,6 +42,8 @@ import { type CompareRow, CompareTable } from "./compare-table";
 
 const REACH = 15;
 const KINDS = Object.keys(TRANSIT_KINDS) as TransitKind[];
+/** "All" on the map: the nearest few stops of every kind, like a single report. */
+const ALL_PER_KIND = 3;
 
 type Destination = CommuteData["destinations"][number];
 
@@ -71,7 +81,21 @@ export function CompareCommute({
       best: Number.isFinite(best) ? best : null,
     };
   };
-  const destinationRows: CompareRow[] = labels.map((label) => {
+  // Destinations: all, or only downtowns / airports (when both kinds exist).
+  const [destFilter, setDestFilter] = useState<DestinationKind | "all">("all");
+  const kindOfLabel = (label: string): DestinationKind => {
+    const d = SIDES.map((s) =>
+      props[s].data.commute?.destinations.find((x) => x.label === label),
+    ).find(Boolean);
+    return d ? destinationKind(d) : "downtown";
+  };
+  const destKinds = (
+    Object.keys(DESTINATION_KINDS) as DestinationKind[]
+  ).filter((k) => labels.some((l) => kindOfLabel(l) === k));
+  const shownLabels = labels.filter(
+    (l) => destFilter === "all" || kindOfLabel(l) === destFilter,
+  );
+  const destinationRows: CompareRow[] = shownLabels.map((label) => {
     const find = (p: CompareProperty) =>
       p.data.commute?.destinations.find((d) => d.label === label);
     const t = { a: trip(find(a)), b: trip(find(b)) };
@@ -136,14 +160,25 @@ export function CompareCommute({
   const firstKind =
     KINDS.find((k) => stations(a, k).length + stations(b, k).length > 0) ??
     "subway";
-  const [picked, setKind] = useState<TransitKind | null>(null);
+  // "All" (the nearest few of each kind) or one kind, like a single report.
+  const [picked, setKind] = useState<TransitKind | "all" | null>(null);
   const kind = picked ?? firstKind;
+  /** One side's stops on the map, quickest first. */
+  const mapStops = (p: CompareProperty) =>
+    kind === "all"
+      ? KINDS.flatMap((k) => stations(p, k).slice(0, ALL_PER_KIND)).sort(
+          (x, y) => travel.time(x).minutes - travel.time(y).minutes,
+        )
+      : stations(p, kind).slice(0, 8);
   const pins = useMemo(
     () =>
       SIDES.flatMap((side) =>
-        sidePins(props[side], stations(props[side], kind).slice(0, 8), {
-          icon: TRANSIT_ICONS[kind],
-          eyebrow: TRANSIT_KINDS[kind].label,
+        sidePins(props[side], mapStops(props[side]), {
+          icon: TrainFrontIcon,
+          eyebrow: "Stop",
+          iconFor: (stop) => TRANSIT_ICONS[stop.kind],
+          eyebrowFor: (stop) => TRANSIT_KINDS[stop.kind].label,
+          colorFor: (stop) => TRANSIT_KINDS[stop.kind].color,
           travel,
         }),
       ),
@@ -156,6 +191,19 @@ export function CompareCommute({
   return (
     <div className="grid items-start gap-4 lg:grid-cols-12">
       <div className="space-y-4 lg:col-span-7">
+        {destKinds.length > 1 && (
+          <FilterChips
+            label="Destination type"
+            value={destFilter}
+            onChange={setDestFilter}
+            options={destKinds.map((k) => ({
+              value: k,
+              label: DESTINATION_KINDS[k].label,
+              icon: DESTINATION_ICONS[k],
+              meta: String(labels.filter((l) => kindOfLabel(l) === k).length),
+            }))}
+          />
+        )}
         <CompareTable
           title="Trips"
           icon={RouteIcon}
@@ -184,12 +232,19 @@ export function CompareCommute({
           aria-label="Kind of stop on the map"
           value={[kind]}
           onValueChange={(value) => {
-            const next = value[0] as TransitKind | undefined;
+            const next = value[0] as TransitKind | "all" | undefined;
             if (next) setKind(next);
           }}
           spacing={1}
           className="flex w-full flex-wrap justify-start"
         >
+          <ToggleGroupItem
+            value="all"
+            className={cn(chipClass, "px-2.5 py-1.5 text-xs")}
+          >
+            <LayoutGridIcon aria-hidden />
+            All
+          </ToggleGroupItem>
           {KINDS.map((k) => {
             const Icon = TRANSIT_ICONS[k];
             return (
@@ -213,12 +268,16 @@ export function CompareCommute({
           />
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2.5 text-xs text-foreground/55">
             <span className="font-medium text-foreground">
-              {TRANSIT_KINDS[kind].label}
+              {kind === "all"
+                ? `The ${ALL_PER_KIND} nearest of each kind`
+                : TRANSIT_KINDS[kind].label}
             </span>
             {SIDES.map((side) => (
               <span key={side} className="flex items-center gap-1.5">
                 <SideChip side={side} className="size-4 text-[10px]" />
-                {stations(props[side], kind).length} nearby
+                {kind === "all"
+                  ? `${mapStops(props[side]).length} shown`
+                  : `${stations(props[side], kind).length} nearby`}
               </span>
             ))}
           </p>

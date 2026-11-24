@@ -34,7 +34,7 @@ function Sheet({
   return (
     <motion.div
       style={style}
-      className={`absolute top-0 left-1/2 flex aspect-[8.5/11] w-[min(17rem,56%)] flex-col border border-foreground/10 bg-white p-4 shadow-[0_24px_48px_-20px_rgb(0_0_0/0.35)] ${className ?? ""}`}
+      className={`absolute top-0 left-1/2 flex aspect-[8.5/11] w-[min(17rem,56%)] flex-col border border-foreground/10 bg-card p-4 shadow-[0_24px_48px_-20px_rgb(0_0_0/0.35)] ${className ?? ""}`}
     >
       <div className="flex-1 overflow-hidden">{children}</div>
       <div className="mt-3 flex items-center justify-between border-t pt-2 text-[7px] text-foreground/40">

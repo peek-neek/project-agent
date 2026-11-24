@@ -100,10 +100,12 @@ export function ReportViewSwitch({
         // Icon and name; icon only on phones (the header is tight there),
         // where the name stays for screen readers (same words as shown).
         const label = v.label;
+        // dark: variants too: the outline button sets its own dark
+        // background, which plain bg-* classes don't override.
         const className = cn(
-          "h-8 w-8 gap-1.5 bg-card px-0 sm:w-auto sm:px-3",
+          "h-8 w-8 gap-1.5 bg-card px-0 sm:w-auto sm:px-3 dark:bg-card dark:hover:bg-muted",
           current &&
-            "bg-foreground text-background hover:bg-foreground/90 hover:text-background",
+            "bg-foreground text-background hover:bg-foreground/90 hover:text-background dark:bg-foreground dark:hover:bg-foreground/90",
         );
         const body = (
           <>

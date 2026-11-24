@@ -5,14 +5,22 @@ import {
   ChevronsUpDownIcon,
   CreditCardIcon,
   LogOutIcon,
+  MoonIcon,
+  SunIcon,
   UserCogIcon,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -22,6 +30,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { THEMES } from "@/components/globals/mode-toggle";
 
 const initials = (name: string) =>
   name
@@ -126,6 +135,10 @@ export function SidebarUser() {
               <CreditCardIcon />
               Billing
             </DropdownMenuItem>
+            {/* Light / dark / system: here too, as the header hides its
+                toggle on phones. */}
+            <ThemeSubmenu />
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
               onClick={() => signOut({ redirectUrl: "/" })}
@@ -137,5 +150,32 @@ export function SidebarUser() {
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
+  );
+}
+
+/** "Theme ›" with Light / Dark / System (the menu only opens after hydration). */
+function ThemeSubmenu() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <SunIcon className="dark:hidden" />
+        <MoonIcon className="hidden dark:block" />
+        Theme
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent className="min-w-36">
+        <DropdownMenuRadioGroup
+          value={theme ?? "system"}
+          onValueChange={(value) => setTheme(value as string)}
+        >
+          {THEMES.map(({ value, label, icon: Icon }) => (
+            <DropdownMenuRadioItem key={value} value={value}>
+              <Icon aria-hidden />
+              {label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }

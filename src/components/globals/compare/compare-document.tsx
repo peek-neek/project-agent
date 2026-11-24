@@ -137,7 +137,7 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
           <h1 className="sr-only">
             {props.a.street} vs {props.b.street}
           </h1>
-          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-3">
+          <div className="flex flex-col gap-y-2 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-x-3 md:gap-y-3">
             {SIDES.map((side, i) => {
               const checked = shown[side];
               // At least one stays ticked: the last one can't be unticked.
@@ -147,7 +147,7 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
                   {i > 0 && (
                     <span
                       aria-hidden
-                      className="flex h-8 items-center text-base font-medium text-foreground/40 sm:h-9 sm:text-lg"
+                      className="flex h-8 items-center self-center text-base font-medium text-foreground/40 sm:h-9 sm:text-lg md:self-auto"
                     >
                       vs
                     </span>

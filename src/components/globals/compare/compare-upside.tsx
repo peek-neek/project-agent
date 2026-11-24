@@ -18,6 +18,10 @@ import {
 } from "@/lib/report-sections";
 import type { MapPin } from "@/components/globals/report/interactive-map";
 import { formatDistance } from "@/components/globals/report/report-format";
+import {
+  PROJECT_ICONS,
+  projectCategory,
+} from "@/components/globals/report/upside-tab";
 import { WIDGET } from "@/components/globals/report/widget-styles";
 import { CompareMap } from "./compare-map";
 import {
@@ -159,11 +163,12 @@ export function CompareUpside({
             lat: project.lat,
             lng: project.lng,
             badge: `${SIDE[side].letter}${i + 1}`,
-            color: SIDE[side].color,
-            textColor: SIDE[side].onColor,
-            icon: HardHatIcon,
+            // In the project category's colour and icon, as on a single
+            // report; the badge says which home.
+            color: projectCategory(project.category).color,
+            icon: PROJECT_ICONS[project.category] ?? HardHatIcon,
             title: project.name,
-            eyebrow: `${PROJECT_CATEGORIES[project.category as ProjectCategory]?.label ?? project.category} · near ${SIDE[side].letter}`,
+            eyebrow: `${projectCategory(project.category).label} · near ${SIDE[side].letter}`,
             facts: [
               { label: project.status },
               { label: formatDistance(project.distanceMeters) },

@@ -1,6 +1,6 @@
 "use client";
 
-import { StoreIcon } from "lucide-react";
+import { LayoutGridIcon, StoreIcon } from "lucide-react";
 import { cn } from "cn";
 import { useMemo, useState } from "react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -10,7 +10,10 @@ import {
   type AmenityCategoryId,
   JOB_KINDS,
 } from "@/lib/report-sections";
-import { chipClass } from "@/components/globals/report/amenities-tab";
+import {
+  type AmenityFilter,
+  chipClass,
+} from "@/components/globals/report/amenities-tab";
 import { AMENITY_ICONS } from "@/components/globals/report/amenity-icons";
 import { WIDGET } from "@/components/globals/report/widget-styles";
 import { CompareMap } from "./compare-map";
@@ -26,6 +29,8 @@ import { type CompareRow, CompareTable } from "./compare-table";
 
 /** Places this many minutes away or less count as "within reach". */
 const REACH = 15;
+/** "All" on the map: the nearest few of every kind, like a single report. */
+const ALL_PER_CATEGORY = 3;
 
 export function CompareAmenities({
   a,
@@ -35,7 +40,8 @@ export function CompareAmenities({
   b: CompareProperty;
 }) {
   const travel = useTravelMode();
-  const [category, setCategory] = useState<AmenityCategoryId>("groceries");
+  // "All" (the nearest few of each kind) or one kind, like a single report.
+  const [category, setCategory] = useState<AmenityFilter>("groceries");
   const props = { a, b };
   const states = {
     a: sideState(a.report, JOB_KINDS.amenities, a.data.amenities != null),
@@ -103,13 +109,39 @@ export function CompareAmenities({
     ),
   });
 
-  const meta = AMENITY_CATEGORIES.find((c) => c.id === category)!;
+  const meta =
+    category === "all"
+      ? null
+      : AMENITY_CATEGORIES.find((c) => c.id === category)!;
+  /**
+   * One side's places on the map: the chosen kind, or for "All" the nearest
+   * few of every kind (one pin per place), quickest first.
+   */
+  const mapPlaces = (p: CompareProperty) => {
+    if (category !== "all") {
+      return places(p, category).map((place) => ({ ...place, kind: category }));
+    }
+    const seen = new Set<string>();
+    return AMENITY_CATEGORIES.flatMap((c) =>
+      places(p, c.id)
+        .slice(0, ALL_PER_CATEGORY)
+        .map((place) => ({ ...place, kind: c.id })),
+    )
+      .filter((place) => !seen.has(place.id) && seen.add(place.id))
+      .sort((x, y) => travel.time(x).minutes - travel.time(y).minutes);
+  };
+  const labelOf = (id: AmenityCategoryId) =>
+    AMENITY_CATEGORIES.find((c) => c.id === id)!.label;
   const pins = useMemo(
     () =>
       SIDES.flatMap((side) =>
-        sidePins(props[side], places(props[side], category), {
-          icon: AMENITY_ICONS[category],
-          eyebrow: meta.label,
+        sidePins(props[side], mapPlaces(props[side]), {
+          icon: StoreIcon,
+          eyebrow: "Place",
+          iconFor: (place) => AMENITY_ICONS[place.kind],
+          eyebrowFor: (place) => labelOf(place.kind),
+          colorFor: (place) =>
+            AMENITY_CATEGORIES.find((c) => c.id === place.kind)!.color,
           travel,
           photoPath: "place-photo",
         }),
@@ -136,12 +168,20 @@ export function CompareAmenities({
           aria-label="Kind of place on the map"
           value={[category]}
           onValueChange={(value) => {
-            const next = value[0] as AmenityCategoryId | undefined;
+            const next = value[0] as AmenityFilter | undefined;
             if (next) setCategory(next);
           }}
           spacing={1}
           className="flex w-full flex-wrap justify-start"
         >
+          <ToggleGroupItem
+            value="all"
+            aria-label="All kinds"
+            className={cn(chipClass, "px-2.5 py-1.5 text-xs")}
+          >
+            <LayoutGridIcon aria-hidden />
+            All
+          </ToggleGroupItem>
           {AMENITY_CATEGORIES.map((c) => {
             const Icon = AMENITY_ICONS[c.id];
             return (
@@ -165,11 +205,15 @@ export function CompareAmenities({
             className="h-[24rem] lg:h-[30rem]"
           />
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-2.5 text-xs text-foreground/55">
-            <span className="font-medium text-foreground">{meta.label}</span>
+            <span className="font-medium text-foreground">
+              {meta
+                ? meta.label
+                : `The ${ALL_PER_CATEGORY} nearest of each kind`}
+            </span>
             {SIDES.map((side) => (
               <span key={side} className="flex items-center gap-1.5">
                 <SideChip side={side} className="size-4 text-[10px]" />
-                {places(props[side], category).length} nearby
+                {mapPlaces(props[side]).length} {meta ? "nearby" : "shown"}
               </span>
             ))}
           </p>

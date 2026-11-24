@@ -41,15 +41,16 @@ import { InteractiveMap, type MapPin } from "./interactive-map";
 import { formatDistance, formatShortDate } from "./report-format";
 import { WIDGET } from "./widget-styles";
 
-const category = (id: string) =>
+/** A project category's label and colour (grey for unknown ones). Shared with comparisons. */
+export const projectCategory = (id: string) =>
   PROJECT_CATEGORIES[id as ProjectCategory] ?? {
     label: id,
     color: "#525252",
     radius: 2000,
   };
 
-/** Pin icon per project category. */
-const PROJECT_ICONS: Record<string, LucideIcon> = {
+/** Pin icon per project category. Shared with comparisons. */
+export const PROJECT_ICONS: Record<string, LucideIcon> = {
   Transit: TrainFrontIcon,
   Education: GraduationCapIcon,
   "Health care": HospitalIcon,
@@ -101,10 +102,10 @@ export function UpsideTab({
       lat: p.lat,
       lng: p.lng,
       badge: labels.get(p.id)!,
-      color: category(p.category).color,
+      color: projectCategory(p.category).color,
       icon: PROJECT_ICONS[p.category] ?? ConstructionIcon,
       title: p.name,
-      eyebrow: category(p.category).label,
+      eyebrow: projectCategory(p.category).label,
       facts: [
         { icon: ConstructionIcon, label: p.status },
         {
@@ -258,7 +259,7 @@ export function UpsideTab({
             ) : (
               <ul className="divide-y">
                 {upside.projects.map((p, i) => {
-                  const c = category(p.category);
+                  const c = projectCategory(p.category);
                   return (
                     <motion.li
                       key={p.id}

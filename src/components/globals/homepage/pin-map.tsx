@@ -9,6 +9,7 @@ import Map, { Marker, NavigationControl } from "react-map-gl/maplibre";
 import { cn } from "cn";
 import { Skeleton } from "@/components/ui/skeleton";
 import { loadMapStyle } from "@/components/globals/report/map-style";
+import { useMapTheme } from "@/components/globals/report/use-map-theme";
 
 // Same-origin copy of MapLibre's worker (see places-map.tsx).
 setWorkerUrl(`/vendor/maplibre-gl-worker-${getVersion()}.mjs`);
@@ -33,16 +34,18 @@ export function PinMap({
   className?: string;
 }) {
   const [loaded, setLoaded] = useState(false);
+  // Light or dark map palette, following the app theme.
+  const mapTheme = useMapTheme();
   const [mapStyle, setMapStyle] = useState<StyleSpecification | string | null>(
     null,
   );
   useEffect(() => {
     let live = true;
-    loadMapStyle().then((style) => live && setMapStyle(style));
+    loadMapStyle(mapTheme).then((style) => live && setMapStyle(style));
     return () => {
       live = false;
     };
-  }, []);
+  }, [mapTheme]);
 
   return (
     <div className={cn("relative overflow-hidden bg-muted", className)}>

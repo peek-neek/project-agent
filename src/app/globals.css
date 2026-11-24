@@ -277,6 +277,24 @@
 .maplibregl-ctrl-attrib {
   border-radius: 0 !important;
 }
+/* Dark theme: MapLibre's zoom buttons and attribution are white with black
+   icons; match the card instead (the icons are background images). */
+.dark .maplibregl-ctrl-group {
+  background: var(--color-card);
+}
+.dark .maplibregl-ctrl-group button + button {
+  border-top-color: var(--color-border);
+}
+.dark .maplibregl-ctrl-group .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
+.dark .maplibregl-ctrl-attrib {
+  background-color: rgb(0 0 0 / 0.5);
+  color: var(--color-muted-foreground);
+}
+.dark .maplibregl-ctrl-attrib a {
+  color: var(--color-muted-foreground);
+}
 /* Keep ctrl/⌘ + scroll (cooperativeGestures) but drop MapLibre's overlay
    message: the map footer already says how to zoom. */
 .maplibregl-cooperative-gesture-screen {
