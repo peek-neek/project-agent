@@ -6,10 +6,12 @@ import {
   FootprintsIcon,
   type LucideIcon,
 } from "lucide-react";
+import { motion } from "motion/react";
 import {
   createContext,
   useCallback,
   useContext,
+  useId,
   useSyncExternalStore,
 } from "react";
 import { cn } from "cn";
@@ -153,6 +155,8 @@ export function useTravelMode() {
 /** Walk / Cycle / Car switch for the app header. */
 export function TravelModeToggle() {
   const { mode } = useTravelMode();
+  // The selection underline slides between the three modes.
+  const underlineId = `${useId()}-travel`;
   // The header is prerendered without the saved mode: fade in once known,
   // rather than showing "Walk" pressed and then switching.
   const hydrated = useHydrated();
@@ -181,12 +185,24 @@ export function TravelModeToggle() {
                 <ToggleGroupItem
                   value={m}
                   aria-label={`${TRAVEL_MODES[m].label} times`}
-                  className="gap-1.5 bg-card px-2.5 data-pressed:bg-foreground data-pressed:text-background"
+                  // Selected: an underline (no fill) and full-strength text.
+                  className="relative gap-1.5 bg-card px-2.5 text-foreground/60 hover:text-foreground aria-pressed:bg-card aria-pressed:text-foreground data-pressed:bg-card data-pressed:text-foreground dark:border-muted dark:bg-muted dark:hover:bg-accent dark:aria-pressed:bg-muted dark:data-pressed:bg-muted"
                 />
               }
             >
               <Icon aria-hidden />
               <span className="hidden sm:inline">{TRAVEL_MODES[m].label}</span>
+              {mode === m && hydrated && (
+                <motion.span
+                  layoutId={underlineId}
+                  transition={{
+                    type: "spring",
+                    bounce: 0.2,
+                    visualDuration: 0.3,
+                  }}
+                  className="absolute inset-x-1.5 bottom-0 h-0.5 bg-primary"
+                />
+              )}
             </TooltipTrigger>
             <TooltipContent>
               Show {TRAVEL_MODES[m].label.toLowerCase()} times everywhere

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { motion } from "motion/react";
+import { useId, useMemo, useState } from "react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   InteractiveMap,
@@ -32,6 +33,8 @@ export function CompareMap({
   className?: string;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
+  // Per map: the selection underline slides between this map's options.
+  const underlineId = `${useId()}-shown`;
   // Starts on both; the switch narrows it to one home and its places.
   const [shown, setShown] = useState<Shown>("both");
   const homes = useMemo(
@@ -100,12 +103,24 @@ export function CompareMap({
                   ? "Both properties"
                   : `Property ${SIDE[v].letter} only`
               }
-              className="h-7 gap-1.5 rounded-none px-2 text-xs data-pressed:bg-foreground data-pressed:text-background"
+              // Selected: an underline (no fill), sliding between options.
+              className="relative h-7 gap-1.5 rounded-none px-2 text-xs text-foreground/60 hover:bg-transparent hover:text-foreground aria-pressed:bg-transparent aria-pressed:text-foreground data-pressed:bg-transparent"
             >
               {v === "both" ? (
                 "Both"
               ) : (
                 <SideChip side={v} className="size-4 text-[10px]" />
+              )}
+              {shown === v && (
+                <motion.span
+                  layoutId={underlineId}
+                  transition={{
+                    type: "spring",
+                    bounce: 0.2,
+                    visualDuration: 0.3,
+                  }}
+                  className="absolute inset-x-1.5 bottom-0 h-0.5 bg-primary"
+                />
               )}
             </ToggleGroupItem>
           ))}

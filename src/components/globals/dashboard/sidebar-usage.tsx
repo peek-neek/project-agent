@@ -51,28 +51,41 @@ function usageTone(left: number) {
 }
 
 /**
- * A small ring for the collapsed sidebar: the share of reports left, with
- * the count centred inside. The SVG needs `size-full!`: the sidebar button
- * forces every nested svg to 16px (`[&_svg]:size-4`).
+ * The collapsed sidebar's usage badge, styled like the market badge: the
+ * count in a square whose border is a progress bar for the share of reports
+ * left (clockwise from the top). `tone` is the expanded bar's colour, so the
+ * two always agree. The SVG needs `size-full!`: the sidebar button forces
+ * every nested svg to 16px (`[&_svg]:size-4`).
  */
-function UsageRing({ left, limit }: { left: number; limit: number }) {
-  const r = 9;
-  const c = 2 * Math.PI * r;
-  const share = limit > 0 ? Math.min(1, left / limit) : 0;
-  const tone = usageTone(left);
+function UsageRing({
+  left,
+  limit,
+  tone,
+}: {
+  left: number;
+  limit: number;
+  tone: ReturnType<typeof usageTone>;
+}) {
+  const fill = limit > 0 ? Math.min(1, left / limit) * 100 : 0;
+  // Starts at the top centre; pathLength 100 makes the fill a percentage.
+  const square = "M14 1.5 H26.5 V26.5 H1.5 V1.5 Z";
   return (
     <span className="relative grid size-7 shrink-0 place-items-center">
-      <svg viewBox="0 0 24 24" className="absolute inset-0 size-full! -rotate-90" aria-hidden>
-        <circle cx="12" cy="12" r={r} fill="none" strokeWidth="2.5" className="stroke-sidebar-border" />
-        <circle
-          cx="12"
-          cy="12"
-          r={r}
+      <svg viewBox="0 0 28 28" className="absolute inset-0 size-full!" aria-hidden>
+        <path
+          d={square}
+          pathLength={100}
           fill="none"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c * (1 - share)}
+          strokeWidth={3}
+          className="stroke-foreground/15"
+        />
+        <path
+          d={square}
+          pathLength={100}
+          fill="none"
+          strokeWidth={3}
+          strokeDasharray="100 100"
+          strokeDashoffset={100 - fill}
           className={cn("transition-[stroke-dashoffset] duration-500", tone.stroke)}
         />
       </svg>
@@ -138,7 +151,7 @@ export function SidebarUsage() {
             // 32px button instead of overflowing its 16px content box.
             className="justify-center group-data-[collapsible=icon]:p-0!"
           >
-            <UsageRing left={left} limit={limit} />
+            <UsageRing left={left} limit={limit} tone={tone} />
             <span className="sr-only">{summary}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>

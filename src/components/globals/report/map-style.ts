@@ -212,3 +212,15 @@ export function loadMapStyle(
     });
   return themed[theme]!;
 }
+
+/**
+ * Folds the map's attribution to its "i" button. MapLibre opens a compact
+ * attribution at first and only folds it once the map is dragged; call this
+ * on load so the credits stay one tap away instead of covering the map.
+ */
+export function collapseAttribution(map: { getContainer(): HTMLElement }) {
+  map
+    .getContainer()
+    .querySelector(".maplibregl-ctrl-attrib")
+    ?.classList.remove("maplibregl-compact-show");
+}

@@ -48,7 +48,7 @@ export function ModeToggle({ className }: { className?: string }) {
           onValueChange={(value) => setTheme(value as string)}
         >
           {THEMES.map(({ value, label, icon: Icon }) => (
-            <DropdownMenuRadioItem key={value} value={value}>
+            <DropdownMenuRadioItem key={value} value={value} closeOnClick>
               <Icon aria-hidden />
               {label}
             </DropdownMenuRadioItem>

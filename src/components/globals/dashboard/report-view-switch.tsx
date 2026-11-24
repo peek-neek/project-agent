@@ -101,11 +101,11 @@ export function ReportViewSwitch({
         // where the name stays for screen readers (same words as shown).
         const label = v.label;
         // dark: variants too: the outline button sets its own dark
-        // background, which plain bg-* classes don't override.
+        // background, which plain bg-* classes don't override. The current
+        // view is underlined, with full-strength text (no fill).
         const className = cn(
-          "h-8 w-8 gap-1.5 bg-card px-0 sm:w-auto sm:px-3 dark:bg-card dark:hover:bg-muted",
-          current &&
-            "bg-foreground text-background hover:bg-foreground/90 hover:text-background dark:bg-foreground dark:hover:bg-foreground/90",
+          "relative h-8 w-8 gap-1.5 bg-card px-0 text-foreground/60 hover:text-foreground sm:w-auto sm:px-3 dark:border-muted dark:bg-muted dark:hover:bg-accent",
+          current && "text-foreground",
         );
         const body = (
           <>
@@ -115,6 +115,12 @@ export function ReportViewSwitch({
               <v.icon aria-hidden />
             )}
             <span className="hidden sm:inline">{v.label}</span>
+            {current && (
+              <span
+                aria-hidden
+                className="absolute inset-x-1.5 bottom-0 h-0.5 bg-primary"
+              />
+            )}
           </>
         );
         return base ? (

@@ -16,7 +16,7 @@ import { createPortal } from "react-dom";
 import type { Popup as MaplibrePopup, StyleSpecification } from "maplibre-gl";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { loadMapStyle } from "./map-style";
+import { collapseAttribution, loadMapStyle } from "./map-style";
 import { useMapTheme } from "./use-map-theme";
 import Map, {
   type MapRef,
@@ -353,6 +353,8 @@ export function PlacesMap({
           ref={ref}
           mapStyle={mapStyle}
           initialViewState={{ bounds, fitBoundsOptions: FIT }}
+          // Map credits as a folded "i" button at every size.
+          attributionControl={{ compact: true }}
           // Two-finger / ctrl+scroll to zoom, so the page still scrolls.
           cooperativeGestures
           // ...but without MapLibre's full-map "Use ⌘ + scroll" overlay: the
@@ -364,6 +366,7 @@ export function PlacesMap({
                 ".maplibregl-cooperative-gesture-screen",
               );
             if (screen) screen.style.display = "none";
+            collapseAttribution(e.target);
             setLoaded(true);
           }}
           onMoveEnd={checkHome}

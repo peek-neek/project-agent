@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDownIcon, GaugeIcon } from "lucide-react";
+import { GaugeIcon } from "lucide-react";
 import { cn } from "cn";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -59,13 +59,13 @@ export function MarketScoreBadge() {
   if (!hydrated) return null;
   if (comparisonId) return <ComparisonBadges comparisonId={comparisonId} />;
   if (!reportId) return null;
-  return <Badge reportId={reportId} />;
+  return <RingBadge reportId={reportId} />;
 }
 
 /**
- * On a comparison: one badge per property, each with its A/B chip. On
- * phones each is just its chip, framed by a progress border (RingBadge):
- * the header has no room for the full badges.
+ * On a comparison: one compact badge per property at every size, its score
+ * framed by a progress border (RingBadge). Single reports keep the full
+ * badge (Badge).
  */
 function ComparisonBadges({ comparisonId }: { comparisonId: string }) {
   const trpc = useTRPC();
@@ -75,16 +75,10 @@ function ComparisonBadges({ comparisonId }: { comparisonId: string }) {
   if (!comparison) return null;
   const ids = { a: comparison.reportAId, b: comparison.reportBId };
   return (
-    <>
-      <span className="hidden items-center gap-1.5 sm:flex">
-        <Badge reportId={ids.a} side="a" />
-        <Badge reportId={ids.b} side="b" />
-      </span>
-      <span className="flex items-center gap-1.5 sm:hidden">
-        <RingBadge reportId={ids.a} side="a" />
-        <RingBadge reportId={ids.b} side="b" />
-      </span>
-    </>
+    <span className="flex items-center gap-1.5">
+      <RingBadge reportId={ids.a} side="a" />
+      <RingBadge reportId={ids.b} side="b" />
+    </span>
   );
 }
 
@@ -124,65 +118,14 @@ function useMarketScore(reportId: string) {
 
 type Score = NonNullable<ReturnType<typeof marketScore>>;
 
-/** The score's level as a small coloured square. */
-function LevelSquare({ level }: { level: Score["level"] }) {
-  return (
-    <span
-      className="grid size-4.5 place-items-center text-[11px] font-bold text-white tabular-nums"
-      style={{ backgroundColor: MARKET_LEVELS[level].color }}
-    >
-      {level}
-    </span>
-  );
-}
-
-function Badge({ reportId, side }: { reportId: string; side?: Side }) {
-  const { score, loading, mode } = useMarketScore(reportId);
-  if (!score) {
-    // Still gathering data: hold the space while steps run.
-    return loading ? (
-      <Skeleton className="h-7 w-28" aria-label="Scoring this location" />
-    ) : null;
-  }
-
-  return (
-    <Popover>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 gap-1.5 bg-card px-2 dark:bg-card dark:hover:bg-muted"
-            aria-label={`${side ? `Property ${SIDE[side].letter}: ` : ""}Market ease ${score.level} of 5: ${score.label}. Show details`}
-          />
-        }
-      >
-        {side && <SideChip side={side} className="size-4.5" />}
-        <LevelSquare level={score.level} />
-        <span
-          className={cn("hidden text-xs", side ? "lg:inline" : "sm:inline")}
-        >
-          {score.label}
-        </span>
-        <span className={cn("text-xs", side ? "lg:hidden" : "sm:hidden")}>
-          /5
-        </span>
-        <ChevronDownIcon aria-hidden className="size-3.5 text-foreground/50" />
-      </PopoverTrigger>
-
-      <PopoverContent align="end" className="w-80 gap-3 p-3">
-        <MarketDetails score={score} side={side} mode={mode} />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 /**
- * Phones, on a comparison: the score (1–5) on the property's colour, in a
- * white square whose border is a progress bar for it (a fifth per point,
- * clockwise from the top, in the level's colour). The breakdown opens on tap.
+ * The market badge: the score (1–5) in a small square, inside a white square
+ * whose border is a progress bar for it (a fifth per point, clockwise from
+ * the top, in the level's colour). The breakdown opens on tap. On a
+ * comparison the score sits on the property's colour (A black, B blue); on
+ * a single report, on the score's own colour (matching the border).
  */
-function RingBadge({ reportId, side }: { reportId: string; side: Side }) {
+function RingBadge({ reportId, side }: { reportId: string; side?: Side }) {
   const { score, loading, mode } = useMarketScore(reportId);
   if (!score) {
     return loading ? (
@@ -197,8 +140,8 @@ function RingBadge({ reportId, side }: { reportId: string; side: Side }) {
           <Button
             variant="ghost"
             size="icon-sm"
-            className="relative size-7 bg-card p-0 hover:bg-card"
-            aria-label={`Property ${SIDE[side].letter}: Market ease ${score.level} of 5: ${score.label}. Show details`}
+            className="relative size-7 bg-card p-0 hover:bg-card dark:bg-muted dark:hover:bg-accent"
+            aria-label={`${side ? `Property ${SIDE[side].letter}: ` : ""}Market ease ${score.level} of 5: ${score.label}. Show details`}
           />
         }
       >
@@ -227,14 +170,19 @@ function RingBadge({ reportId, side }: { reportId: string; side: Side }) {
             className="transition-[stroke-dashoffset] duration-500"
           />
         </svg>
-        {/* The score, on the property's colour (A black, B blue). */}
+        {/* The score, on the property's colour, or the score's colour. */}
         <span
           aria-hidden
           className="grid size-4 place-items-center text-[11px] leading-none font-bold tabular-nums"
-          style={{
-            backgroundColor: SIDE[side].color,
-            color: SIDE[side].onColor,
-          }}
+          style={
+            side
+              ? { backgroundColor: SIDE[side].color, color: SIDE[side].onColor }
+              : // Single report: the same colour as the progress border.
+                {
+                  backgroundColor: MARKET_LEVELS[score.level].color,
+                  color: "#fff",
+                }
+          }
         >
           {score.level}
         </span>

@@ -193,7 +193,10 @@
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.5385 0.221 29.2339);
   --border: oklch(0.3211 0 0);
-  --input: oklch(0.2308 0 0);
+  /* Translucent white (shadcn's dark default): outline buttons, toggle
+     groups and inputs draw their borders with it, and fill with input/30.
+     The old value equalled the background, so those borders vanished. */
+  --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.668 0.22 31.1321);
   --chart-1: oklch(0.668 0.22 31.1321);
   --chart-2: oklch(0.5999 0 0);
@@ -294,6 +297,14 @@
 }
 .dark .maplibregl-ctrl-attrib a {
   color: var(--color-muted-foreground);
+}
+/* The folded "i" button: MapLibre's rule is more specific, so match it. */
+.dark .maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact {
+  background-color: var(--color-card);
+  color: var(--color-muted-foreground);
+}
+.dark .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
 }
 /* Keep ctrl/⌘ + scroll (cooperativeGestures) but drop MapLibre's overlay
    message: the map footer already says how to zoom. */

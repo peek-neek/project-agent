@@ -4,7 +4,6 @@ import {
   BedDoubleIcon,
   BathIcon,
   DollarSignIcon,
-  GaugeIcon,
   GraduationCapIcon,
   HomeIcon,
   MapIcon,
@@ -95,33 +94,13 @@ export function CompareOverview({
   const busy = (p: CompareProperty, kind: Parameters<typeof getJob>[1]) =>
     isJobActive(getJob(p.report, kind));
 
-  // Duel tiles: market ease first, then the six sections.
-  const market = {
-    a: propertyMarketScore(a, travel.mode),
-    b: propertyMarketScore(b, travel.mode),
-  };
+  // Duel tiles: the six sections. Market ease is in the header's market
+  // badges, so it isn't repeated here (it still counts for the crown).
   const tiles = {
     a: sectionTiles(a.data, travel.mode),
     b: sectionTiles(b.data, travel.mode),
   };
   const duels = [
-    {
-      id: "market",
-      label: "Market ease",
-      icon: GaugeIcon,
-      accent: "#ca8a04",
-      tab: null,
-      winner: winner(market.a?.level, market.b?.level),
-      side: (side: Side) => {
-        const m = market[side];
-        return {
-          score: m?.level ?? null,
-          value: m ? `${m.level}` : undefined,
-          caption: m ? m.label : "Scoring once the data is in",
-          loading: !m && props[side].report.jobs.some(isJobActive),
-        };
-      },
-    },
     ...tiles.a.map((t, i) => {
       const tb = tiles.b[i];
       return {
@@ -151,7 +130,7 @@ export function CompareOverview({
         initial="hidden"
         animate="visible"
         variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
-        className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7"
+        className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"
       >
         {duels.map((d) => (
           <DuelTile

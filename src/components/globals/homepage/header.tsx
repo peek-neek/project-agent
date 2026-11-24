@@ -46,7 +46,7 @@ export function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <ModeToggle className="size-10 bg-transparent" />
+          <ModeToggle className="size-10 bg-card dark:border-muted dark:bg-muted dark:hover:bg-accent dark:aria-expanded:bg-accent" />
           <Suspense fallback={<div className="h-10 w-10 sm:w-40" />}>
             <Show when="signed-out">
               <SignInButton>

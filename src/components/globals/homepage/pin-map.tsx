@@ -8,7 +8,10 @@ import { useEffect, useState } from "react";
 import Map, { Marker, NavigationControl } from "react-map-gl/maplibre";
 import { cn } from "cn";
 import { Skeleton } from "@/components/ui/skeleton";
-import { loadMapStyle } from "@/components/globals/report/map-style";
+import {
+  collapseAttribution,
+  loadMapStyle,
+} from "@/components/globals/report/map-style";
 import { useMapTheme } from "@/components/globals/report/use-map-theme";
 
 // Same-origin copy of MapLibre's worker (see places-map.tsx).
@@ -65,7 +68,12 @@ export function PinMap({
             zoom,
           }}
           cursor="crosshair"
-          onLoad={() => setLoaded(true)}
+          // Map credits as a folded "i" button, closed until tapped.
+          attributionControl={{ compact: true }}
+          onLoad={(e) => {
+            collapseAttribution(e.target);
+            setLoaded(true);
+          }}
           onClick={(e) => onPinChange({ lat: e.lngLat.lat, lng: e.lngLat.lng })}
           style={{
             width: "100%",

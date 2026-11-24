@@ -34,7 +34,7 @@ export function DashboardHeader({ nav }: { nav: React.ReactNode }) {
         <TravelModeToggle />
         {/* Light / dark / system. Phones: in the account menu instead (the
             header is full there). */}
-        <ModeToggle className="hidden size-8 bg-card sm:inline-flex" />
+        <ModeToggle className="hidden size-8 bg-card sm:inline-flex dark:border-muted dark:bg-muted dark:hover:bg-accent dark:aria-expanded:bg-accent" />
       </div>
       {/* Loading bar along the bottom edge (pages, reports, chat). */}
       <Suspense fallback={null}>
