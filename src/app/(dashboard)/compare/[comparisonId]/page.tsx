@@ -76,13 +76,16 @@ function CompareSkeleton() {
       <header className="space-y-4">
         <div className="space-y-2">
           <Skeleton className="h-3.5 w-40" />
-          <Skeleton className="h-8 w-[min(36rem,100%)] sm:h-9" />
-          <Skeleton className="h-4 w-56" />
-        </div>
-        <div className="flex gap-1.5">
-          <Skeleton className="h-9 w-40" />
-          <Skeleton className="h-9 w-28" />
-          <Skeleton className="h-9 w-40" />
+          {/* A and B: street with its checkbox, place, home details. */}
+          <div className="flex flex-wrap gap-x-10 gap-y-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-8 w-72 sm:h-9" />
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-9 w-40" />
+              </div>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -100,7 +103,6 @@ function CompareSkeleton() {
         </div>
       </div>
 
-      <div className={cn(WIDGET, "h-32")} />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         {Array.from({ length: 7 }, (_, i) => (
           <div key={i} className={cn(WIDGET, "space-y-3 p-4")}>

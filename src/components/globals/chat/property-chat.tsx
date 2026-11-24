@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { BillingStatus } from "@/components/globals/dashboard/plans-dialog";
-import { SeePlansPrompt } from "@/components/globals/dashboard/see-plans-prompt";
+import { SeePlansButton } from "@/components/globals/dashboard/see-plans-prompt";
 import {
   InputGroup,
   InputGroupAddon,
@@ -439,8 +439,10 @@ export function ChatSession({
     }
     wasBusy.current = busy;
   }, [busy, queryClient, trpcClient]);
-  const chatLeft = billing?.active ? Math.max(0, billing.chatLimit - billing.chatUsed) : null;
-  const chatBlocked = billing != null && (!billing.active || chatLeft === 0);
+  // This month's plan messages, or Basic's free ones (never reset).
+  const chatLeft = billing ? Math.max(0, billing.chatLimit - billing.chatUsed) : null;
+  const chatBlocked = chatLeft === 0;
+  const basic = billing != null && !billing.subscribed;
 
   const send = (text: string) => {
     const t = text.trim();
@@ -519,7 +521,7 @@ export function ChatSession({
                     <span className="flex-1">
                       {isChatRefusal(error)
                         ? /\b402\b/.test(error.message)
-                          ? "You've used this month's AI chat messages, or your plan isn't active."
+                          ? "You've used your AI chat messages for now. See your plan for more."
                           : error.message
                         : error.message || "Something went wrong."}
                     </span>
@@ -555,7 +557,7 @@ export function ChatSession({
       {/* Composer: Enter sends, Shift+Enter for a new line. */}
       <div className="shrink-0 border-t bg-background/85 px-4 py-3 backdrop-blur-md sm:px-6">
         {/* Monthly messages used up (no plan: the "See plans" line below). */}
-        {chatBlocked && billing?.active && (
+        {chatBlocked && billing && (
           <ChatAllowanceNotice billing={billing} className="mx-auto mb-3 w-full max-w-3xl" />
         )}
         <form
@@ -586,9 +588,9 @@ export function ChatSession({
               disabled={chatBlocked}
               placeholder={
                 chatBlocked
-                  ? billing?.active
-                    ? "You've used this month's AI chat messages"
-                    : "Choose a plan to use AI chat"
+                  ? basic
+                    ? "You've used your free AI chat messages"
+                    : "You've used this month's AI chat messages"
                   : placeholder
               }
               aria-label="Message"
@@ -597,8 +599,8 @@ export function ChatSession({
             />
             <InputGroupAddon align="block-end" className="justify-between">
               <span className="text-xs text-foreground/55">
-                {chatLeft != null && chatLeft > 0 && chatLeft <= 10
-                  ? `${chatLeft} of ${billing?.active ? billing.chatLimit : ""} chat messages left this month · check before sharing`
+                {billing && chatLeft != null && chatLeft > 0 && chatLeft <= 10
+                  ? `${chatLeft} of ${billing.chatLimit} ${basic ? "free chat messages left" : "chat messages left this month"} · check before sharing`
                   : hint}
               </span>
               {busy ? (
@@ -632,11 +634,6 @@ export function ChatSession({
             </InputGroupAddon>
           </InputGroup>
         </form>
-        {billing && !billing.active && (
-          <div className="mx-auto mt-2 w-full max-w-3xl">
-            <SeePlansPrompt message="Choose a plan to use AI chat." />
-          </div>
-        )}
       </div>
     </div>
   );
@@ -644,14 +641,33 @@ export function ChatSession({
 
 const chatDate = new Intl.DateTimeFormat("en-CA", { dateStyle: "medium" });
 
-/** Why the composer is off: this month's messages are used. */
+/** Why the composer is off: this month's (or Basic's free) messages are used. */
 function ChatAllowanceNotice({
   billing,
   className,
 }: {
-  billing: Extract<BillingStatus, { active: true }>;
+  billing: BillingStatus;
   className?: string;
 }) {
+  if (!billing.subscribed) {
+    return (
+      <Alert className={className}>
+        <AlertCircleIcon />
+        <AlertTitle>
+          You&apos;ve used your {billing.chatLimit} free AI chat messages
+        </AlertTitle>
+        <AlertDescription>
+          Plans include{" "}
+          {billing.plans.map((p) => p.chat).sort((x, y) => x - y).join(" to ")}{" "}
+          AI chat messages a month, plus monthly reports. The report itself
+          stays fully available.
+        </AlertDescription>
+        <AlertAction>
+          <SeePlansButton label="Choose a plan" variant="default" />
+        </AlertAction>
+      </Alert>
+    );
+  }
   const resets = billing.reportsResetAt ? chatDate.format(new Date(billing.reportsResetAt)) : null;
   const starter = billing.plan === "starter";
   return (

@@ -1,39 +1,32 @@
 "use client";
 
-import { cn } from "cn";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PlansDialog, useBillingStatus } from "./plans-dialog";
 
-/** "Choose a plan to run reports. See plans": the link opens the plans popup. */
-export function SeePlansPrompt({
-  message = "Choose a plan to run reports.",
-  tone = "muted",
+/**
+ * A "See plans" button that opens the plans popup. Usable from server
+ * components (the billing panel) and the chat.
+ */
+export function SeePlansButton({
+  label = "See plans",
+  variant = "outline",
 }: {
-  message?: string;
-  tone?: "muted" | "destructive";
+  label?: string;
+  variant?: "outline" | "default";
 }) {
   const [open, setOpen] = useState(false);
   const { data: status } = useBillingStatus();
   return (
     <>
-      <p
-        className={cn(
-          "flex flex-wrap items-center justify-center gap-x-1.5 text-sm",
-          tone === "destructive" ? "text-destructive" : "text-foreground/65",
-        )}
+      <Button
+        variant={variant}
+        size="sm"
+        onClick={() => setOpen(true)}
+        disabled={!status}
       >
-        {message}
-        <Button
-          variant="link"
-          size="sm"
-          className="h-auto p-0 text-sm"
-          onClick={() => setOpen(true)}
-          disabled={!status}
-        >
-          See plans
-        </Button>
-      </p>
+        {label}
+      </Button>
       <PlansDialog open={open} onOpenChange={setOpen} status={status} />
     </>
   );

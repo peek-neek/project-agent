@@ -304,8 +304,8 @@ export const faqs = [
     a: "Usually a few minutes. You can watch each section arrive, and the report is yours to revisit, regenerate or download whenever you need it.",
   },
   {
-    q: "Why is there no free plan?",
-    a: "Every report runs fresh lookups against live map, routing and AI services, so each one has a real cost. Plans start at C$59 a month, you can cancel anytime, and extra reports are C$15 each.",
+    q: "Can I try it for free?",
+    a: "Yes. Every account starts on Basic: one full report and 5 AI chat messages, free, no card needed. Every report runs fresh lookups against live map, routing and AI services, so after that plans start at C$59 a month (cancel anytime), or you can buy extra reports at C$15 each without subscribing.",
   },
   {
     q: "Are the figures guaranteed?",

@@ -19,11 +19,13 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTravelMode } from "@/components/globals/travel-mode";
 import { JOB_KINDS, type JobKind } from "@/lib/report-sections";
+import { HomeFacts } from "@/components/globals/report/home-facts";
+import { StickyNote } from "@/components/globals/report/sticky-note";
 import { ReportDashboard } from "@/components/globals/report/report-dashboard";
 import {
   formatDate,
@@ -48,13 +50,13 @@ import { CompareSchools } from "./compare-schools";
 import {
   type CompareProperty,
   CrownedChip,
+  SIDE,
   SideChip,
   type Side,
   SIDES,
   toProperty,
 } from "./compare-shared";
 import { CompareUpside } from "./compare-upside";
-import { StickyNote } from "@/components/globals/report/sticky-note";
 
 /** Height of the sticky dashboard header the tab bar sits under. */
 const STICKY_OFFSET = 56;
@@ -110,6 +112,14 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
     window.scrollTo({ top: 0, behavior: "instant" });
   };
 
+  // Which properties are ticked: both (the comparison) or one (its report).
+  const shown = { a: view !== "b", b: view !== "a" };
+  const toggle = (side: Side, checked: boolean) => {
+    const next = { ...shown, [side]: checked };
+    if (!next.a && !next.b) return; // one always stays ticked
+    setView(next.a && next.b ? "both" : next.a ? "a" : "b");
+  };
+
   return (
     <div className="mx-auto w-full max-w-[90rem] space-y-4">
       <header className="space-y-4">
@@ -119,76 +129,105 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
             {comparison.name ?? "Comparison"} ·{" "}
             {formatDate(comparison.createdAt)}
           </p>
-          {/* Each property is a block: chip + street, its place right under
-              the street. "vs" lines up with the streets, and on narrow
-              screens B wraps below A as a whole block. */}
-          <h1 className="flex flex-wrap items-start gap-x-3 gap-y-2 text-2xl font-semibold tracking-tight sm:text-3xl">
-            {SIDES.map((side, i) => (
-              <span key={side} className="contents">
-                {i > 0 && (
-                  <span className="flex h-8 items-center text-base font-medium text-foreground/40 sm:h-9 sm:text-lg">
-                    vs
-                  </span>
-                )}
-                <span className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1">
-                  <CrownedChip
-                    side={side}
-                    crowned={leader === side}
-                    label="Leads overall"
-                    className="size-6 text-sm"
-                  />
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="truncate">{props[side].street}</span>
-                    <StickyNote
-                      report={props[side].report}
-                      street={props[side].street}
-                    />
-                  </span>
-                  <span className="col-start-2 truncate text-sm font-normal tracking-normal text-foreground/60">
-                    {props[side].place}
-                  </span>
-                </span>
-              </span>
-            ))}
+          {/* Each property is a block: chip + street + its checkbox, the
+              place under the street, then its home details. Ticked
+              properties are shown: both is the comparison, one is that
+              property's full report. "vs" lines up with the streets; on
+              narrow screens B wraps below A as a whole block. */}
+          <h1 className="sr-only">
+            {props.a.street} vs {props.b.street}
           </h1>
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-3">
+            {SIDES.map((side, i) => {
+              const checked = shown[side];
+              // At least one stays ticked: the last one can't be unticked.
+              const last = checked && !shown[side === "a" ? "b" : "a"];
+              return (
+                <div key={side} className="contents">
+                  {i > 0 && (
+                    <span
+                      aria-hidden
+                      className="flex h-8 items-center text-base font-medium text-foreground/40 sm:h-9 sm:text-lg"
+                    >
+                      vs
+                    </span>
+                  )}
+                  {/* A block per property: badge, street, checkbox and note on
+                      one line; place and details under the street. On wider
+                      screens B's block lines up at the end (right edge); stacked
+                      under A on phones it reads like A. */}
+                  <div
+                    className={cn(
+                      "flex min-w-0 flex-col gap-1",
+                      side === "b" && "md:items-end",
+                    )}
+                  >
+                    <span className="flex max-w-full min-w-0 items-center gap-2">
+                      <CrownedChip
+                        side={side}
+                        crowned={leader === side}
+                        label="Leads overall"
+                        className="size-6 text-sm"
+                      />
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "truncate text-2xl font-semibold tracking-tight transition-opacity sm:text-3xl",
+                            !checked && "opacity-40",
+                          )}
+                        >
+                          {props[side].street}
+                        </span>
+                        <Checkbox
+                          checked={checked}
+                          disabled={last}
+                          onCheckedChange={(next) => toggle(side, next)}
+                          aria-label={`Show ${props[side].street}`}
+                          title={
+                            last
+                              ? "Tick the other property to compare again"
+                              : undefined
+                          }
+                          style={
+                            {
+                              "--side": SIDE[side].color,
+                              "--side-on": SIDE[side].onColor,
+                            } as React.CSSProperties
+                          }
+                          className="size-6 data-checked:border-(--side) data-checked:bg-(--side) data-checked:text-(--side-on) disabled:opacity-100 sm:size-7 [&_svg]:size-4! dark:data-checked:bg-(--side)"
+                        />
+                        <StickyNote
+                          report={props[side].report}
+                          street={props[side].street}
+                        />
+                      </span>
+                    </span>
+                    {/* Under the street: past the badge (1.5rem + gap) on A. */}
+                    <span
+                      className={cn(
+                        "max-w-full truncate pl-8 text-sm text-foreground/60",
+                        side === "b" && "md:pl-0 md:text-right",
+                      )}
+                    >
+                      {props[side].place}
+                    </span>
+                    {/* The property's details (type, price, beds…), editable. */}
+                    <div
+                      className={cn("pt-1.5 pl-8", side === "b" && "md:pl-0")}
+                    >
+                      <HomeFacts
+                        report={props[side].report}
+                        listing={props[side].data.listing}
+                        onSaved={() => {}}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-
-        {/* Both: the comparison. A or B: that property's full report. */}
-        <ToggleGroup
-          aria-label="Show"
-          value={[view]}
-          onValueChange={(value) => {
-            const next = value[0] as View | undefined;
-            if (next) setView(next);
-          }}
-          spacing={1}
-          className="flex w-full flex-wrap justify-start"
-        >
-          {(["a", "both", "b"] as const).map((v) => (
-            <ToggleGroupItem
-              key={v}
-              value={v}
-              className="h-9 max-w-[16rem] gap-2 border bg-card px-3 data-pressed:border-foreground data-pressed:bg-foreground data-pressed:text-background"
-            >
-              {v === "both" ? (
-                <>
-                  <GitCompareArrowsIcon aria-hidden />
-                  Compare
-                </>
-              ) : (
-                <>
-                  <CrownedChip
-                    side={v}
-                    crowned={leader === v}
-                    label="Leads overall"
-                    className="ring-1 ring-background/60"
-                  />
-                  <span className="truncate">{props[v].street}</span>
-                </>
-              )}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
       </header>
 
       {/* An address that couldn't be placed: say so once, up front, rather
@@ -231,8 +270,9 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
           onOpen={(side, tab) => setView(side, tab)}
         />
       ) : (
-        // Keyed: switching property starts that report fresh.
-        <ReportDashboard key={view} report={props[view].report} />
+        // Keyed: switching property starts that report fresh. Embedded: the
+        // header above already shows its address and details.
+        <ReportDashboard key={view} report={props[view].report} embedded />
       )}
     </div>
   );

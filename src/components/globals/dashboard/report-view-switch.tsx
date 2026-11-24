@@ -97,8 +97,11 @@ export function ReportViewSwitch({
     <ButtonGroup aria-label="Report view">
       {VIEWS.map((v) => {
         const current = v.id === active;
+        // Icon and name; icon only on phones (the header is tight there),
+        // where the name stays for screen readers (same words as shown).
+        const label = v.label;
         const className = cn(
-          "h-8 gap-1.5 bg-card px-3",
+          "h-8 w-8 gap-1.5 bg-card px-0 sm:w-auto sm:px-3",
           current &&
             "bg-foreground text-background hover:bg-foreground/90 hover:text-background",
         );
@@ -107,9 +110,9 @@ export function ReportViewSwitch({
             {v.id === "report" ? (
               <ReportPhoto reportId={photoReportId} icon={icon} />
             ) : (
-              <v.icon data-icon="inline-start" />
+              <v.icon aria-hidden />
             )}
-            {v.label}
+            <span className="hidden sm:inline">{v.label}</span>
           </>
         );
         return base ? (
@@ -118,6 +121,7 @@ export function ReportViewSwitch({
             variant="outline"
             size="sm"
             nativeButton={false}
+            aria-label={label}
             aria-current={current ? "page" : undefined}
             render={
               <Link
@@ -134,6 +138,7 @@ export function ReportViewSwitch({
             key={v.id}
             variant="outline"
             size="sm"
+            aria-label={label}
             aria-current={current ? "page" : undefined}
             className={className}
           >

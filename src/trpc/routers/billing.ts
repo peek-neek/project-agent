@@ -9,8 +9,9 @@ import { createTRPCRouter, protectedProcedure } from "../init";
 export const billingRouter = createTRPCRouter({
   /**
    * What the agent can do right now, for the UI's gates (the server checks
-   * again on every report and chat turn). Dates are ISO strings: no
-   * superjson transformer here.
+   * again on every report and chat turn). Agents without a subscription are
+   * on Basic (a free report and a few chat messages, never reset). Dates are
+   * ISO strings: no superjson transformer here.
    */
   status: protectedProcedure.query(async ({ ctx }) => {
     const [entitlement, planPrices, extra] = await Promise.all([
@@ -26,20 +27,17 @@ export const billingRouter = createTRPCRouter({
       monthly: planPrices[id].monthly.amount,
       annual: planPrices[id].annual.amount,
     }));
-    if (!entitlement.active) {
-      return {
-        active: false as const,
-        status: entitlement.status,
-        plans,
-        extraReportPrice: extra.amount,
-      };
-    }
-    const reportsLeft = Math.max(0, entitlement.reportsLimit - entitlement.reportsUsed);
+    const reportsLeft = Math.max(
+      0,
+      entitlement.reportsLimit - entitlement.reportsUsed,
+    );
     return {
-      active: true as const,
+      /** False on Basic (free, no Stripe subscription). */
+      subscribed: entitlement.subscribed,
       plan: entitlement.plan,
       planName: entitlement.planName,
       interval: entitlement.interval,
+      /** Stripe status of the subscription, or of a past one on Basic. */
       status: entitlement.status,
       reportsUsed: entitlement.reportsUsed,
       reportsLimit: entitlement.reportsLimit,
@@ -47,7 +45,7 @@ export const billingRouter = createTRPCRouter({
       extraReportCredits: entitlement.extraReportCredits,
       /** A new report would spend an extra-report credit. */
       usesCredit: reportsLeft === 0 && entitlement.extraReportCredits > 0,
-      /** No plan reports and no credits left: a new report is refused. */
+      /** No plan (or free) reports and no credits left: a report is refused. */
       blocked: reportsLeft === 0 && entitlement.extraReportCredits === 0,
       reportsResetAt: entitlement.reportsResetAt?.toISOString() ?? null,
       chatUsed: entitlement.chatUsed,

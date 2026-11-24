@@ -21,6 +21,17 @@ type Billing = "monthly" | "annual";
 
 const PLANS = [
   {
+    id: "basic",
+    name: "Basic",
+    for: "Try it on one of your listings, free.",
+    was: null,
+    monthly: 0,
+    annual: 0,
+    reports: 1,
+    chat: 5,
+    highlight: false,
+  },
+  {
     id: "starter",
     name: "Starter",
     for: "For agents with one or two listings a month.",
@@ -45,35 +56,51 @@ const PLANS = [
 ] as const;
 
 type Cell = boolean | string;
-const FEATURES: { group: string; rows: [string, Cell, Cell][] }[] = [
+/** Rows: label, then Basic, Starter, Pro. */
+const FEATURES: { group: string; rows: [string, Cell, Cell, Cell][] }[] = [
   {
-    group: "Every month",
+    group: "Reports and chat",
     rows: [
-      ["New reports", "3", "10"],
-      ["AI chat messages", "30", "100"],
-      ["Extra reports", "C$15 each", "C$15 each"],
+      ["New reports", "1 free", "3 a month", "10 a month"],
+      ["AI chat messages", "5 free", "30 a month", "100 a month"],
+      ["Extra reports", "C$15 each", "C$15 each", "C$15 each"],
     ],
   },
   {
     group: "The report",
     rows: [
-      ["8 Street View angles and property details", true, true],
-      ["Sell / rent ease score, with the price point", true, true],
-      ["23 amenity categories, timed on foot, by bike and by car", true, true],
-      ["Commute to downtowns and airports at rush hour", true, true],
-      ["Nearest schools (every board and EQAO results in Ontario)", true, true],
-      ["Crime, flood regulation, noise and air quality", true, true],
-      ["Housing mix and planned development nearby", true, true],
+      ["8 Street View angles and property details", true, true, true],
+      ["Sell / rent ease score, with the price point", true, true, true],
+      [
+        "23 amenity categories, timed on foot, by bike and by car",
+        true,
+        true,
+        true,
+      ],
+      ["Commute to downtowns and airports at rush hour", true, true, true],
+      [
+        "Nearest schools (every board and EQAO results in Ontario)",
+        true,
+        true,
+        true,
+      ],
+      ["Crime, flood regulation, noise and air quality", true, true, true],
+      ["Housing mix and planned development nearby", true, true, true],
     ],
   },
   {
     group: "Marketing",
     rows: [
-      ["MLS descriptions in 4 tones, social posts and email", true, true],
-      ["5-stage listing campaign, Reel script, carousel and ads", true, true],
-      ["Showing playbook, buyer answers and checklists", true, true],
-      ["Rewrite or translate any block", true, true],
-      ["Regenerate all AI copy", "1 per report", "Unlimited"],
+      ["MLS descriptions in 4 tones, social posts and email", true, true, true],
+      [
+        "5-stage listing campaign, Reel script, carousel and ads",
+        true,
+        true,
+        true,
+      ],
+      ["Showing playbook, buyer answers and checklists", true, true, true],
+      ["Rewrite or translate any block", true, true, true],
+      ["Regenerate all AI copy", "1 per report", "1 per report", "Unlimited"],
     ],
   },
   {
@@ -83,11 +110,12 @@ const FEATURES: { group: string; rows: [string, Cell, Cell][] }[] = [
         "13 calculators: mortgage, land transfer tax, closing costs and more",
         true,
         true,
+        true,
       ],
-      ["Saved calculator figures in the PDF and chat", false, true],
-      ["PDF download with clickable contents", true, true],
-      ["Your logo and details on every PDF page", false, true],
-      ["Support", "Email", "Priority"],
+      ["Saved calculator figures in the PDF and chat", false, false, true],
+      ["PDF download with clickable contents", true, true, true],
+      ["Your logo and details on every PDF page", false, false, true],
+      ["Support", "Email", "Email", "Priority"],
     ],
   },
 ];
@@ -125,9 +153,9 @@ export function Pricing() {
               Less than the cost of one listing photo shoot.
             </h2>
             <p className="mt-4 text-lg leading-relaxed text-foreground/65 text-pretty">
-              Every report runs fresh lookups against live data, so there&apos;s
-              no free plan. Prices in Canadian dollars, plus applicable sales tax. Cancel
-              anytime.
+              Start free with one full report, no card needed. Plans add monthly
+              reports and AI chat. Prices in Canadian dollars, plus applicable
+              sales tax. Cancel anytime.
             </p>
           </div>
           <ToggleGroup
@@ -170,8 +198,8 @@ export function Pricing() {
           </ToggleGroup>
         </div>
 
-        {/* The two plans, side by side */}
-        <div className="mt-12 grid border-y md:grid-cols-2 md:divide-x">
+        {/* The three plans, side by side */}
+        <div className="mt-12 grid border-y md:grid-cols-3 md:divide-x">
           {PLANS.map((p, i) => (
             <motion.div
               key={p.id}
@@ -195,38 +223,48 @@ export function Pricing() {
               <p className="mt-1.5 text-foreground/60">{p.for}</p>
               <p className="mt-6 flex items-end gap-3">
                 <span className="text-5xl leading-none font-semibold tracking-tight">
-                  <Rolling
-                    value={`C$${billing === "monthly" ? p.monthly : p.annual.toLocaleString("en-CA")}`}
-                  />
+                  {p.id === "basic" ? (
+                    "Free"
+                  ) : (
+                    <Rolling
+                      value={`C$${billing === "monthly" ? p.monthly : p.annual.toLocaleString("en-CA")}`}
+                    />
+                  )}
                 </span>
-                <span className="pb-1 text-foreground/55">
-                  {billing === "monthly" ? "/ month" : "/ year"}
-                </span>
-                {billing === "monthly" && (
+                {p.id !== "basic" && (
+                  <span className="pb-1 text-foreground/55">
+                    {billing === "monthly" ? "/ month" : "/ year"}
+                  </span>
+                )}
+                {billing === "monthly" && p.was != null && (
                   <span className="pb-1 text-foreground/40 line-through">
                     C${p.was}
                   </span>
                 )}
               </p>
               <p className="mt-2 text-sm text-foreground/55">
-                {p.reports} new reports and {p.chat} chat messages a month ·
-                extra reports C$15
+                {p.id === "basic"
+                  ? `${p.reports} full report and ${p.chat} chat messages, once · no card needed`
+                  : `${p.reports} new reports and ${p.chat} chat messages a month · extra reports C$15`}
               </p>
               <Button
                 nativeButton={false}
                 render={
                   <Link
-                    // Sign up, then straight to Stripe Checkout for this plan
-                    // and billing period.
+                    // Sign up, then (paid plans) straight to Stripe Checkout
+                    // for this plan and billing period; Basic lands on the
+                    // dashboard with its free report.
                     href={`/sign-up?redirect_url=${encodeURIComponent(
-                      `/billing/checkout?plan=${p.id}&interval=${billing}`,
+                      p.id === "basic"
+                        ? "/dashboard"
+                        : `/billing/checkout?plan=${p.id}&interval=${billing}`,
                     )}`}
                   />
                 }
                 variant={p.highlight ? "default" : "outline"}
                 className="mt-8 h-12 w-full px-6 text-base sm:w-auto"
               >
-                Choose {p.name}
+                {p.id === "basic" ? "Start free" : `Choose ${p.name}`}
               </Button>
             </motion.div>
           ))}
@@ -234,12 +272,13 @@ export function Pricing() {
 
         {/* Everything each plan includes */}
         <div className="mt-12 overflow-x-auto">
-          <Table className="min-w-[36rem]">
+          <Table className="min-w-[42rem]">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[60%]">
+                <TableHead className="w-[52%]">
                   <span className="sr-only">Feature</span>
                 </TableHead>
+                <TableHead className="text-foreground">Basic</TableHead>
                 <TableHead className="text-foreground">Starter</TableHead>
                 <TableHead className="text-foreground">Pro</TableHead>
               </TableRow>
@@ -249,16 +288,19 @@ export function Pricing() {
                 <Fragment key={g.group}>
                   <TableRow className="hover:bg-transparent">
                     <TableCell
-                      colSpan={3}
+                      colSpan={4}
                       className="pt-8 text-xs font-medium tracking-[0.14em] text-foreground/50 uppercase"
                     >
                       {g.group}
                     </TableCell>
                   </TableRow>
-                  {g.rows.map(([label, starter, pro]) => (
+                  {g.rows.map(([label, basic, starter, pro]) => (
                     <TableRow key={`${g.group}-${label}`}>
                       <TableCell className="py-3 whitespace-normal text-foreground/80">
                         {label}
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Mark value={basic} />
                       </TableCell>
                       <TableCell className="py-3">
                         <Mark value={starter} />

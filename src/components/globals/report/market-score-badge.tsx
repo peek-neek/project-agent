@@ -29,6 +29,7 @@ import { useHydrated, useTravelMode } from "@/components/globals/travel-mode";
 import { getSection, isJobActive } from "./report-hooks";
 import {
   SIDE,
+  SIDES,
   SideChip,
   type Side,
 } from "@/components/globals/compare/compare-shared";
@@ -62,30 +63,43 @@ export function MarketScoreBadge() {
   return <Badge reportId={reportId} />;
 }
 
-/** On a comparison: one badge per property, each with its A/B chip. */
+/**
+ * On a comparison: one badge per property, each with its A/B chip. On
+ * phones the two merge into one compact button (the header has no room for
+ * both), whose popover shows both properties' breakdowns.
+ */
 function ComparisonBadges({ comparisonId }: { comparisonId: string }) {
   const trpc = useTRPC();
   const { data: comparison } = useQuery(
     trpc.comparison.byId.queryOptions({ id: comparisonId }),
   );
   if (!comparison) return null;
+  const ids = { a: comparison.reportAId, b: comparison.reportBId };
   return (
-    <span className="flex items-center gap-1.5">
-      <Badge reportId={comparison.reportAId} side="a" />
-      <Badge reportId={comparison.reportBId} side="b" />
-    </span>
+    <>
+      <span className="hidden items-center gap-1.5 sm:flex">
+        <Badge reportId={ids.a} side="a" />
+        <Badge reportId={ids.b} side="b" />
+      </span>
+      <span className="sm:hidden">
+        <CompactComparisonBadge ids={ids} />
+      </span>
+    </>
   );
 }
 
-function Badge({ reportId, side }: { reportId: string; side?: Side }) {
+/**
+ * A report's market ease, following the walk / bike / car choice like the
+ * Overview tiles. `score` is null while data is still coming (`loading`) or
+ * when it can't be scored.
+ */
+function useMarketScore(reportId: string) {
   const trpc = useTRPC();
-  // The score follows the walk / bike / car choice, like the Overview tiles.
   const travel = useTravelMode();
   const { data: report } = useQuery(
     trpc.report.byId.queryOptions({ id: reportId }),
   );
-  if (!report) return null;
-
+  if (!report) return { score: null, loading: true, mode: travel.mode };
   const score = marketScore(
     {
       amenities: getSection(report, SECTION_KEYS.amenities, amenitiesSchema),
@@ -101,16 +115,35 @@ function Badge({ reportId, side }: { reportId: string; side?: Side }) {
     },
     travel.mode,
   );
+  return {
+    score,
+    loading: !score && report.jobs.some(isJobActive),
+    mode: travel.mode,
+  };
+}
+
+type Score = NonNullable<ReturnType<typeof marketScore>>;
+
+/** The score's level as a small coloured square. */
+function LevelSquare({ level }: { level: Score["level"] }) {
+  return (
+    <span
+      className="grid size-4.5 place-items-center text-[11px] font-bold text-white tabular-nums"
+      style={{ backgroundColor: MARKET_LEVELS[level].color }}
+    >
+      {level}
+    </span>
+  );
+}
+
+function Badge({ reportId, side }: { reportId: string; side?: Side }) {
+  const { score, loading, mode } = useMarketScore(reportId);
   if (!score) {
     // Still gathering data: hold the space while steps run.
-    return report.jobs.some(isJobActive) ? (
+    return loading ? (
       <Skeleton className="h-7 w-28" aria-label="Scoring this location" />
     ) : null;
   }
-
-  const meta = MARKET_LEVELS[score.level];
-  const hasPrice = score.factors.some((f) => f.id === "price");
-  const factors = [...score.factors].sort((a, b) => b.weight - a.weight);
 
   return (
     <Popover>
@@ -125,13 +158,10 @@ function Badge({ reportId, side }: { reportId: string; side?: Side }) {
         }
       >
         {side && <SideChip side={side} className="size-4.5" />}
+        <LevelSquare level={score.level} />
         <span
-          className="grid size-4.5 place-items-center text-[11px] font-bold text-white tabular-nums"
-          style={{ backgroundColor: meta.color }}
+          className={cn("hidden text-xs", side ? "lg:inline" : "sm:inline")}
         >
-          {score.level}
-        </span>
-        <span className={cn("hidden text-xs", side ? "lg:inline" : "sm:inline")}>
           {score.label}
         </span>
         <span className={cn("text-xs", side ? "lg:hidden" : "sm:hidden")}>
@@ -141,87 +171,186 @@ function Badge({ reportId, side }: { reportId: string; side?: Side }) {
       </PopoverTrigger>
 
       <PopoverContent align="end" className="w-80 gap-3 p-3">
-        <PopoverHeader>
-          <PopoverTitle className="flex items-center gap-2">
-            <GaugeIcon aria-hidden className="size-4 text-primary" />
-            {side && <SideChip side={side} className="size-4.5" />}
-            Market ease: {score.level}/5 · {score.label}
-          </PopoverTitle>
-          <PopoverDescription className="text-xs">
-            How much the location and price point help or hinder selling or
-            renting. 1 is hard, 5 is easy.
-          </PopoverDescription>
-        </PopoverHeader>
-
-        {/* 1–5 scale with this home's level marked. */}
-        <div className="grid grid-cols-5 gap-0.5" aria-hidden>
-          {LEVELS.map((l) => (
-            <span key={l} className="space-y-1 text-center">
-              <span
-                className={cn(
-                  "block h-1.5",
-                  l === score.level ? "" : "opacity-25",
-                )}
-                style={{ backgroundColor: MARKET_LEVELS[l].color }}
-              />
-              <span
-                className={cn(
-                  "block text-[10px] tabular-nums",
-                  l === score.level
-                    ? "font-semibold text-foreground"
-                    : "text-foreground/45",
-                )}
-              >
-                {l}
-              </span>
-            </span>
-          ))}
-        </div>
-
-        {/* Each factor rated 1–5 on the same scale (and colours) as the
-            total, as five segments filled up to its rating. */}
-        <ul className="space-y-2.5">
-          {factors.map((f) => {
-            const rating = levelFor(f.score);
-            const color = MARKET_LEVELS[rating].color;
-            return (
-              <li key={f.id} className="space-y-1">
-                <span className="flex items-center justify-between gap-2 text-xs">
-                  <span className="font-medium">{f.label}</span>
-                  <span className="font-semibold tabular-nums" style={{ color }}>
-                    {rating}/5
-                  </span>
-                </span>
-                <span
-                  role="img"
-                  aria-label={`${f.label}: ${rating} of 5`}
-                  className="grid grid-cols-5 gap-0.5"
-                >
-                  {LEVELS.map((l) => (
-                    <span
-                      key={l}
-                      className={cn("block h-1.5", l > rating && "bg-muted")}
-                      style={l <= rating ? { backgroundColor: color } : undefined}
-                    />
-                  ))}
-                </span>
-                <span className="block text-[11px] leading-snug text-foreground/55">
-                  {f.detail}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-
-        <p className="border-t pt-2 text-[11px] leading-snug text-foreground/50">
-          Uses {TRAVEL_PHRASE[travel.mode]} times.{" "}
-          {hasPrice
-            ? "The price point reflects how many buyers can afford the list price, not how it compares with recent sales."
-            : "Add a list price in the property details to include the price point."}{" "}
-          Condition, size and market conditions aren&apos;t included. Census
-          facts about residents are never used.
-        </p>
+        <MarketDetails score={score} side={side} mode={mode} />
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * Phones, on a comparison: both scores in one button ("A 4 · B 3"), and
+ * both breakdowns in its popover, one after the other.
+ */
+function CompactComparisonBadge({ ids }: { ids: Record<Side, string> }) {
+  const a = useMarketScore(ids.a);
+  const b = useMarketScore(ids.b);
+  const sides = { a, b };
+  if (!a.score && !b.score) {
+    return a.loading || b.loading ? (
+      <Skeleton className="h-7 w-24" aria-label="Scoring these locations" />
+    ) : null;
+  }
+  const label = SIDES.map((side) => {
+    const s = sides[side].score;
+    return `Property ${SIDE[side].letter}: ${s ? `${s.level} of 5` : "not scored yet"}`;
+  }).join(", ");
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1 bg-card px-1.5"
+            aria-label={`Market ease. ${label}. Show details`}
+          />
+        }
+      >
+        {SIDES.map((side, i) => {
+          const s = sides[side].score;
+          return (
+            <span key={side} className="flex items-center gap-0.5">
+              {i > 0 && (
+                <span aria-hidden className="px-0.5 text-foreground/30">
+                  ·
+                </span>
+              )}
+              <SideChip side={side} className="size-4.5" />
+              {s ? (
+                <LevelSquare level={s.level} />
+              ) : (
+                <span className="grid size-4.5 place-items-center text-[11px] text-foreground/40">
+                  –
+                </span>
+              )}
+            </span>
+          );
+        })}
+        <ChevronDownIcon aria-hidden className="size-3.5 text-foreground/50" />
+      </PopoverTrigger>
+
+      <PopoverContent
+        align="end"
+        className="max-h-[min(36rem,calc(100svh-5rem))] w-[min(20rem,calc(100vw-1.5rem))] gap-3 overflow-y-auto p-3"
+      >
+        {SIDES.map((side, i) => {
+          const s = sides[side];
+          return (
+            <div
+              key={side}
+              className={cn("grid gap-3", i > 0 && "border-t pt-3")}
+            >
+              {s.score ? (
+                <MarketDetails score={s.score} side={side} mode={s.mode} />
+              ) : (
+                <p className="flex items-center gap-2 text-sm text-foreground/60">
+                  <SideChip side={side} className="size-4.5" />
+                  {s.loading ? "Scoring once the data is in…" : "Not scored."}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/** One score's breakdown: the 1–5 scale, each factor, and the caveats. */
+function MarketDetails({
+  score,
+  side,
+  mode,
+}: {
+  score: Score;
+  side?: Side;
+  mode: keyof typeof TRAVEL_PHRASE;
+}) {
+  const hasPrice = score.factors.some((f) => f.id === "price");
+  const factors = [...score.factors].sort((a, b) => b.weight - a.weight);
+  return (
+    <>
+      <PopoverHeader>
+        <PopoverTitle className="flex items-center gap-2">
+          <GaugeIcon aria-hidden className="size-4 text-primary" />
+          {side && <SideChip side={side} className="size-4.5" />}
+          Market ease: {score.level}/5 · {score.label}
+        </PopoverTitle>
+        <PopoverDescription className="text-xs">
+          How much the location and price point help or hinder selling or
+          renting. 1 is hard, 5 is easy.
+        </PopoverDescription>
+      </PopoverHeader>
+
+      {/* 1–5 scale with this home's level marked. */}
+      <div className="grid grid-cols-5 gap-0.5" aria-hidden>
+        {LEVELS.map((l) => (
+          <span key={l} className="space-y-1 text-center">
+            <span
+              className={cn(
+                "block h-1.5",
+                l === score.level ? "" : "opacity-25",
+              )}
+              style={{ backgroundColor: MARKET_LEVELS[l].color }}
+            />
+            <span
+              className={cn(
+                "block text-[10px] tabular-nums",
+                l === score.level
+                  ? "font-semibold text-foreground"
+                  : "text-foreground/45",
+              )}
+            >
+              {l}
+            </span>
+          </span>
+        ))}
+      </div>
+
+      {/* Each factor rated 1–5 on the same scale (and colours) as the
+            total, as five segments filled up to its rating. */}
+      <ul className="space-y-2.5">
+        {factors.map((f) => {
+          const rating = levelFor(f.score);
+          const color = MARKET_LEVELS[rating].color;
+          return (
+            <li key={f.id} className="space-y-1">
+              <span className="flex items-center justify-between gap-2 text-xs">
+                <span className="font-medium">{f.label}</span>
+                <span className="font-semibold tabular-nums" style={{ color }}>
+                  {rating}/5
+                </span>
+              </span>
+              <span
+                role="img"
+                aria-label={`${f.label}: ${rating} of 5`}
+                className="grid grid-cols-5 gap-0.5"
+              >
+                {LEVELS.map((l) => (
+                  <span
+                    key={l}
+                    className={cn("block h-1.5", l > rating && "bg-muted")}
+                    style={l <= rating ? { backgroundColor: color } : undefined}
+                  />
+                ))}
+              </span>
+              <span className="block text-[11px] leading-snug text-foreground/55">
+                {f.detail}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+
+      <p className="border-t pt-2 text-[11px] leading-snug text-foreground/50">
+        Uses {TRAVEL_PHRASE[mode]} times.{" "}
+        {hasPrice
+          ? "The price point reflects how many buyers can afford the list price, not how it compares with recent sales."
+          : "Add a list price in the property details to include the price point."}{" "}
+        Condition, size and market conditions aren&apos;t included. Census facts
+        about residents are never used.
+      </p>
+    </>
   );
 }

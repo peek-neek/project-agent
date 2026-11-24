@@ -68,13 +68,8 @@ export const comparisonRouter = createTRPCRouter({
       // comparison never stops half made.
       const needed = reusable.filter((r) => !r).length;
       if (needed > 0) {
+        // Plan or Basic allowance left, plus extra-report credits.
         const entitlement = await getEntitlement(ctx.userId);
-        if (!entitlement.active) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: BILLING_ERRORS.required,
-          });
-        }
         const available =
           Math.max(0, entitlement.reportsLimit - entitlement.reportsUsed) +
           entitlement.extraReportCredits;

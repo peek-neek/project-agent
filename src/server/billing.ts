@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 import { BILLING_INTERVALS, type BillingInterval } from "@/lib/billing";
 import { db } from "@/server/db";
 import {
+  BASIC_LIMITS,
   countChatMessages,
   countPlanReports,
   hasActiveSubscription,
@@ -376,14 +377,38 @@ export async function syncCustomerSubscription(customerId: string) {
   });
 }
 
-/** Plan, status and this month's report usage, for gating and the UI. */
+/** A plan as the app sees it: a Stripe plan, or Basic (free, no subscription). */
+export type EntitlementPlan = Plan | "basic";
+
+/**
+ * Plan, status and report and chat usage, for gating and the UI. Agents
+ * without a subscription are on Basic: one free report and a few chat
+ * messages, ever (`subscribed: false`, nothing resets), plus any extra
+ * reports they bought.
+ */
 export async function getEntitlement(userId: string) {
   const account = await getBillingAccount(userId);
   if (!hasActiveSubscription(account)) {
+    const [reportsUsed, chatUsed] = await Promise.all([
+      countPlanReports(userId, null),
+      countChatMessages(userId, null),
+    ]);
     return {
-      active: false as const,
-      status: account?.status ?? null,
+      subscribed: false as const,
       hasCustomer: !!account,
+      plan: "basic" as EntitlementPlan,
+      planName: "Basic",
+      interval: null,
+      /** Stripe status of a past subscription (canceled, unpaid…), if any. */
+      status: account?.status ?? null,
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      reportsUsed,
+      reportsLimit: BASIC_LIMITS.reports,
+      reportsResetAt: null,
+      extraReportCredits: account?.extraReportCredits ?? 0,
+      chatUsed,
+      chatLimit: BASIC_LIMITS.chat,
     };
   }
   const limits = PLANS[account.plan];
@@ -398,19 +423,19 @@ export async function getEntitlement(userId: string) {
   const interval: BillingInterval =
     account.stripePriceId === prices[account.plan].annual.id ? "annual" : "monthly";
   return {
-    active: true as const,
+    subscribed: true as const,
     hasCustomer: true,
-    plan: account.plan,
-    planName: limits.name,
-    interval,
+    plan: account.plan as EntitlementPlan,
+    planName: limits.name as string,
+    interval: interval as BillingInterval | null,
     status: account.status!,
     currentPeriodEnd: account.currentPeriodEnd,
     cancelAtPeriodEnd: account.cancelAtPeriodEnd,
     reportsUsed,
-    reportsLimit: limits.reports,
-    reportsResetAt: window?.end ?? account.currentPeriodEnd,
+    reportsLimit: limits.reports as number,
+    reportsResetAt: (window?.end ?? account.currentPeriodEnd) as Date | null,
     extraReportCredits: account.extraReportCredits,
     chatUsed,
-    chatLimit: limits.chat,
+    chatLimit: limits.chat as number,
   };
 }

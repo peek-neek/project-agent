@@ -143,7 +143,17 @@ function ShortcutTime({
   );
 }
 
-export function ReportDashboard({ report }: { report: ReportData }) {
+export function ReportDashboard({
+  report,
+  embedded = false,
+}: {
+  report: ReportData;
+  /**
+   * Inside a comparison: its header already shows the address, the note
+   * and the home details, so they're left out here.
+   */
+  embedded?: boolean;
+}) {
   const searchParams = useSearchParams();
   const tab = parseTab(searchParams.get("tab"));
   const [amenityFilter, setAmenityFilter] = useState<AmenityFilter>("all");
@@ -307,20 +317,27 @@ export function ReportDashboard({ report }: { report: ReportData }) {
             never jump above the address on phones); details underneath. */}
         <div className="space-y-3">
           <div className="flex items-start gap-3 sm:gap-6">
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
-                  {street}
-                </h1>
-                <StickyNote key={report.id} report={report} street={street} />
+            {embedded ? (
+              // The comparison header shows the address; keep the PDF right.
+              <div className="flex-1" />
+            ) : (
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
+                    {street}
+                  </h1>
+                  <StickyNote key={report.id} report={report} street={street} />
+                </div>
+                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-foreground/60">
+                  <MapPinIcon aria-hidden className="size-3.5 shrink-0" />
+                  <span className="truncate">{place || "Canada"}</span>
+                  <span aria-hidden>·</span>
+                  <span className="shrink-0">
+                    {formatDate(report.createdAt)}
+                  </span>
+                </p>
               </div>
-              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-foreground/60">
-                <MapPinIcon aria-hidden className="size-3.5 shrink-0" />
-                <span className="truncate">{place || "Canada"}</span>
-                <span aria-hidden>·</span>
-                <span className="shrink-0">{formatDate(report.createdAt)}</span>
-              </p>
-            </div>
+            )}
 
             <div className="flex shrink-0 items-center gap-2">
               {/* Regenerate AI copy: hidden for now. The logic (regenerate,
@@ -368,11 +385,13 @@ export function ReportDashboard({ report }: { report: ReportData }) {
             </div>
           </div>
 
-          <HomeFacts
-            report={report}
-            listing={data.listing}
-            onSaved={() => setDetailsChanged(true)}
-          />
+          {!embedded && (
+            <HomeFacts
+              report={report}
+              listing={data.listing}
+              onSaved={() => setDetailsChanged(true)}
+            />
+          )}
         </div>
 
         {/* "Within 15 min walk" on its own line, the tiles underneath.

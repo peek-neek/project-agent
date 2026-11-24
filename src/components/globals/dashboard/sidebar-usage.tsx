@@ -1,6 +1,5 @@
 "use client";
 
-import { SparklesIcon } from "lucide-react";
 import { cn } from "cn";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -16,7 +15,6 @@ import { PlansDialog, useBillingStatus } from "./plans-dialog";
 import { ReportGateDialog } from "./report-gate-dialog";
 
 const dateFormat = new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric" });
-const money = (n: number) => `C$${n.toLocaleString("en-CA")}`;
 
 /*
  * Expanded vs collapsed is chosen with CSS (the sidebar's
@@ -121,45 +119,11 @@ export function SidebarUsage() {
     </>
   );
 
-  // No plan: a prompt to pick one.
-  if (!status.active) {
-    const from = Math.min(...status.plans.map((p) => p.monthly));
-    return (
-      <>
-        <SidebarMenu className={COLLAPSED}>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="No plan yet: choose one to run reports"
-              onClick={() => setPlansOpen(true)}
-              className="justify-center"
-            >
-              <SparklesIcon className="text-primary" />
-              <span className="sr-only">Choose a plan</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <div className={cn("grid gap-2 border bg-background p-3", EXPANDED)}>
-          <div className="flex items-start gap-2">
-            <SparklesIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
-            <div className="grid gap-0.5">
-              <p className="text-sm font-medium">No plan yet</p>
-              <p className="text-xs text-foreground/60">
-                From {money(from)} a month for 3–10 reports, AI chat and the PDF.
-              </p>
-            </div>
-          </div>
-          <Button size="sm" onClick={() => setPlansOpen(true)}>
-            Choose a plan
-          </Button>
-        </div>
-        {dialogs}
-      </>
-    );
-  }
-
-  // A plan: reports left this month.
+  // Reports left: this month's plan reports, or Basic's free report.
   const { reportsLeft: left, reportsLimit: limit, extraReportCredits: extras } = status;
-  const tone = usageTone(left);
+  const basic = !status.subscribed;
+  // Basic has a single free report: unused reads as fine, not "1 left" red.
+  const tone = usageTone(basic && left > 0 ? 4 : left);
   const resets = status.reportsResetAt ? dateFormat.format(new Date(status.reportsResetAt)) : null;
   const summary = `${left} of ${limit} reports left${extras ? `, +${extras} extra` : ""}`;
 
@@ -186,7 +150,7 @@ export function SidebarUsage() {
           className={cn("gap-2", tone.bar)}
         >
           <ProgressLabel className="text-xs font-medium text-foreground/70">
-            Reports left
+            {basic ? "Free report" : "Reports left"}
           </ProgressLabel>
           <span className={cn("ml-auto text-xs font-semibold tabular-nums", tone.text)}>
             {left} of {limit}
@@ -194,13 +158,24 @@ export function SidebarUsage() {
         </Progress>
         <p className="text-xs text-foreground/55">
           {status.planName}
+          {basic ? " · free" : ""}
           {resets ? ` · resets ${resets}` : ""}
           {extras ? ` · +${extras} extra` : ""}
         </p>
-        {status.blocked && (
-          <Button size="sm" variant="outline" onClick={() => setLimitOpen(true)}>
-            Get more reports
+        {basic ? (
+          <Button
+            size="sm"
+            variant={status.blocked ? "default" : "outline"}
+            onClick={() => setPlansOpen(true)}
+          >
+            Choose a plan
           </Button>
+        ) : (
+          status.blocked && (
+            <Button size="sm" variant="outline" onClick={() => setLimitOpen(true)}>
+              Get more reports
+            </Button>
+          )
         )}
       </div>
       {dialogs}

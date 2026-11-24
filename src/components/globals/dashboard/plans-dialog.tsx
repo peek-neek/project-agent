@@ -50,11 +50,11 @@ export function PlansDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Choose a plan to run reports</DialogTitle>
+          <DialogTitle>Choose a plan for more reports</DialogTitle>
           <DialogDescription>
-            Every report runs fresh lookups against live data, so there&apos;s
-            no free plan. Pay securely with Stripe; change plans or cancel
-            anytime.
+            Basic gives every account one free report to try. Plans add
+            monthly reports and AI chat. Pay securely with Stripe; change
+            plans or cancel anytime.
           </DialogDescription>
         </DialogHeader>
         <div onClickCapture={onLeave}>

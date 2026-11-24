@@ -83,13 +83,10 @@ export type CreateReportInput = z.infer<typeof createReportInput>;
 export async function startReport(userId: string, input: CreateReportInput) {
   const { sessionToken, travelMode, lat, lng, ...data } = input;
   const pin = lat != null && lng != null ? { lat, lng } : null;
-  // Each report runs paid lookups, so it needs a plan with reports left
-  // this billing period.
+  // Each report runs paid lookups, so it needs an allowance: this month's
+  // plan reports, or Basic's one free report (ever).
   const entitlement = await getEntitlement(userId);
-  if (!entitlement.active) {
-    throw new TRPCError({ code: "FORBIDDEN", message: BILLING_ERRORS.required });
-  }
-  // Over the monthly allowance: spend an extra report (bought at C$15).
+  // Allowance used up: spend an extra report (bought at C$15), on any plan.
   let usedCredit = false;
   if (entitlement.reportsUsed >= entitlement.reportsLimit) {
     usedCredit = await consumeExtraReportCredit(userId);

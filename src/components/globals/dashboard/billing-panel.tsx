@@ -17,7 +17,7 @@ import {
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BILLING_ERRORS } from "@/lib/billing";
-import { SeePlansPrompt } from "./see-plans-prompt";
+import { SeePlansButton } from "./see-plans-prompt";
 import { getEntitlement, getExtraReportPrice } from "@/server/billing";
 
 const dateFormat = new Intl.DateTimeFormat("en-CA", { dateStyle: "medium" });
@@ -57,9 +57,10 @@ function ManageButton({ label = "Manage billing" }: { label?: string }) {
 }
 
 /**
- * Under the address search: the agent's plan and this period's report usage,
- * or a "See plans" link (opening the plans popup) when they don't have one. Also explains why a report
- * was refused (?billing=…) and confirms a finished checkout (?checkout=…).
+ * Under the address search: the agent's plan and this period's report usage
+ * (Basic: the free report and chat messages, with "See plans"). Also explains
+ * why a report was refused (?billing=…) and confirms a finished checkout
+ * (?checkout=…).
  */
 export async function BillingPanel({
   searchParams,
@@ -73,25 +74,8 @@ export async function BillingPanel({
   const justPaid = params.checkout === "success";
   const reason = params.billing;
 
-  if (!entitlement.active) {
-    if (justPaid) {
-      return (
-        <Alert>
-          <CheckCircle2Icon />
-          <AlertTitle>Payment received</AlertTitle>
-          <AlertDescription>
-            We&apos;re activating your plan. Refresh in a few seconds.
-          </AlertDescription>
-        </Alert>
-      );
-    }
-    const ended = entitlement.status === "canceled" || entitlement.status === "unpaid";
-    return (
-      <SeePlansPrompt
-        message={ended ? "Your plan has ended. Choose a plan to run reports." : undefined}
-        tone={reason || ended ? "destructive" : "muted"}
-      />
-    );
+  if (!entitlement.subscribed) {
+    return <BasicPanel entitlement={entitlement} params={params} />;
   }
 
   const {
@@ -219,6 +203,133 @@ export async function BillingPanel({
           {!atLimit && <BuyExtraButton variant="ghost" label="Buy extra" />}
           <ManageButton
             label={atLimit && entitlement.plan === "starter" ? "Upgrade" : undefined}
+          />
+        </ItemActions>
+      </Item>
+    </div>
+  );
+}
+
+type Entitlement = Awaited<ReturnType<typeof getEntitlement>>;
+
+/**
+ * Basic (no subscription): the free report and chat messages, extra reports
+ * on hand, and the way to more (a plan, or extra reports).
+ */
+async function BasicPanel({
+  entitlement,
+  params,
+}: {
+  entitlement: Entitlement;
+  params: Record<string, string | string[] | undefined>;
+}) {
+  const {
+    reportsUsed,
+    reportsLimit,
+    chatUsed,
+    chatLimit,
+    extraReportCredits: credits,
+    status,
+  } = entitlement;
+  const extraPrice = (await getExtraReportPrice()).amount;
+  const freeLeft = Math.max(0, reportsLimit - reportsUsed);
+  const out = freeLeft === 0 && credits === 0;
+  const ended = status === "canceled" || status === "unpaid";
+  const extraReports = (n: number) => `${n} extra report${n === 1 ? "" : "s"}`;
+
+  return (
+    <div className="grid gap-3">
+      {params.checkout === "success" && (
+        <Alert>
+          <CheckCircle2Icon />
+          <AlertTitle>Payment received</AlertTitle>
+          <AlertDescription>
+            We&apos;re activating your plan. Refresh in a few seconds.
+          </AlertDescription>
+        </Alert>
+      )}
+      {params.extra === "success" && (
+        <Alert>
+          <CheckCircle2Icon />
+          <AlertTitle>Extra reports added</AlertTitle>
+          <AlertDescription>
+            {credits > 0
+              ? `You have ${extraReports(credits)} ready to use.`
+              : "They'll appear here in a few seconds. Refresh if not."}
+          </AlertDescription>
+        </Alert>
+      )}
+      {ended && (
+        <Alert variant="destructive">
+          <AlertCircleIcon />
+          <AlertTitle>Your plan has ended</AlertTitle>
+          <AlertDescription>
+            You&apos;re on Basic now. Choose a plan for monthly reports, or buy
+            extra reports at C${extraPrice} each.
+          </AlertDescription>
+        </Alert>
+      )}
+      {params.billing === BILLING_ERRORS.compareLimit && !out && (
+        <Alert variant="destructive">
+          <AlertCircleIcon />
+          <AlertTitle>Not enough reports left for this comparison</AlertTitle>
+          <AlertDescription>
+            Comparing two new addresses uses two reports, and you have{" "}
+            {freeLeft + credits} left. Nothing was used. Choose a plan, buy
+            extra reports at C${extraPrice} each, or compare with a property
+            you already have a report for (from the last 30 days), which is
+            free.
+          </AlertDescription>
+          <AlertAction>
+            <BuyExtraButton />
+          </AlertAction>
+        </Alert>
+      )}
+      {out && !ended && (
+        <Alert variant="destructive">
+          <AlertCircleIcon />
+          <AlertTitle>You&apos;ve used your free report</AlertTitle>
+          <AlertDescription>
+            Choose a plan for monthly reports and AI chat, or buy extra reports
+            at C${extraPrice} each with no subscription.
+          </AlertDescription>
+          <AlertAction>
+            <BuyExtraButton />
+          </AlertAction>
+        </Alert>
+      )}
+      <Item variant="outline">
+        <ItemContent className="gap-2">
+          <ItemTitle>
+            <Badge variant="secondary">Basic · Free</Badge>
+            <span className="font-normal text-foreground/60">
+              Try it with {reportsLimit} free report and {chatLimit} AI chat
+              messages
+            </span>
+          </ItemTitle>
+          <Progress value={Math.min(100, (reportsUsed / reportsLimit) * 100)}>
+            <ProgressLabel className="font-normal text-foreground/70">
+              Free report
+            </ProgressLabel>
+            <span className="ml-auto text-sm text-muted-foreground tabular-nums">
+              {Math.min(reportsUsed, reportsLimit)} of {reportsLimit} used
+              {credits > 0 && ` · +${extraReports(credits)}`}
+            </span>
+          </Progress>
+          <Progress value={Math.min(100, (chatUsed / chatLimit) * 100)}>
+            <ProgressLabel className="font-normal text-foreground/70">
+              Free AI chat messages
+            </ProgressLabel>
+            <span className="ml-auto text-sm text-muted-foreground tabular-nums">
+              {Math.min(chatUsed, chatLimit)} of {chatLimit} used
+            </span>
+          </Progress>
+        </ItemContent>
+        <ItemActions>
+          {!out && <BuyExtraButton variant="ghost" label="Buy extra" />}
+          <SeePlansButton
+            label="Choose a plan"
+            variant={out ? "default" : "outline"}
           />
         </ItemActions>
       </Item>

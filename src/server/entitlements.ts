@@ -12,6 +12,14 @@ export const PLAN_LIMITS = {
 } as const satisfies Record<Plan, { reports: number; chat: number }>;
 
 /**
+ * Basic: every signed-in agent without a subscription. A one-time trial
+ * allowance per account (never resets): counted over all time, so reports or
+ * chats from an earlier subscription use it up too. Extra reports can still
+ * be bought on Basic.
+ */
+export const BASIC_LIMITS = { reports: 1, chat: 5 } as const;
+
+/**
  * Statuses that grant access. past_due keeps access while Stripe retries the
  * renewal (Smart Retries); the subscription moves to canceled/unpaid if
  * every retry fails, which removes access.
@@ -46,13 +54,19 @@ export function quotaWindow(periodStart: Date, now = new Date()) {
   return { start: addMonths(periodStart, months), end: addMonths(periodStart, months + 1) };
 }
 
+type Window = { start: Date; end: Date };
+/** A window as a Prisma createdAt filter; none (Basic) counts all time. */
+const inWindow = (window: Window | null) =>
+  window ? { createdAt: { gte: window.start, lt: window.end } } : {};
+
 /**
- * Plan reports created in a window (not those paid with extra-report
- * credits). Read from ReportUsage, so deleting a report doesn't refund it.
+ * Plan reports created in a window, or ever with no window (Basic). Not
+ * those paid with extra-report credits. Read from ReportUsage, so deleting a
+ * report doesn't refund it.
  */
-export function countPlanReports(userId: string, window: { start: Date; end: Date }) {
+export function countPlanReports(userId: string, window: Window | null) {
   return db.reportUsage.count({
-    where: { userId, usedCredit: false, createdAt: { gte: window.start, lt: window.end } },
+    where: { userId, usedCredit: false, ...inWindow(window) },
   });
 }
 
@@ -69,35 +83,44 @@ export async function recordReportUsage(opts: {
   });
 }
 
-export function countChatMessages(userId: string, window: { start: Date; end: Date }) {
+/** Chat messages in a window, or ever with no window (Basic). */
+export function countChatMessages(userId: string, window: Window | null) {
   return db.chatMessageUsage.count({
-    where: { userId, createdAt: { gte: window.start, lt: window.end } },
+    where: { userId, ...inWindow(window) },
   });
 }
 
+/** `resetsAt` is null on Basic: its free messages don't come back. */
 export type ChatAllowance =
-  | { allowed: true; used: number; limit: number; resetsAt: Date }
-  | { allowed: false; reason: "no_plan" }
-  | { allowed: false; reason: "limit"; used: number; limit: number; resetsAt: Date };
+  | { allowed: true; used: number; limit: number; resetsAt: Date | null }
+  | {
+      allowed: false;
+      reason: "limit";
+      used: number;
+      limit: number;
+      resetsAt: Date | null;
+    };
 
-/** Whether the agent can send another AI chat message this month. */
+/**
+ * Whether the agent can send another AI chat message: this month's plan
+ * allowance, or Basic's free messages (all time).
+ */
 export async function getChatAllowance(userId: string): Promise<ChatAllowance> {
   const account = await db.billingAccount.findUnique({ where: { userId } });
-  if (!hasActiveSubscription(account) || !account.currentPeriodStart) {
-    return { allowed: false, reason: "no_plan" };
-  }
-  const window = quotaWindow(account.currentPeriodStart);
-  const limit = PLAN_LIMITS[account.plan].chat;
+  const subscribed = hasActiveSubscription(account) && account.currentPeriodStart;
+  const window = subscribed ? quotaWindow(account.currentPeriodStart!) : null;
+  const limit = subscribed ? PLAN_LIMITS[account.plan].chat : BASIC_LIMITS.chat;
   const used = await countChatMessages(userId, window);
+  const resetsAt = window?.end ?? null;
   return used < limit
-    ? { allowed: true, used, limit, resetsAt: window.end }
-    : { allowed: false, reason: "limit", used, limit, resetsAt: window.end };
+    ? { allowed: true, used, limit, resetsAt }
+    : { allowed: false, reason: "limit", used, limit, resetsAt };
 }
 
 /** What to tell the agent when a chat message is refused. */
 export function chatRefusalMessage(allowance: Extract<ChatAllowance, { allowed: false }>) {
-  if (allowance.reason === "no_plan") {
-    return `${CHAT_REFUSAL.noPlan} Choose one on your dashboard.`;
+  if (!allowance.resetsAt) {
+    return `${CHAT_REFUSAL.limit} ${allowance.limit} free AI chat messages. Choose a plan on your dashboard for more.`;
   }
   const resets = new Intl.DateTimeFormat("en-CA", { dateStyle: "medium" }).format(
     allowance.resetsAt,

@@ -149,7 +149,9 @@ export function AddressSearch({ className }: AddressSearchProps) {
   const [gate, setGate] = useState<Gate | null>(null);
   // Set for one submit after the agent agreed to spend an extra report.
   const creditConfirmed = useRef(false);
-  const noPlan = billing != null && !billing.active;
+  // Nothing left (plan or free Basic report, and no extra reports): the
+  // button dims, and submitting explains the options.
+  const outOfReports = billing?.blocked === true;
   // Back from Stripe Checkout: put the address they'd typed back in the box.
   // Read after mount (sessionStorage doesn't exist during server rendering,
   // so a lazy initial state would mismatch on hydration).
@@ -223,16 +225,16 @@ export function AddressSearch({ className }: AddressSearchProps) {
           ? "Checking address…"
           : submitting
             ? "Creating report…"
-            : noPlan
-              ? "Choose a plan to generate reports"
+            : outOfReports
+              ? "No reports left: choose a plan or buy an extra report"
               : "Generate report"
       }
-      aria-disabled={busy || noPlan}
+      aria-disabled={busy || outOfReports}
       className={cn(
         "size-11 shadow-lg transition-transform sm:size-12",
         busy
           ? "pointer-events-none"
-          : noPlan
+          : outOfReports
             ? "opacity-40 shadow-none"
             : "hover:scale-105 active:scale-95",
       )}
@@ -267,13 +269,11 @@ export function AddressSearch({ className }: AddressSearchProps) {
           }
           // Plan gates come first, before the (paid) address lookup.
           if (billing) {
-            const next: Gate | null = !billing.active
-              ? "no_plan"
-              : billing.blocked
-                ? "limit"
-                : billing.usesCredit && !creditConfirmed.current
-                  ? "credit"
-                  : null;
+            const next: Gate | null = billing.blocked
+              ? "limit"
+              : billing.usesCredit && !creditConfirmed.current
+                ? "credit"
+                : null;
             if (next) {
               e.preventDefault();
               setOpen(false);

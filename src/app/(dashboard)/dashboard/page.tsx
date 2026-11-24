@@ -13,7 +13,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
+export default function DashboardPage({
+  searchParams,
+}: PageProps<"/dashboard">) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 py-12 sm:px-8">
       <motion.div
@@ -39,11 +41,11 @@ export default function DashboardPage({ searchParams }: PageProps<"/dashboard">)
         <motion.div variants={fadeUp} className="mt-8">
           <AddressSearch />
         </motion.div>
-        <motion.div variants={fadeUp} className="mt-6">
+        {/* <motion.div variants={fadeUp} className="mt-6">
           <Suspense fallback={<BillingPanelSkeleton />}>
             <BillingPanel searchParams={searchParams} />
           </Suspense>
-        </motion.div>
+        </motion.div> */}
       </motion.div>
     </div>
   );
