@@ -74,7 +74,7 @@ export function sidePins<P extends Place>(
     address: place.address ?? null,
     photo:
       photoPath && place.photo
-        ? `/api/reports/${p.report.id}/${photoPath}/${encodeURIComponent(place.id)}?w=800`
+        ? `/api/reports/${p.report.id}/${photoPath}/${encodeURIComponent(place.id)}`
         : null,
     href: googleMapsUrl({
       name: place.name,

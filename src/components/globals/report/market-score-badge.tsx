@@ -36,7 +36,6 @@ import {
 const LEVELS = [1, 2, 3, 4, 5] as const;
 const TRAVEL_PHRASE = {
   walk: "walking",
-  bike: "cycling",
   drive: "driving",
 } as const;
 
@@ -83,7 +82,7 @@ function ComparisonBadges({ comparisonId }: { comparisonId: string }) {
 }
 
 /**
- * A report's market ease, following the walk / bike / car choice like the
+ * A report's market ease, following the walk / car choice like the
  * Overview tiles. `score` is null while data is still coming (`loading`) or
  * when it can't be scored.
  */

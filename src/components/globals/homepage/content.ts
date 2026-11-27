@@ -83,8 +83,7 @@ export const reportSections: ReportSection[] = [
         available: true,
       },
       {
-        label: "Walk, transit and bike scores",
-        source: "Walk Score",
+        label: "Walking and driving scores for everyday places, transit and schools",
         available: true,
       },
     ],
@@ -285,7 +284,7 @@ export const reportSections: ReportSection[] = [
 export const faqs = [
   {
     q: "What exactly do I get for each address?",
-    a: `A full location report (amenities timed on foot, by bike and by car, commute and transit, nearby schools (with EQAO results in Ontario), crime, flood, noise and air quality, housing mix and planned development), a sell / rent ease score, ready-to-post marketing copy, a showing playbook, 13 calculators, a downloadable PDF and an AI chat that can answer anything the report doesn't cover.`,
+    a: `A full location report (amenities timed on foot and by car, commute and transit, nearby schools (with EQAO results in Ontario), crime, flood, noise and air quality, housing mix and planned development), a sell / rent ease score, ready-to-post marketing copy, a showing playbook, 13 calculators, a downloadable PDF and an AI chat that can answer anything the report doesn't cover.`,
   },
   {
     q: "Which areas do you cover?",

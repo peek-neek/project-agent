@@ -39,7 +39,6 @@ import {
   ItemTitle,
 } from "@/components/ui/item";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import {
   SideChip,
   type Side,
@@ -170,7 +169,7 @@ export function AddressSearch({ className }: AddressSearchProps) {
   // Set for one submit when the agent chose "Create anyway".
   const skipCheck = useRef(false);
   const { coords } = useUserLocation();
-  // The AI copy's travel times follow the app-wide walk / bike / car choice.
+  // The AI copy's travel times follow the app-wide walk / car choice.
   const { mode: travelMode } = useTravelMode();
   const active = modes.find((m) => m.id === mode)!;
   const suggestionsOpen = open && mode === "single";
@@ -392,12 +391,8 @@ export function AddressSearch({ className }: AddressSearchProps) {
                 }}
                 near={coords}
               />
+              {/* No divider line: the fields are separate filled boxes. */}
               <div className="relative z-10 col-span-2 flex h-px shrink-0 items-center justify-center sm:col-span-1 sm:h-auto sm:px-3">
-                <Separator className="absolute inset-x-0 sm:hidden" />
-                <Separator
-                  orientation="vertical"
-                  className="absolute inset-y-2 left-1/2 hidden sm:block"
-                />
                 <Button
                   type="button"
                   variant="outline"
@@ -407,7 +402,9 @@ export function AddressSearch({ className }: AddressSearchProps) {
                     setCompare(([a, b]) => [b, a]);
                     setSwaps((n) => n + 1);
                   }}
-                  className="relative rounded-full bg-card shadow-sm hover:bg-muted"
+                  // Solid in dark mode too (outline's dark background is
+                  // translucent), so nothing behind it shows through.
+                  className="relative rounded-full bg-card shadow-sm hover:bg-muted dark:bg-card dark:hover:bg-muted"
                 >
                   <motion.span
                     animate={{ rotate: swaps * 180 }}
@@ -783,10 +780,8 @@ function CompareAddressField({
           {label}
         </Label>
         <InputGroup className="h-auto border-0 bg-card has-[[data-slot=input-group-control]:focus-visible]:ring-0">
-          {/* Side by side (sm+), trim the padding facing the swap button. */}
-          <InputGroupAddon
-            className={cn("pl-4", side === "a" ? "sm:pl-5" : "sm:pl-1")}
-          >
+          {/* Same inset on both sides: each field is its own filled box. */}
+          <InputGroupAddon className="pl-4 sm:pl-5">
             <SideChip side={side} className="size-6 text-xs" />
           </InputGroupAddon>
           <Autocomplete.Input
@@ -796,10 +791,7 @@ function CompareAddressField({
             placeholder={placeholder}
             render={
               <InputGroupInput
-                className={cn(
-                  "h-14 text-base placeholder:text-foreground/50 sm:h-16 md:text-base",
-                  side === "a" && "sm:pr-1",
-                )}
+                className="h-14 text-base placeholder:text-foreground/50 sm:h-16 md:text-base"
               />
             }
           />

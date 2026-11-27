@@ -33,7 +33,7 @@ export type PropertyVideoProps = {
   /** Home facts for the closing card, e.g. ["3 bed", "2 bath"]. */
   facts: string[];
   destinations: VideoDestination[];
-  /** "walk" | "bike" | "drive": the word after each time. */
+  /** "walk" | "drive": the word after each time. */
   verb: (typeof TRAVEL_MODES)[TravelMode]["verb"];
   scenes: VideoScene[];
 };

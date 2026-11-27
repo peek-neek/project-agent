@@ -80,6 +80,9 @@ async function pool<T, R>(
 
 /** Card photos are shown at ~52 pt: 240 px is sharp in print. */
 const PHOTO_PX = 240;
+/** Place cards with a Google photo (each one is a billed request). */
+const PDF_PHOTOS_PER_CATEGORY = 1;
+const PDF_STATION_PHOTOS = 3;
 
 function placePhoto(name: string) {
   const key = process.env.GOOGLE_MAPS_API_KEY;
@@ -94,9 +97,10 @@ function placePhoto(name: string) {
 }
 
 /**
- * Street View angles, section maps, a photo per amenity and transit stop
- * (Google Places), and a Street View photo per school. Fetched in parallel
- * with a cap; anything missing falls back to an icon tile.
+ * Street View angles, section maps, a photo for the nearest amenity in each
+ * category and the nearest transit stops (Google Places), and a Street View
+ * photo per school. Fetched in parallel with a cap; anything missing falls
+ * back to an icon tile.
  */
 async function loadImages(d: PdfData): Promise<PdfImages> {
   const { report } = d;
@@ -107,10 +111,24 @@ async function loadImages(d: PdfData): Promise<PdfImages> {
 
   const angles = ["front", "closeUp", "frontLeft", "frontRight"] as const;
   const maps = ["overview", "transit", "schools", "upside"] as const;
+  // Google bills every place photo, so only the nearest place in each
+  // amenity category and the nearest few transit stops get one; the other
+  // cards show their category icon.
+  const nearest = <T extends { distanceMeters: number; photo?: unknown }>(
+    list: T[],
+    count: number,
+  ) =>
+    list
+      .filter((p) => p.photo)
+      .sort((x, y) => x.distanceMeters - y.distanceMeters)
+      .slice(0, count);
   const places = [
-    ...Object.values(d.amenities?.categories ?? {}).flat(),
-    ...(d.commute?.stations ?? []),
-  ].filter((p, i, all) => p.photo && all.findIndex((x) => x.id === p.id) === i);
+    ...Object.values(d.amenities?.categories ?? {}).flatMap((list) =>
+      nearest(list, PDF_PHOTOS_PER_CATEGORY),
+    ),
+    ...nearest(d.commute?.stations ?? [], PDF_STATION_PHOTOS),
+  ].filter((p, i, all) => all.findIndex((x) => x.id === p.id) === i);
+  console.log("[pdf] place photos", { reportId: report.id, count: places.length });
   const schools = Array.from(
     new Map(
       (d.schools?.systems ?? [])

@@ -36,7 +36,7 @@ export function getSection<S extends z.ZodType>(
 }
 
 /**
- * AI copy for a travel mode: its own copy ("marketing:bike"), else the
+ * AI copy for a travel mode: its own copy ("marketing:drive"), else the
  * report's single copy (older reports, or a mode that failed to generate).
  */
 export function getCopySection<S extends z.ZodType>(

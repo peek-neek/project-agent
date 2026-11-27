@@ -180,7 +180,7 @@ export function CompareOverview({
         a={a}
         b={b}
         rows={keyRows(a, b, travel)}
-        footer={`Times are by ${travel.verb === "walk" ? "walking" : travel.verb === "bike" ? "bike" : "car"}; change it at the top of the page.`}
+        footer={`Times are by ${travel.verb === "walk" ? "walking" : "car"}; change it at the top of the page.`}
       />
     </div>
   );

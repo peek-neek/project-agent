@@ -8,7 +8,7 @@ import { Frame, useReveal } from "../shared";
 const STEPS = [
   "Confirming the address",
   "Finding 23 kinds of nearby places",
-  "Timing every trip on foot, by bike and by car",
+  "Timing every trip on foot and by car",
   "Checking schools, EQAO and boards",
   "Reading crime, flood, noise and air data",
   "Census housing and planned projects",

@@ -16,18 +16,15 @@ const PER_CATEGORY = 5;
 type Matrix = Awaited<ReturnType<typeof routeMatrix>>;
 
 /**
- * Walk, bike and drive times to places (one matrix call per mode), falling
- * back to distance estimates. Walk drives distanceMeters (and is required
- * unless the Routes API is off); bike/drive failures only cost accuracy.
+ * Walk and drive times to places (one matrix call per mode), falling back to
+ * distance estimates. Walk drives distanceMeters (and is required unless the
+ * Routes API is off); drive failures only cost accuracy.
  */
 export async function withTravelTimes(
   origin: LatLng,
   places: NearbyResult[],
 ): Promise<NearbyPlace[]> {
-  const matrix = async (
-    mode: "WALK" | "BICYCLE" | "DRIVE",
-    strict: boolean,
-  ) => {
+  const matrix = async (mode: "WALK" | "DRIVE", strict: boolean) => {
     try {
       return await routeMatrix(origin, places, mode);
     } catch (error) {
@@ -35,9 +32,8 @@ export async function withTravelTimes(
       return null;
     }
   };
-  const [walk, bike, drive]: (Matrix | null)[] = await Promise.all([
+  const [walk, drive]: (Matrix | null)[] = await Promise.all([
     matrix("WALK", true),
-    matrix("BICYCLE", false),
     matrix("DRIVE", false),
   ]);
 
@@ -49,7 +45,6 @@ export async function withTravelTimes(
   return places.map((place, i) => {
     const straight = Math.round(distanceMeters(origin, place));
     const w = walk?.[i];
-    const bikeMinutes = minutes(bike, i);
     const driveMinutes = minutes(drive, i);
     return {
       id: place.id,
@@ -62,8 +57,6 @@ export async function withTravelTimes(
       distanceMeters: w ? w.meters : straight,
       walkMinutes: minutes(walk, i) ?? estimateMinutes(straight, "walk"),
       walkEstimated: !w,
-      bikeMinutes: bikeMinutes ?? estimateMinutes(straight, "bike"),
-      bikeEstimated: bikeMinutes == null,
       driveMinutes: driveMinutes ?? estimateMinutes(straight, "drive"),
       driveEstimated: driveMinutes == null,
       photo: place.photo ?? null,

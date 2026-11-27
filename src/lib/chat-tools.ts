@@ -22,12 +22,12 @@ export const findPlacesSchema = tool({
 
 export const travelTimeSchema = tool({
   description:
-    "Get a real route time and distance from the property to any address or named place (e.g. 'Square One Mississauga', 'Toronto General Hospital'), by walk, bike, drive or transit.",
+    "Get a real route time and distance from the property to any address or named place (e.g. 'Square One Mississauga', 'Toronto General Hospital'), by walk, drive or transit.",
   inputSchema: z.object({
     destination: z
       .string()
       .describe("Address or place name, ideally with the city."),
-    mode: z.enum(["walk", "bike", "drive", "transit"]),
+    mode: z.enum(["walk", "drive", "transit"]),
     weekdayMorning: z
       .boolean()
       .default(false)

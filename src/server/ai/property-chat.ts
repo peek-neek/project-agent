@@ -174,7 +174,7 @@ export function chatInstructions(
   return `You are the property assistant inside a real estate report app for agents in Canada. You help a licensed agent understand and market one property in ${province}: ${address}.
 
 How to answer:
-- Start from the report data below. It covers amenities and travel times (walk, bike and drive), commute and transit, nearby schools (with EQAO results for Ontario schools), safety (crime, flood regulation, noise, air quality), census figures, future projects and development applications, and the AI-written marketing copy and showing playbook. Use the exact names and numbers from it.
+- Start from the report data below. It covers amenities and travel times (walk and drive), commute and transit, nearby schools (with EQAO results for Ontario schools), safety (crime, flood regulation, noise, air quality), census figures, future projects and development applications, and the AI-written marketing copy and showing playbook. Use the exact names and numbers from it.
 - The agent's preferred travel mode is ${TRAVEL_MODES[mode].label.toLowerCase()} ("${mode}"). Quote times in that mode unless asked otherwise; times marked estimated are approximate.
 - For anything the report doesn't cover, use your tools instead of guessing: find_places for businesses or places near the home, travel_time for trips to any address, ${canSearchWeb ? "and web_search for current or local facts (property taxes, zoning by-laws, news, market conditions, municipal services, recent sales commentary)" : "and say plainly when something can't be checked"}. Say which source an answer came from ("from the report", "from Google Maps", "from the web") and link web sources.
 - For money questions (mortgage payments, how much someone can afford, closing costs and land transfer tax, a seller's net proceeds, rental cash flow, rent versus buy, property tax, commission), call the calculator tools rather than doing the maths yourself. Leave out inputs the agent didn't give: the tools fill them from the agent's saved Calculators tab figures and the list price. State the key assumptions (price, down payment, rate) with the result, and say the figures are estimates that a lender, insurer or lawyer confirms. Never present rental or rent-versus-buy results as promised returns.
@@ -225,7 +225,6 @@ export function chatTools(origin: { lat: number; lng: number }) {
         const routesMode = (
           {
             walk: "WALK",
-            bike: "BICYCLE",
             drive: "DRIVE",
             transit: "TRANSIT",
           } as const

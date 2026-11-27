@@ -19,10 +19,6 @@ import {
 } from "@/components/ui/dialog";
 import { FadeImg } from "./fade-img";
 
-/** A place photo URL at a given width (the photo route's ?w=). */
-export const photoAtWidth = (src: string, width: number) =>
-  `${src}${src.includes("?") ? "&" : "?"}w=${width}`;
-
 export type LightboxItem = {
   /** Unique within the list. */
   key: string;
@@ -214,13 +210,17 @@ export function Lightbox({
                   </span>
                 </>
               )}
-              {/* Neighbours load in the background: instant next/previous. */}
+              {/* Neighbours load in the background: instant next/previous.
+                  Within a place's photos only: each place photo is a billed
+                  Google request, so don't fetch photos of places not opened. */}
               {many &&
                 [
                   items[(i + 1) % items.length],
                   items[(i - 1 + items.length) % items.length],
                 ].map((n) =>
-                  n && n.key !== item.key ? (
+                  n &&
+                  n.key !== item.key &&
+                  (!item.group || n.group === item.group) ? (
                     // eslint-disable-next-line @next/next/no-img-element -- preload only
                     <img
                       key={`pre-${n.key}`}

@@ -46,7 +46,7 @@ export type PdfImages = {
   schools: Record<string, PdfImage>;
 };
 
-const MODES: TravelMode[] = ["walk", "bike", "drive"];
+const MODES: TravelMode[] = ["walk", "drive"];
 
 /** PDF fonts have no emoji: drop them (and their joiners) from AI copy. */
 const EMOJI =

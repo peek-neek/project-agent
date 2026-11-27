@@ -75,7 +75,7 @@ const SCENE_LABELS: Record<VideoSceneKind, string> = {
   outro: "Call to action",
 };
 
-const MODE_WORDS = { walk: "walking", bike: "cycling", drive: "driving" } as const;
+const MODE_WORDS = { walk: "walking", drive: "driving" } as const;
 
 /** The Video tab: a map tour of the location, previewed in the browser. */
 export function VideoTab({

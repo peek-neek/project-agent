@@ -7,19 +7,16 @@ import {
 import { reportStore } from "@/server/report-store";
 
 /**
- * Requested width (?w=), snapped to 400px steps so the browser cache
- * isn't split by odd sizes. The default suits cards on high-density
- * screens; the lightbox asks for more. Google's limit is 4800.
+ * One size for every use (cards, gallery, lightbox). Google bills each photo
+ * request, so one URL per photo means the browser fetches it once and reuses
+ * it everywhere; 1200px is sharp on cards at 2x and fine in the lightbox.
+ * (Any old ?w= is ignored.)
  */
-function photoWidth(value: string | null) {
-  const w = Number(value);
-  if (!Number.isFinite(w) || w <= 0) return 1600;
-  return Math.min(4800, Math.max(400, Math.round(w / 400) * 400));
-}
+const PHOTO_WIDTH = 1200;
 
 /**
  * Google Places photo of a nearby place in this report (?i= picks one of its
- * photos, default the first; ?w= the width). Only serves photos the report's own amenities
+ * photos, default the first). Only serves photos the report's own amenities
  * and transit stations reference, so it can't proxy arbitrary photos.
  */
 export async function GET(
@@ -53,8 +50,10 @@ export async function GET(
   if (!key) return new Response("Maps not configured", { status: 503 });
 
   const url = new URL(`https://places.googleapis.com/v1/${photo.name}/media`);
-  url.searchParams.set("maxWidthPx", String(photoWidth(search.get("w"))));
+  url.searchParams.set("maxWidthPx", String(PHOTO_WIDTH));
   url.searchParams.set("key", key);
+  // One line per billed Google photo request (runtime logs: "[place-photo] fetch").
+  console.log("[place-photo] fetch", { reportId, placeId, i: index || 0 });
   const upstream = await fetch(url, { cache: "no-store" });
   if (
     !upstream.ok ||

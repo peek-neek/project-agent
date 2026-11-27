@@ -91,7 +91,6 @@ import { WIDGET } from "./widget-styles";
 const REACH_MINUTES = 15;
 const REACH_PHRASE = {
   walk: "walk",
-  bike: "by bike",
   drive: "by car",
 } as const;
 /** Shortcut icons ease in and out as the travel mode changes. */
@@ -106,7 +105,6 @@ const SHORTCUT_MOTION = {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used by the hidden Regenerate button (see the header)
 const MODE_GERUND = {
   walk: "walking",
-  bike: "cycling",
   drive: "driving",
 } as const;
 
@@ -269,7 +267,7 @@ export function ReportDashboard({
     (copyMeta.travelMode ?? "walk") !== travel.mode;
 
   // Header shortcuts: only what's reachable within REACH_MINUTES in the
-  // selected mode, so walking shows a few, cycling more, driving most.
+  // selected mode, so walking shows a few, driving more.
   const quickest = <T extends TravelTimes>(places: T[]) =>
     places.reduce<T | undefined>(
       (best, p) =>

@@ -63,7 +63,7 @@ const CANADA_BOX = { south: 41.6, north: 83.2, west: -141.1, east: -52.5 };
 export const createReportInput = z.object({
   address: z.string().trim().min(3).max(500),
   mode: z.enum(reportModes).catch("single"),
-  /** The agent's walk / bike / drive choice, for the AI copy's times. */
+  /** The agent's walk / drive choice, for the AI copy's times. */
   travelMode: travelMode.catch("walk"),
   placeId: token(300),
   sessionToken: token(64),

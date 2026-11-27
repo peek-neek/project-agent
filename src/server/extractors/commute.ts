@@ -339,26 +339,19 @@ export async function extractCommute(reportId: string) {
     }
   }
 
-  // Walking and cycling to each destination: one matrix call per mode.
-  // A failure only means those times are estimated in the UI.
+  // Walking to each destination: one matrix call. A failure only means
+  // those times are estimated in the UI.
   if (routesAvailable && destinations.length) {
     const kept = new Set(destinations.map((d) => d.id));
     const hubs = pickDestinations(origin).filter((h) => kept.has(h.id));
-    const [walk, bike] = await Promise.all(
-      (["WALK", "BICYCLE"] as const).map((mode) =>
-        routeMatrix(origin, hubs, mode).catch((error) => {
-          console.error(`[commute] ${mode} to destinations`, error);
-          return null;
-        }),
-      ),
-    );
+    const walk = await routeMatrix(origin, hubs, "WALK").catch((error) => {
+      console.error("[commute] WALK to destinations", error);
+      return null;
+    });
     destinations.forEach((d, i) => {
       const w = walk?.[i];
-      const b = bike?.[i];
       d.walkMinutes = w ? Math.round(w.seconds / 60) : null;
       d.walkKm = w ? Math.round(w.meters / 100) / 10 : null;
-      d.bikeMinutes = b ? Math.round(b.seconds / 60) : null;
-      d.bikeKm = b ? Math.round(b.meters / 100) / 10 : null;
     });
   }
 

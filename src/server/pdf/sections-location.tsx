@@ -60,7 +60,6 @@ import { C, s } from "./theme";
 
 const MODE_GERUND: Record<TravelMode, string> = {
   walk: "walking",
-  bike: "cycling",
   drive: "driving",
 };
 
@@ -373,7 +372,7 @@ export function ScoresPage({ d, n }: { d: PdfData; n: number }) {
         number={n}
         eyebrow="Scores"
         title="How this location scores"
-        lede="Every score runs from 1 to 5, where 5 is best. Scores that depend on getting around are shown for walking, cycling and driving, each judged against what's normal for that mode."
+        lede="Every score runs from 1 to 5, where 5 is best. Scores that depend on getting around are shown for walking and driving, each judged against what's normal for that mode."
       />
 
       {/* Sell / rent ease, per mode, with the reasons. */}
@@ -723,7 +722,7 @@ export function OverviewPage({ d, n }: { d: PdfData; n: number }) {
         number={n}
         eyebrow="Overview"
         title="The location at a glance"
-        lede="Every factor behind the sell / rent ease score for walking, cycling and driving, and the closest everyday places. Page 2 explains the scores."
+        lede="Every factor behind the sell / rent ease score for walking and driving, and the closest everyday places. Page 2 explains the scores."
       />
 
       {d.insights?.headline ? (
@@ -1012,7 +1011,7 @@ export function AmenitiesPage({
         number={n}
         eyebrow="Amenities"
         title="What's nearby"
-        lede="Nearest first in every category, with the time to each on foot, by bike and by car."
+        lede="Nearest first in every category, with the time to each on foot and by car."
       />
       <Kpis
         items={[

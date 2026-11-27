@@ -72,7 +72,7 @@ const FEATURES: { group: string; rows: [string, Cell, Cell, Cell][] }[] = [
       ["8 Street View angles and property details", true, true, true],
       ["Sell / rent ease score, with the price point", true, true, true],
       [
-        "23 amenity categories, timed on foot, by bike and by car",
+        "23 amenity categories, timed on foot and by car",
         true,
         true,
         true,

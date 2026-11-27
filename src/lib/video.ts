@@ -6,6 +6,7 @@ import {
   SCHOOL_SYSTEMS,
   type SchoolsData,
   TRANSIT_KINDS,
+  travelModeSchema,
 } from "./report-sections";
 import { type TravelMode, travelTime } from "./travel";
 
@@ -82,7 +83,7 @@ export const videoSectionSchema = z.object({
   status: z.enum(videoStatuses),
   error: z.string().nullable().default(null),
   /** Travel mode the times and voiceover are written for. */
-  travelMode: z.enum(["walk", "bike", "drive"]),
+  travelMode: travelModeSchema,
   /** Saved with real place IDs. Null until the first script is written. */
   script: videoScriptSchema.nullable(),
   /** One voiceover clip per scene (same order); null when there's none. */
@@ -175,7 +176,7 @@ const VIDEO_AMENITIES = [
 ] as const;
 
 /** Minutes an everyday errand can take and still be worth showing. */
-const EASY_REACH: Record<TravelMode, number> = { walk: 25, bike: 20, drive: 15 };
+const EASY_REACH: Record<TravelMode, number> = { walk: 25, drive: 15 };
 
 const byDistance =(a: { distanceMeters: number }, b: { distanceMeters: number }) =>
   a.distanceMeters - b.distanceMeters;
@@ -202,8 +203,6 @@ export function videoPlaces(
       distanceMeters: number;
       walkMinutes: number;
       walkEstimated: boolean;
-      bikeMinutes?: number | null;
-      bikeEstimated?: boolean | null;
       driveMinutes?: number | null;
       driveEstimated?: boolean | null;
     },

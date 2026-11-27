@@ -66,7 +66,6 @@ export function reportVideoProps(
 
 const MODE_WORDS: Record<TravelMode, string> = {
   walk: "walking",
-  bike: "cycling",
   drive: "driving (typical traffic)",
 };
 

@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { TRPCReactProvider } from "@/trpc/client";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const inter = Inter({
   variable: "--font-inter",
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </ThemeProvider>
         </ClerkProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

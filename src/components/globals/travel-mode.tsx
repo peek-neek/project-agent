@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  BikeIcon,
-  CarIcon,
-  FootprintsIcon,
-  type LucideIcon,
-} from "lucide-react";
+import { CarIcon, FootprintsIcon, type LucideIcon } from "lucide-react";
 import { motion } from "motion/react";
 import {
   createContext,
@@ -33,7 +28,6 @@ import {
 
 export const TRAVEL_ICONS: Record<TravelMode, LucideIcon> = {
   walk: FootprintsIcon,
-  bike: BikeIcon,
   drive: CarIcon,
 };
 
@@ -145,17 +139,17 @@ export function useTravelMode() {
     mode,
     showsTime,
     icon: TRAVEL_ICONS[mode],
-    /** "walk" / "bike" / "drive", e.g. "12 min walk". */
+    /** "walk" / "drive", e.g. "12 min walk". */
     verb: TRAVEL_MODES[mode].verb,
     time,
     minutes,
   };
 }
 
-/** Walk / Cycle / Car switch for the app header. */
+/** Walk / Car switch for the app header. */
 export function TravelModeToggle() {
   const { mode } = useTravelMode();
-  // The selection underline slides between the three modes.
+  // The selection underline slides between the modes.
   const underlineId = `${useId()}-travel`;
   // The header is prerendered without the saved mode: fade in once known,
   // rather than showing "Walk" pressed and then switching.

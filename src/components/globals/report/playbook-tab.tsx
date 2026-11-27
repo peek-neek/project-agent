@@ -313,11 +313,7 @@ export function PlaybookTab({
         </dl>
         <p className="py-2 text-[11px] text-foreground/45">
           From this report&apos;s data, in{" "}
-          {travel.verb === "walk"
-            ? "walking"
-            : travel.verb === "bike"
-              ? "cycling"
-              : "driving"}{" "}
+          {travel.verb === "walk" ? "walking" : "driving"}{" "}
           times. &ldquo;~&rdquo; marks an estimate.
         </p>
       </DashCard>

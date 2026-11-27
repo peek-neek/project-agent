@@ -60,8 +60,6 @@ export async function nearbySchools(origin: LatLng) {
       distanceMeters: t.distanceMeters,
       walkMinutes: t.walkMinutes,
       walkEstimated: t.walkEstimated,
-      bikeMinutes: t.bikeMinutes,
-      bikeEstimated: t.bikeEstimated,
       driveMinutes: t.driveMinutes,
       driveEstimated: t.driveEstimated,
       results: {},
@@ -186,8 +184,6 @@ export async function extractSchools(reportId: string) {
       distanceMeters: t.distanceMeters,
       walkMinutes: t.walkMinutes,
       walkEstimated: t.walkEstimated,
-      bikeMinutes: t.bikeMinutes,
-      bikeEstimated: t.bikeEstimated,
       driveMinutes: t.driveMinutes,
       driveEstimated: t.driveEstimated,
       results: Object.fromEntries(

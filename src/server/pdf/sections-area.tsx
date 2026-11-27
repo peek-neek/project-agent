@@ -809,7 +809,7 @@ const TONE = {
   warm: "Warm",
   luxury: "Luxury",
 } as const;
-const GERUND = { walk: "walking", bike: "cycling", drive: "driving" } as const;
+const GERUND = { walk: "walking", drive: "driving" } as const;
 
 const tags = (list: string[]) =>
   list.map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ");

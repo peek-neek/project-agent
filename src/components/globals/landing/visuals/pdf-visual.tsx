@@ -93,7 +93,7 @@ export function PdfVisual() {
                   />
                   <span className="flex-1 truncate font-medium">{p.name}</span>
                   <span className="text-foreground/50">
-                    {p.minutes.walk} · {p.minutes.bike} · {p.minutes.drive} min
+                    {p.minutes.walk} · {p.minutes.drive} min
                   </span>
                 </li>
               );

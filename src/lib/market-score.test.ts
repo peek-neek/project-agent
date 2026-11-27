@@ -13,7 +13,6 @@ const place = (minutes: number) => ({
   address: "1 Main St",
   distanceMeters: minutes * 80,
   walkMinutes: minutes,
-  bikeMinutes: minutes / 3,
   driveMinutes: minutes / 4,
 });
 const amenities = {

@@ -120,7 +120,7 @@ export function CompareChat({ comparisonId }: { comparisonId: string }) {
       intro={{
         title: `Ask about ${street.a} and ${street.b}`,
         description:
-          "Answers compare both reports side by side, with Google Maps and the web for anything else. This chat covers these two homes only. Times follow your walk / bike / car setting.",
+          "Answers compare both reports side by side, with Google Maps and the web for anything else. This chat covers these two homes only. Times follow your walk / car setting.",
         suggestions: SUGGESTIONS,
       }}
       placeholder={`Ask about ${street.a} or ${street.b}…`}

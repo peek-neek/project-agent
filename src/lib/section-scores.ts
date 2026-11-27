@@ -34,13 +34,6 @@ export const THRESHOLDS: Record<
     bus: [4, 15],
     school: [10, 45],
   },
-  bike: {
-    essential: [3, 15],
-    other: [5, 25],
-    rapid: [4, 20],
-    bus: [2, 8],
-    school: [5, 20],
-  },
   drive: {
     essential: [3, 12],
     other: [5, 20],

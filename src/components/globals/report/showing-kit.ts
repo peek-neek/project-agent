@@ -108,7 +108,7 @@ export function fastFacts(data: Data, mode: TravelMode): FastFact[] {
           downtown.transitMinutes != null &&
             `${formatMinutes(downtown.transitMinutes)} by transit`,
           own.minutes != null &&
-            `${own.estimated ? "~" : ""}${formatMinutes(own.minutes)} ${mode === "walk" ? "on foot" : mode === "bike" ? "by bike" : "by car"}`,
+            `${own.estimated ? "~" : ""}${formatMinutes(own.minutes)} ${mode === "walk" ? "on foot" : "by car"}`,
         ]
           .filter(Boolean)
           .join(", ")
@@ -130,7 +130,7 @@ export function fastFacts(data: Data, mode: TravelMode): FastFact[] {
             `${formatMinutes(airport.transitMinutes)} by transit`,
           mode !== "drive" &&
             own.minutes != null &&
-            `${own.estimated ? "~" : ""}${formatMinutes(own.minutes)} ${mode === "bike" ? "by bike" : "on foot"}`,
+            `${own.estimated ? "~" : ""}${formatMinutes(own.minutes)} on foot`,
         ]
           .filter(Boolean)
           .join(", ")}.`,

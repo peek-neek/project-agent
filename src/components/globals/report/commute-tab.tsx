@@ -108,7 +108,7 @@ function DestinationTile({
   solid?: boolean;
 }) {
   const Icon = DESTINATION_ICONS[destinationKind(destination)];
-  // Transit always; the second figure follows the walk / bike / car choice.
+  // Transit always; the second figure follows the walk / car choice.
   const travel = useTravelMode();
   const trip = destinationTime(destination, travel.mode);
   const stat = (
@@ -244,7 +244,7 @@ export function CommuteTab({
   );
   const photoUrl = (s: Station) =>
     s.photo
-      ? `/api/reports/${reportId}/place-photo/${encodeURIComponent(s.id)}?w=800`
+      ? `/api/reports/${reportId}/place-photo/${encodeURIComponent(s.id)}`
       : null;
 
   const pins: MapPin[] = stops.map((s, i) => ({

@@ -27,42 +27,42 @@ export const SAMPLE_PLACES: {
     category: "groceries",
     label: "Groceries",
     name: "Ashgrove Fresh Market",
-    minutes: { walk: 7, bike: 3, drive: 2 },
+    minutes: { walk: 7, drive: 2 },
     pin: [0.62, 0.3],
   },
   {
     category: "cafes",
     label: "Café",
     name: "Little Harbour Coffee",
-    minutes: { walk: 5, bike: 2, drive: 2 },
+    minutes: { walk: 5, drive: 2 },
     pin: [0.38, 0.24],
   },
   {
     category: "parks",
     label: "Park",
     name: "Ashgrove Park",
-    minutes: { walk: 3, bike: 1, drive: 1 },
+    minutes: { walk: 3, drive: 1 },
     pin: [0.27, 0.62],
   },
   {
     category: "pharmacies",
     label: "Pharmacy",
     name: "Crescent Pharmacy",
-    minutes: { walk: 9, bike: 4, drive: 3 },
+    minutes: { walk: 9, drive: 3 },
     pin: [0.74, 0.55],
   },
   {
     category: "gyms",
     label: "Gym",
     name: "Northshore Fitness",
-    minutes: { walk: 14, bike: 5, drive: 4 },
+    minutes: { walk: 14, drive: 4 },
     pin: [0.8, 0.22],
   },
   {
     category: "libraries",
     label: "Library",
     name: "Glenview Branch Library",
-    minutes: { walk: 12, bike: 5, drive: 4 },
+    minutes: { walk: 12, drive: 4 },
     pin: [0.22, 0.3],
   },
 ];
@@ -73,7 +73,6 @@ export const SAMPLE_TRIPS = [
     note: "Lakeshore West line",
     times: [
       { mode: "walk", minutes: 18 },
-      { mode: "bike", minutes: 6 },
       { mode: "drive", minutes: 5 },
     ],
   },
@@ -104,7 +103,7 @@ export const SAMPLE_SCHOOLS = {
       name: "Hollowbrook Public School",
       level: "Elementary",
       km: 0.6,
-      minutes: { walk: 8, bike: 3, drive: 2 },
+      minutes: { walk: 8, drive: 2 },
       eqao: 78,
     },
     {
@@ -112,7 +111,7 @@ export const SAMPLE_SCHOOLS = {
       name: "St. Aldric Catholic Elementary",
       level: "Elementary",
       km: 1.1,
-      minutes: { walk: 14, bike: 5, drive: 3 },
+      minutes: { walk: 14, drive: 3 },
       eqao: 71,
     },
     {
@@ -120,7 +119,7 @@ export const SAMPLE_SCHOOLS = {
       name: "École élémentaire Bois-Joli",
       level: "Elementary",
       km: 2.4,
-      minutes: { walk: 30, bike: 9, drive: 5 },
+      minutes: { walk: 30, drive: 5 },
       eqao: 69,
     },
     {
@@ -128,7 +127,7 @@ export const SAMPLE_SCHOOLS = {
       name: "École catholique Sainte-Odile",
       level: "Elementary",
       km: 3.2,
-      minutes: { walk: 40, bike: 12, drive: 7 },
+      minutes: { walk: 40, drive: 7 },
       eqao: 61,
     },
   ],
@@ -190,7 +189,7 @@ export const SAMPLE_TONES = [
   {
     id: "professional",
     label: "Professional",
-    text: "Set on a quiet crescent in Oakville's Ashgrove neighbourhood, this four-bedroom detached home pairs a renovated kitchen with a south-facing backyard and a finished lower level with a separate entrance. Groceries, cafés and Ashgrove Park are all within a 10-minute walk, and Oakville GO is a 6-minute bike ride for the trip to Union Station.",
+    text: "Set on a quiet crescent in Oakville's Ashgrove neighbourhood, this four-bedroom detached home pairs a renovated kitchen with a south-facing backyard and a finished lower level with a separate entrance. Groceries, cafés and Ashgrove Park are all within a 10-minute walk, and Oakville GO is a 5-minute drive for the trip to Union Station.",
   },
   {
     id: "warm",
@@ -205,7 +204,7 @@ export const SAMPLE_TONES = [
   {
     id: "mls",
     label: "MLS short",
-    text: "Renovated 4-bed detached on a quiet Ashgrove crescent. South-facing yard, finished lower level with separate entrance. 7-min walk to groceries, 3 min to Ashgrove Park, 6-min bike to Oakville GO.",
+    text: "Renovated 4-bed detached on a quiet Ashgrove crescent. South-facing yard, finished lower level with separate entrance. 7-min walk to groceries, 3 min to Ashgrove Park, 5-min drive to Oakville GO.",
   },
 ] as const;
 
@@ -220,7 +219,7 @@ export const SAMPLE_STAGES = [
 export const SAMPLE_QUESTIONS = [
   {
     q: "How far is the GO station?",
-    a: "Oakville GO is an 18-minute walk or a 6-minute bike ride. Door to door, Union Station is about 52 minutes by transit at weekday rush hour.",
+    a: "Oakville GO is an 18-minute walk or a 5-minute drive. Door to door, Union Station is about 52 minutes by transit at weekday rush hour.",
   },
   {
     q: "Is anything being built nearby?",

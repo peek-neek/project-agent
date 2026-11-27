@@ -16,10 +16,9 @@ import { TRAVEL_ICONS } from "@/components/globals/travel-mode";
 import type { TravelMode } from "@/lib/travel";
 
 export const EASE = [0.16, 1, 0.3, 1] as const;
-export const MODES: TravelMode[] = ["walk", "bike", "drive"];
+export const MODES: TravelMode[] = ["walk", "drive"];
 export const MODE_LABELS: Record<TravelMode, string> = {
   walk: "Walk",
-  bike: "Bike",
   drive: "Car",
 };
 
@@ -58,7 +57,7 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>(
   return { ref, inView };
 }
 
-/** Walk / Bike / Car, with an indicator that slides between them. */
+/** Walk / Car, with an indicator that slides between them. */
 export function ModeSwitch({
   mode,
   onChange,

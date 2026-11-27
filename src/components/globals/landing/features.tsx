@@ -18,7 +18,7 @@ const CHAPTERS = [
     id: "amenities",
     name: "Amenities",
     title: "Every errand, timed the way your buyer gets around.",
-    body: "The nearest grocery store, café, park, pharmacy, gym and 18 more categories, each with real travel times on foot, by bike and by car. Switch the mode and the whole report follows, so a cyclist and a two-car household each see their own neighbourhood.",
+    body: "The nearest grocery store, café, park, pharmacy, gym and 18 more categories, each with real travel times on foot and by car. Switch the mode and the whole report follows, so a cyclist and a two-car household each see their own neighbourhood.",
     points: [
       {
         lead: "23 categories",
@@ -60,7 +60,7 @@ const CHAPTERS = [
     id: "schools",
     name: "Schools",
     title: "The nearest schools, on one page.",
-    body: "The closest elementary and secondary schools with walk, bike and drive times. In Ontario, every board (English and French, public and Catholic) with EQAO results against the provincial average.",
+    body: "The closest elementary and secondary schools with walk and drive times. In Ontario, every board (English and French, public and Catholic) with EQAO results against the provincial average.",
     points: [
       { lead: "Every board", text: "in Ontario, not just the one closest to the listing." },
       {

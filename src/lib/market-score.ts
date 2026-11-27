@@ -134,7 +134,7 @@ function transit(
   };
 }
 
-const BY_MODE = { walk: "on foot", bike: "by bike", drive: "by car" } as const;
+const BY_MODE = { walk: "on foot", drive: "by car" } as const;
 
 function commuteFactor(
   commute: CommuteData | null,

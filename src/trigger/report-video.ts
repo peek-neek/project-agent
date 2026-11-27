@@ -21,7 +21,7 @@ export const reportVideoTask = schemaTask({
   description: "Write and voice a report's map video",
   schema: z.object({
     reportId: z.string().uuid(),
-    travelMode: z.enum(["walk", "bike", "drive"]),
+    travelMode: z.enum(["walk", "drive"]),
   }),
   maxDuration: 300,
   retry: { maxAttempts: 2 },

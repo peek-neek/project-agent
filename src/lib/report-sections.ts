@@ -294,9 +294,7 @@ export const nearbyPlaceSchema = z.object({
   walkMinutes: z.number(),
   /** True when walk time is estimated from distance (Routes API unavailable). */
   walkEstimated: z.boolean(),
-  /** Bike and drive times; older reports don't have them (UI estimates). */
-  bikeMinutes: z.number().nullable().optional(),
-  bikeEstimated: z.boolean().nullable().optional(),
+  /** Drive times; older reports don't have them (UI estimates). */
   driveMinutes: z.number().nullable().optional(),
   driveEstimated: z.boolean().nullable().optional(),
 
@@ -346,11 +344,9 @@ export const commuteSchema = z.object({
       driveMinutes: z.number().nullable(),
       driveKm: z.number().nullable(),
       transitMinutes: z.number().nullable(),
-      /** Walking and cycling routes; older reports lack them (estimated). */
+      /** Walking routes; older reports lack them (estimated). */
       walkMinutes: z.number().nullable().optional(),
       walkKm: z.number().nullable().optional(),
-      bikeMinutes: z.number().nullable().optional(),
-      bikeKm: z.number().nullable().optional(),
     }),
   ),
   stations: z.array(
@@ -443,9 +439,7 @@ export const schoolSchema = z.object({
   distanceMeters: z.number(),
   walkMinutes: z.number(),
   walkEstimated: z.boolean(),
-  /** Bike and drive times; older reports don't have them (UI estimates). */
-  bikeMinutes: z.number().nullable().optional(),
-  bikeEstimated: z.boolean().nullable().optional(),
+  /** Drive times; older reports don't have them (UI estimates). */
   driveMinutes: z.number().nullable().optional(),
   driveEstimated: z.boolean().nullable().optional(),
   results: eqaoSchema,
@@ -1012,10 +1006,10 @@ export const marketingSchema = z.object({
 export type MarketingData = z.infer<typeof marketingSchema>;
 
 /**
- * AI copy is written for every travel mode: "insights:walk", "marketing:bike"…
+ * AI copy is written for every travel mode: "insights:walk", "marketing:drive"…
  * The plain key holds the agent's own mode (and all copy on older reports).
  */
-export const copySectionKey = (key: string, mode: "walk" | "bike" | "drive") =>
+export const copySectionKey = (key: string, mode: "walk" | "drive") =>
   `${key}:${mode}`;
 
 export const CAMPAIGN_STAGES = {
@@ -1157,7 +1151,14 @@ export const showingSchema = z.object({
 });
 export type ShowingData = z.infer<typeof showingSchema>;
 
-const travelModeSchema = z.enum(["walk", "bike", "drive"]);
+/**
+ * Walk or drive. Copy from before cycling was retired may say "bike": it
+ * reads as walk, the closest remaining mode (bike times are no longer shown).
+ */
+export const travelModeSchema = z.preprocess(
+  (value) => (value === "bike" ? "walk" : value),
+  z.enum(["walk", "drive"]),
+);
 
 /** Settings the AI copy is written with; older reports have none (walk). */
 export const copySettingsSchema = z.object({ travelMode: travelModeSchema });

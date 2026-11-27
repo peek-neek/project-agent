@@ -135,7 +135,7 @@ function PlaceCard({
       <Thumb
         src={
           place.photo
-            ? `/api/reports/${reportId}/place-photo/${encodeURIComponent(place.id)}?w=400`
+            ? `/api/reports/${reportId}/place-photo/${encodeURIComponent(place.id)}`
             : null
         }
         label={String(index + 1)}
@@ -241,7 +241,7 @@ export function AmenitiesTab({
               : null,
           address: place.address,
           photo: place.photo
-            ? `/api/reports/${reportId}/place-photo/${encodeURIComponent(place.id)}?w=800`
+            ? `/api/reports/${reportId}/place-photo/${encodeURIComponent(place.id)}`
             : null,
           href: googleMapsUrl({
             name: place.name,

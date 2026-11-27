@@ -13,7 +13,7 @@ const MOMENTS = [
     when: "At the showing",
     line: "A buyer asks how long the walk to the GO train really is.",
     answer:
-      "You answer on the spot, in their way of getting around: on foot, by bike or by car.",
+      "You answer on the spot, in their way of getting around: on foot or by car.",
   },
   {
     when: "When the listing goes live",

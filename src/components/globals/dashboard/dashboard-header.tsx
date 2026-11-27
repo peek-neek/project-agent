@@ -30,7 +30,7 @@ export function DashboardHeader({ nav }: { nav: React.ReactNode }) {
           orientation="vertical"
           className="mx-1 h-5 data-vertical:self-center"
         />
-        {/* Walk / cycle / car: switches every travel time in the app. */}
+        {/* Walk / car: switches every travel time in the app. */}
         <TravelModeToggle />
         {/* Light / dark / system. Phones: in the account menu instead (the
             header is full there). */}

@@ -20,7 +20,7 @@ import {
 } from "@/lib/report-sections";
 import { AMENITY_ICONS } from "./amenity-icons";
 import { DashCard } from "./dash-card";
-import { Lightbox, type LightboxItem, photoAtWidth } from "./lightbox";
+import { Lightbox, type LightboxItem } from "./lightbox";
 import { MapImage } from "./map-image";
 import { googleMapsUrl, type ReportData } from "./report-format";
 
@@ -162,8 +162,9 @@ export function LocationMedia({
     ...tiles.flatMap((t) =>
       t.photos.map((ph, i) => ({
         key: `${t.id}-${i}`,
-        src: photoAtWidth(ph.src, 800),
-        fullSrc: photoAtWidth(ph.src, 3200),
+        // One URL per photo (the route serves a single size), so the grid,
+        // thumbnails, main view and preloads all share one request.
+        src: ph.src,
         title: t.title,
         subtitle: t.subtitle,
         address: t.address,
@@ -333,7 +334,7 @@ export function LocationMedia({
                       className="group relative block aspect-[4/3] size-full cursor-zoom-in overflow-hidden bg-muted text-left"
                     >
                       <FadeImg
-                        src={photoAtWidth(cover.src, 800)}
+                        src={cover.src}
                         alt={t.title}
                         loading="lazy"
                         className="absolute inset-0 size-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-[1.03]"

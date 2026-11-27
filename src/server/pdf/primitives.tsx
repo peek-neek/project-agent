@@ -14,7 +14,6 @@ import {
   View,
 } from "@react-pdf/renderer";
 import {
-  BikeIcon,
   CarIcon,
   FootprintsIcon,
   type LucideIcon,
@@ -106,13 +105,12 @@ export const ICON_TEXT_LINE_HEIGHT = 1.21;
 
 /**
  * Optical centring: how far below centre an icon's drawing sits, as a share
- * of its size, measured against Inter's digits (the bike's wheels and the
- * car's body sit low in their 24px box). Icons are nudged up by this so a
+ * of its size, measured against Inter's digits (the car's body sits low in
+ * its 24px box). Icons are nudged up by this so a
  * row of icon + time lines up.
  */
 const OPTICAL_SHIFT = new Map<IconSource, number>([
   [FootprintsIcon, 0.01],
-  [BikeIcon, 0.035],
   [CarIcon, 0.05],
   [TrainFrontIcon, 0.01],
 ]);
@@ -1011,15 +1009,13 @@ export function Table<T>({
 
 export const MODE_ICONS: Record<TravelMode, LucideIcon> = {
   walk: FootprintsIcon,
-  bike: BikeIcon,
   drive: CarIcon,
 };
 export const MODE_LABELS: Record<TravelMode, string> = {
   walk: "Walk",
-  bike: "Cycle",
   drive: "Car",
 };
-export const MODES: TravelMode[] = ["walk", "bike", "drive"];
+export const MODES: TravelMode[] = ["walk", "drive"];
 export const TransitIcon = TrainFrontIcon;
 
 export type ModeTimes = Partial<
@@ -1034,25 +1030,16 @@ export const fmtMin = (m: number) =>
     ? `${m} min`
     : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
 
-/** Times for a stored place (walk always; bike/drive estimated if absent). */
+/** Times for a stored place (walk always; drive estimated if absent). */
 export function placeTimes(p: {
   distanceMeters: number;
   walkMinutes: number;
   walkEstimated: boolean;
-  bikeMinutes?: number | null;
-  bikeEstimated?: boolean | null;
   driveMinutes?: number | null;
   driveEstimated?: boolean | null;
 }): ModeTimes {
   return {
     walk: { minutes: p.walkMinutes, estimated: p.walkEstimated },
-    bike:
-      p.bikeMinutes != null
-        ? { minutes: p.bikeMinutes, estimated: Boolean(p.bikeEstimated) }
-        : {
-            minutes: estimateMinutes(p.distanceMeters, "bike"),
-            estimated: true,
-          },
     drive:
       p.driveMinutes != null
         ? { minutes: p.driveMinutes, estimated: Boolean(p.driveEstimated) }

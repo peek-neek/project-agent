@@ -48,7 +48,7 @@ const MATRIX_CHUNK = 100;
 export async function routeMatrix(
   origin: LatLng,
   destinations: LatLng[],
-  mode: "WALK" | "BICYCLE" | "DRIVE",
+  mode: "WALK" | "DRIVE",
 ): Promise<({ seconds: number; meters: number } | null)[]> {
   if (destinations.length > MATRIX_CHUNK) {
     const chunks: LatLng[][] = [];
@@ -127,7 +127,7 @@ export async function routeDuration(
 export async function routeToAddress(
   origin: LatLng,
   address: string,
-  mode: "WALK" | "BICYCLE" | "DRIVE" | "TRANSIT",
+  mode: "WALK" | "DRIVE" | "TRANSIT",
   departureTime?: string,
 ) {
   const data = await routesFetch<{

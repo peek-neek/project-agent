@@ -347,7 +347,7 @@ export function PropertyChat({ reportId }: { reportId: string }) {
       intro={{
         title: `Ask anything about ${street}`,
         description:
-          "Answers draw on this whole report, Google Maps and the web, with the sources named. Times follow your walk / bike / car setting.",
+          "Answers draw on this whole report, Google Maps and the web, with the sources named. Times follow your walk / car setting.",
         suggestions: SUGGESTIONS,
       }}
       placeholder={`Ask anything about ${street}…`}

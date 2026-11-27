@@ -15,7 +15,7 @@ import { Sources } from "@/components/globals/landing/sources";
 const title =
   "Property Reports and Listing Copy for Canadian Real Estate Agents";
 const description =
-  "Type any Canadian address and get the neighbourhood research, compliant listing copy, showing playbook, calculators and a polished PDF in minutes. Amenities timed three ways, nearby schools, commute, safety facts and a sell / rent ease score.";
+  "Type any Canadian address and get the neighbourhood research, compliant listing copy, showing playbook, calculators and a polished PDF in minutes. Amenities timed on foot and by car, nearby schools, commute, safety facts and a sell / rent ease score.";
 
 export const metadata: Metadata = {
   title: { absolute: `${title} | ${site.name}` },

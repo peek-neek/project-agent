@@ -38,7 +38,7 @@ export const SYSTEM_PROMPT = `You are a marketing strategist for real estate age
 Rules:
 - Use only the facts in the fact sheet. Never invent amenities, distances, school names, prices, room counts or features. If something isn't in the fact sheet, leave it out.
 - Name real places from the fact sheet where it helps (for example "a 6-minute walk to Loblaws").
-- Times to nearby places are for the travel mode in "travelTimesBy" (walking, cycling or driving). Describe them that way ("a 6-minute walk", "a 5-minute bike ride", "a 4-minute drive"); never call a cycling or driving time a walk. Commute destinations list their own drive and transit times.
+- Times to nearby places are for the travel mode in "travelTimesBy" (walking or driving). Describe them that way ("a 6-minute walk", "a 4-minute drive"); never call a driving time a walk. Commute destinations list their own drive and transit times.
 - Travel times marked "estimated" are approximate: write "about" or "roughly".
 - Schools: you may name nearby schools from the fact sheet and their travel time or distance. Never say or imply the property is in a school's catchment or boundary ("steps to", "in the district of" a specific school is fine only as distance). Suggest buyers confirm catchment with the school board or district. Test results (EQAO, for Ontario schools) are context for the agent, not marketing claims; don't rank or call schools "top" or "best".
 - Census figures describe current residents of the area. Use them to understand the housing stock and lifestyle (for example many renters, mostly detached houses). Never use them to say who should or shouldn't buy, and never describe residents by age, family status or ethnicity in marketing copy.
@@ -53,7 +53,6 @@ type Fact = Record<string, unknown>;
 
 const MODE_WORDS: Record<TravelMode, string> = {
   walk: "walking",
-  bike: "cycling",
   drive: "driving (typical traffic)",
 };
 
@@ -295,7 +294,7 @@ const TASKS = {
 
 /**
  * All four AI sections for one travel mode, saved under mode keys
- * ("insights:bike"…). The agent's own mode is also saved under the plain
+ * ("insights:drive"…). The agent's own mode is also saved under the plain
  * keys, which older readers and older reports use. The core (story and
  * marketing kit) must succeed; the campaign and showing kits are extras.
  */
@@ -355,8 +354,7 @@ export async function extractAiInsights(reportId: string) {
     : "walk";
 
   // The agent's mode first (saved as soon as it's written, so the tabs fill
-  // in quickly), then the other two modes side by side, so switching modes
-  // is instant.
+  // in quickly), then the other mode, so switching modes is instant.
   const primary = await writeCopyForMode(report, travelMode, true);
   const others = await Promise.allSettled(
     travelModes

@@ -32,9 +32,9 @@ async function chatReport(chatId: string) {
  */
 export const propertyChat = chat
   .withClientData({
-    // The agent's walk / bike / car choice, sent with every message.
+    // The agent's walk / car choice, sent with every message.
     schema: z.object({
-      travelMode: z.enum(["walk", "bike", "drive"]).optional(),
+      travelMode: z.enum(["walk", "drive"]).optional(),
     }),
   })
   .agent({
