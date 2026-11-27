@@ -78,11 +78,11 @@ const modes = [
     label: "Compare",
     placeholder: "First property address",
   },
-  {
-    id: "bulk",
-    label: "Bulk",
-    placeholder: "Paste addresses, separated by semicolons",
-  },
+  // {
+  //   id: "bulk",
+  //   label: "Bulk",
+  //   placeholder: "Paste addresses, separated by semicolons",
+  // },
 ] as const;
 
 type Mode = (typeof modes)[number]["id"];
