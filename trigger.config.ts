@@ -1,9 +1,30 @@
+import { execSync } from "node:child_process";
+import type { BuildExtension } from "@trigger.dev/build";
 import {
   additionalFiles,
   aptGet,
 } from "@trigger.dev/build/extensions/core";
 import { prismaExtension } from "@trigger.dev/build/extensions/prisma";
 import { defineConfig } from "@trigger.dev/sdk";
+
+/**
+ * Generates what deploys need but git doesn't have: the Prisma client
+ * (src/generated/prisma; modern mode never runs `prisma generate`) and the
+ * Remotion site (build/remotion). Runs before bundling, so every deploy
+ * works, whether from `trigger deploy`, CI or the GitHub integration.
+ */
+function prebuild(): BuildExtension {
+  return {
+    name: "prebuild",
+    onBuildStart: async (context) => {
+      if (context.target !== "deploy") return; // `npm run dev:trigger` does both
+      for (const script of ["db:generate", "video:bundle"]) {
+        context.logger.log(`Running npm run ${script}`);
+        execSync(`npm run ${script}`, { cwd: context.workingDir, stdio: "inherit" });
+      }
+    },
+  };
+}
 
 export default defineConfig({
   // Trigger.dev project "project-agent"
@@ -25,6 +46,8 @@ export default defineConfig({
     // the image for Linux instead of bundled.
     external: ["@remotion/renderer"],
     extensions: [
+      // First, so the files below exist before anything reads them.
+      prebuild(),
       // Prisma 7 (prisma-client generator + driver adapter). Run
       // `npm run db:generate` before `npm run dev:trigger`.
       prismaExtension({ mode: "modern" }),
