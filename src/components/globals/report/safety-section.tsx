@@ -342,7 +342,7 @@ export function SafetySection({ safety }: { safety: SafetyData }) {
   const { flood, noise, airQuality } = safety;
   const flag = FLOOD_BADGES[flood.status];
   const notCovered = noise.outsideCoverage
-    ? "Not available outside Ontario yet"
+    ? "Not checked yet. Regenerate this section to add it."
     : "Couldn't be checked. Regenerate this section to retry.";
 
   return (

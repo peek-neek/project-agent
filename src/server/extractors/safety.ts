@@ -1,8 +1,9 @@
 // Runs inside the Trigger.dev "safety" task: crime rates, flood/erosion
 // regulation, noise sources and air quality. Crime severity (StatCan, by
-// police service) covers all of Ontario; Toronto adds neighbourhood rates
-// from Toronto Police. Highways come from the Ontario Road Network and rail
-// lines from the Ontario Railway Network (both province-wide); flood
+// police service) covers all of Canada; Toronto adds neighbourhood rates
+// from Toronto Police. Highways and rail: in Ontario the Ontario Road and
+// Railway Networks; elsewhere (and if those are down) Transport Canada's
+// National Highway System and the North American Rail Network. Flood
 // regulation from TRCA; air quality from Google.
 import {
   CRIME_TYPES,
@@ -26,7 +27,25 @@ const SOURCES = {
     "https://services1.arcgis.com/TJH5KDher0W13Kgo/arcgis/rest/services/Ontario_Road_Network_Composite_Service/FeatureServer/5",
   /** Ontario Railway Network track (province-wide). */
   rail: "https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open04/MapServer/18",
+  /**
+   * Transport Canada's National Highway System (all of Canada, NRN road
+   * classes). Intercity and major urban highways; some smaller provincial
+   * highways and city expressways aren't part of it.
+   */
+  canadaHighways:
+    "https://maps-cartes.services.geo.ca/server_serveur/rest/services/TC/canada_national_highway_system_en/MapServer/0",
+  /**
+   * North American Rail Network (US DOT / BTS, with Canada): every Canadian
+   * line, with NET "M" for main lines (yards, sidings, industrial leads and
+   * abandoned track have their own codes).
+   */
+  canadaRail:
+    "https://services.arcgis.com/xOi1kZaI0eWDREZv/ArcGIS/rest/services/NTAD_North_American_Rail_Network_Lines/FeatureServer/0",
 } as const;
+
+const ONTARIO_NOISE_SOURCE = "Ontario Road Network and Ontario Railway Network";
+const CANADA_NOISE_SOURCE =
+  "Transport Canada National Highway System and the North American Rail Network (US DOT)";
 
 const TRCA = "Toronto and Region Conservation Authority";
 /** Distance at which a highway or rail line is worth mentioning. */
@@ -292,36 +311,58 @@ function nearestAirport(point: LatLng) {
     : null;
 }
 
-async function noiseAt(point: LatLng): Promise<SafetyData["noise"]> {
+/** Ontario: 400-series and other provincial highways; operating main lines. */
+async function ontarioLines(point: LatLng) {
+  const [highway, railway] = await Promise.all([
+    nearestLine(
+      SOURCES.roads,
+      point,
+      "ROAD_CLASS IN ('Freeway','Expressway / Highway')",
+    ),
+    // Operating main lines; yards, sidings and spurs see little traffic.
+    nearestLine(
+      SOURCES.rail,
+      point,
+      "STATUS = 'Operational' AND TRACKCLASS = 'Main'",
+    ),
+  ]);
+  return { highway, railway, source: ONTARIO_NOISE_SOURCE };
+}
+
+/** All of Canada: the same rules, on the national layers. */
+async function canadaLines(point: LatLng) {
+  const [highway, railway] = await Promise.all([
+    nearestLine(
+      SOURCES.canadaHighways,
+      point,
+      "roadclass IN ('Freeway','Expressway / Highway')",
+    ),
+    nearestLine(SOURCES.canadaRail, point, "NET = 'M'"),
+  ]);
+  return { highway, railway, source: CANADA_NOISE_SOURCE };
+}
+
+export async function noiseAt(
+  point: LatLng,
+  inOntario: boolean,
+): Promise<SafetyData["noise"]> {
+  const airport = nearestAirport(point);
   try {
-    const [highway, railway] = await Promise.all([
-      // 400-series and other provincial highways (centre lines).
-      nearestLine(
-        SOURCES.roads,
-        point,
-        "ROAD_CLASS IN ('Freeway','Expressway / Highway')",
-      ),
-      // Operating main lines; yards, sidings and spurs see little traffic.
-      nearestLine(
-        SOURCES.rail,
-        point,
-        "STATUS = 'Operational' AND TRACKCLASS = 'Main'",
-      ),
-    ]);
-    return {
-      highway,
-      railway,
-      airport: nearestAirport(point),
-      roadsCovered: true,
-    };
+    let lines;
+    if (inOntario) {
+      // The provincial networks are more detailed; the national ones are a
+      // fallback when they're down.
+      lines = await ontarioLines(point).catch((error) => {
+        console.error("[safety] Ontario highway/rail lookup", error);
+        return canadaLines(point);
+      });
+    } else {
+      lines = await canadaLines(point);
+    }
+    return { ...lines, airport, roadsCovered: true };
   } catch (error) {
     console.error("[safety] highway/rail lookup", error);
-    return {
-      highway: null,
-      railway: null,
-      airport: nearestAirport(point),
-      roadsCovered: false,
-    };
+    return { highway: null, railway: null, airport, roadsCovered: false };
   }
 }
 
@@ -427,15 +468,7 @@ export async function extractSafety(reportId: string) {
     }),
     outsideOntario ? OUTSIDE_ONTARIO_FLOOD : floodAt(point),
     airQualityAt(point),
-    outsideOntario
-      ? {
-          highway: null,
-          railway: null,
-          airport: nearestAirport(point),
-          roadsCovered: false,
-          outsideCoverage: true,
-        }
-      : noiseAt(point),
+    noiseAt(point, !outsideOntario),
   ]);
 
   const data: SafetyData = {

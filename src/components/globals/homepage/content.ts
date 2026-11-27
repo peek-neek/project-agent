@@ -25,6 +25,8 @@ export const dataSources = [
   "Statistics Canada (2021 Census, crime severity)",
   "Toronto Police Service open data",
   "Land Information Ontario (road and rail networks)",
+  "Transport Canada National Highway System",
+  "North American Rail Network (US DOT, with Transport Canada)",
   "Conservation authority flood regulation mapping",
   "Ontario school data and EQAO results",
   "Municipal open data (development applications)",
@@ -288,7 +290,7 @@ export const faqs = [
   },
   {
     q: "Which areas do you cover?",
-    a: "Addresses anywhere in Canada. Amenities, commute, crime severity, census figures, schools, air quality and the calculators cover every province and territory. Some details are Ontario-only for now (EQAO results, flood regulation, highway and rail distances, infrastructure projects and development applications), and Toronto adds neighbourhood crime rates. Each section says where its data came from.",
+    a: "Addresses anywhere in Canada. Amenities, commute, crime severity, census figures, schools, air quality and the calculators cover every province and territory. Some details are Ontario-only for now (EQAO results, flood regulation, infrastructure projects and development applications), and Toronto adds neighbourhood crime rates. Each section says where its data came from.",
   },
   {
     q: "Where does the data come from?",

@@ -221,7 +221,7 @@ export function fastFacts(data: Data, mode: TravelMode): FastFact[] {
             .filter(Boolean)
             .join("; ") + "."
         : safety.noise.outsideCoverage
-          ? `Highway and rail distances are available for Ontario only so far.${airport ? ` ${airport.name} airport is ${airport.km} km away.` : ""}`
+          ? `Highway and rail distances weren't checked for this report yet.${airport ? ` ${airport.name} airport is ${airport.km} km away.` : ""}`
           : "Highway and rail distances couldn't be checked.",
     });
   }

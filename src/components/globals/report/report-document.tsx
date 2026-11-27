@@ -462,7 +462,8 @@ export function ReportView({ report }: { report: ReportData }) {
                   safety.areaCrime &&
                     `Statistics Canada Crime Severity Index (${safety.areaCrime.year})`,
                   safety.noise.roadsCovered &&
-                    "Ontario Road Network and Ontario Railway Network",
+                    (safety.noise.source ??
+                      "Ontario Road Network and Ontario Railway Network"),
                   safety.airQuality && "Google Air Quality API",
                 ]
                   .filter(Boolean)

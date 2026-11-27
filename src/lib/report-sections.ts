@@ -768,11 +768,13 @@ export const safetySchema = z.object({
     highway: z.object({ meters: z.number() }).nullable(),
     railway: z.object({ meters: z.number() }).nullable(),
     airport: z.object({ name: z.string(), km: z.number() }).nullable(),
-    /** False when road/rail data isn't available for this city. */
+    /** False when road/rail data couldn't be loaded (retry to fix). */
     roadsCovered: z.boolean(),
+    /** Where the highway and rail distances came from; older reports lack it. */
+    source: z.string().nullable().optional(),
     /**
-     * True outside Ontario: highway and rail data cover Ontario only, so
-     * there's nothing to retry. Older reports lack it.
+     * Older reports only: true outside Ontario, before highway and rail data
+     * covered all of Canada (regenerate the section to fill it in).
      */
     outsideCoverage: z.boolean().optional(),
   }),

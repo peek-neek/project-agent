@@ -214,7 +214,7 @@ export function SafetyTab({ safety }: { safety: SafetyData }) {
             noise.roadsCovered
               ? "Straight-line distance"
               : noise.outsideCoverage
-                ? "Ontario only for now"
+                ? "Regenerate to check"
                 : "Couldn't be checked"
           }
           accent="#525252"

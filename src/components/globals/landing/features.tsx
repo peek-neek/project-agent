@@ -78,7 +78,7 @@ const CHAPTERS = [
     id: "safety",
     name: "Safety & environment",
     title: "Facts buyers ask about. Never adjectives.",
-    body: "Crime severity compared with the province, neighbourhood crime rates in Toronto, flood regulation and highway and rail distances in Ontario, airports, and air quality, each with its source. You give clients facts, and you never have to describe a neighbourhood yourself.",
+    body: "Crime severity compared with the province, neighbourhood crime rates in Toronto, flood regulation in Ontario, highway and rail distances across Canada, airports, and air quality, each with its source. You give clients facts, and you never have to describe a neighbourhood yourself.",
     points: [
       {
         lead: "Crime, compared",
@@ -86,7 +86,7 @@ const CHAPTERS = [
       },
       {
         lead: "Flood and noise",
-        text: "conservation authority mapping and Ontario's road and rail networks (Ontario only for now).",
+        text: "conservation authority mapping (Ontario for now), and the nearest highway and main rail line anywhere in Canada.",
       },
       {
         lead: "No labels",

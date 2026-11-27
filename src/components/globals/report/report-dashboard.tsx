@@ -225,11 +225,11 @@ export function ReportDashboard({
   // Reports from before Ontario-wide crime and noise data: refresh safety once.
   const safetyJob = getJob(report, JOB_KINDS.safety);
   const safetyBackfilled = useRef(false);
-  // Also older reports without province-wide highway/rail distances.
+  // Also reports without highway/rail distances: a failed lookup, or older
+  // reports outside Ontario from before the data covered all of Canada.
   const needsAreaCrime =
     data.safety != null &&
-    (data.safety.areaCrime === undefined ||
-      (!data.safety.noise.roadsCovered && !data.safety.noise.outsideCoverage));
+    (data.safety.areaCrime === undefined || !data.safety.noise.roadsCovered);
   useEffect(() => {
     if (!needsAreaCrime || safetyBackfilled.current || isJobActive(safetyJob))
       return;
@@ -888,7 +888,7 @@ export function ReportDashboard({
 
       <p className="pb-6 text-xs leading-relaxed text-foreground/50">
         Data from Google Maps, Statistics Canada, Ontario Ministry of Education,
-        Ontario Builds, the Ontario Road and Railway Networks, municipal open
+        Ontario Builds, the Ontario Road and Railway Networks, Transport Canada, the North American Rail Network, municipal open
         data, Toronto Police Service and TRCA. AI copy may contain errors:
         review before sharing. Full sources are listed in the PDF.
       </p>
