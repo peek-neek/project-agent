@@ -18,7 +18,7 @@
     "data:projects": "tsx scripts/import-datasets.mts projects",
     "data:development": "tsx scripts/import-datasets.mts development",
     "data:crime": "tsx scripts/import-crime-severity.mts",
-    "postinstall": "node scripts/copy-maplibre-worker.mjs",
+    "postinstall": "node scripts/copy-maplibre-worker.mjs && node scripts/patch-clerk-display-name.mjs",
     "test": "vitest run",
     "video:bundle": "remotion bundle src/video/index.ts --out-dir build/remotion --public-dir public --log=warn",
     "video:studio": "remotion studio src/video/index.ts"
