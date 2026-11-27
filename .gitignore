@@ -47,3 +47,5 @@ next-env.d.ts
 
 # Generated on postinstall (see scripts/copy-maplibre-worker.mjs)
 /public/vendor/
+
+build/remotion

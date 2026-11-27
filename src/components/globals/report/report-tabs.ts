@@ -1,5 +1,6 @@
 import {
   CalculatorIcon,
+  ClapperboardIcon,
   GraduationCapIcon,
   LayoutDashboardIcon,
   type LucideIcon,
@@ -60,6 +61,8 @@ export const REPORT_TABS = [
     icon: MegaphoneIcon,
     kinds: [JOB_KINDS.ai],
   },
+  // Made on demand: its progress lives in the "video" section, not a job.
+  { id: "video", label: "Video", icon: ClapperboardIcon, kinds: [] },
   {
     id: "playbook",
     label: "Playbook",

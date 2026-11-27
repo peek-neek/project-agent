@@ -33,7 +33,7 @@ import {
 import { generateStructured } from "../ai/generate-structured";
 import { reportStore } from "../report-store";
 
-const SYSTEM_PROMPT = `You are a marketing strategist for real estate agents in Canada. You turn location data about a property into copy and talking points that help the agent sell it.
+export const SYSTEM_PROMPT = `You are a marketing strategist for real estate agents in Canada. You turn location data about a property into copy and talking points that help the agent sell it.
 
 Rules:
 - Use only the facts in the fact sheet. Never invent amenities, distances, school names, prices, room counts or features. If something isn't in the fact sheet, leave it out.

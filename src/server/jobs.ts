@@ -13,7 +13,12 @@ import type {
   schoolsTask,
   upsideTask,
 } from "@/trigger/report-steps";
+import type { TravelMode } from "@/lib/travel";
+import { type VideoSection, videoVersion } from "@/lib/video";
+import type { reportVideoTask } from "@/trigger/report-video";
+import type { reportVideoRenderTask } from "@/trigger/report-video-render";
 import { reportStore } from "./report-store";
+import { saveRender, saveVideo } from "./video-store";
 
 type StepTask =
   | typeof propertyIdentityTask
@@ -110,6 +115,76 @@ export async function queueReportJob(reportId: string, kind: JobKind) {
       [kind],
       "Couldn't start the job. Try again shortly.",
     );
+    return null;
+  }
+}
+
+/**
+ * Writes (or rewrites) the report's map video. Its progress lives in the
+ * "video" section, not a ReportJob, so it never counts as a report step.
+ */
+export async function queueReportVideo(reportId: string, travelMode: TravelMode) {
+  if (!process.env.TRIGGER_SECRET_KEY) {
+    await saveVideo(reportId, { status: "failed", travelMode, error: NOT_CONFIGURED });
+    return null;
+  }
+  try {
+    await saveVideo(reportId, { status: "writing", travelMode, error: null });
+    const idempotencyKey = await idempotencyKeys.create(
+      `report-video:${reportId}:${Date.now()}`,
+      { scope: "global" },
+    );
+    const handle = await tasks.trigger<typeof reportVideoTask>(
+      "report-video",
+      { reportId, travelMode },
+      { idempotencyKey, tags: [`report:${reportId}`] },
+    );
+    return handle.id;
+  } catch (error) {
+    console.error("[jobs.queueReportVideo]", error);
+    await saveVideo(reportId, {
+      status: "failed",
+      error: "Couldn't start the video. Try again shortly.",
+    });
+    return null;
+  }
+}
+
+/**
+ * Exports the video's current script to an MP4. The render keeps the
+ * previous file's pathname until it finishes, so that file can be deleted.
+ */
+export async function queueVideoRender(reportId: string, video: VideoSection) {
+  const version = videoVersion(video);
+  if (!process.env.TRIGGER_SECRET_KEY) {
+    await saveRender(reportId, { status: "failed", version, error: NOT_CONFIGURED });
+    return null;
+  }
+  try {
+    await saveRender(reportId, {
+      status: "rendering",
+      version,
+      progress: 0,
+      error: null,
+      startedAt: new Date().toISOString(),
+      renderedAt: null,
+    });
+    const idempotencyKey = await idempotencyKeys.create(
+      `report-video-render:${reportId}:${version}:${Date.now()}`,
+      { scope: "global" },
+    );
+    const handle = await tasks.trigger<typeof reportVideoRenderTask>(
+      "report-video-render",
+      { reportId, version },
+      { idempotencyKey, tags: [`report:${reportId}`] },
+    );
+    return handle.id;
+  } catch (error) {
+    console.error("[jobs.queueVideoRender]", error);
+    await saveRender(reportId, {
+      status: "failed",
+      error: "Couldn't start the export. Try again shortly.",
+    });
     return null;
   }
 }

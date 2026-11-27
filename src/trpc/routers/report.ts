@@ -13,7 +13,17 @@ import {
   cancelReportRuns,
   queueReportGeneration,
   queueReportJob,
+  queueReportVideo,
+  queueVideoRender,
 } from "@/server/jobs";
+import { blobConfigured, deleteBlobs } from "@/server/video-store";
+import {
+  currentRender,
+  isRenderActive,
+  isVideoWorking,
+  VIDEO_SECTION_KEY,
+  videoSectionSchema,
+} from "@/lib/video";
 import {
   type IdentitySources,
   reportModes,
@@ -138,6 +148,24 @@ const rewriteLimiter = createRateLimiter("report:rewrite", [
   { limit: 30, windowMs: 10 * 60_000 },
   { limit: 300, windowMs: 24 * 60 * 60_000 },
 ]);
+
+/** Each video is an AI script plus a voiceover per scene. */
+const videoLimiter = createRateLimiter("report:video", [
+  { limit: 6, windowMs: 10 * 60_000 },
+  { limit: 40, windowMs: 24 * 60 * 60_000 },
+]);
+
+/** Each export is a few minutes of a 4-vCPU machine. */
+const renderLimiter = createRateLimiter("report:video-render", [
+  { limit: 4, windowMs: 10 * 60_000 },
+  { limit: 20, windowMs: 24 * 60 * 60_000 },
+]);
+
+function getVideoSection(report: { sections: { key: string; data: unknown }[] }) {
+  const row = report.sections.find((s) => s.key === VIDEO_SECTION_KEY);
+  const parsed = row ? videoSectionSchema.safeParse(row.data) : null;
+  return parsed?.success ? parsed.data : null;
+}
 
 const jobKind = z.enum(Object.values(JOB_KINDS) as [JobKind, ...JobKind[]]);
 
@@ -276,7 +304,14 @@ export const reportRouter = createTRPCRouter({
       const report = await reportStore.findForUser(input.id, ctx.userId);
       if (!report) throw new TRPCError({ code: "NOT_FOUND" });
       await cancelReportRuns(report.jobs);
+      const video = getVideoSection(report);
+      const files = [
+        ...(video?.audio?.map((c) => c.pathname) ?? []),
+        ...(video?.render?.pathname ? [video.render.pathname] : []),
+      ];
       await reportStore.deleteForUser(report.id, ctx.userId);
+      // Best effort: the voiceover clips and MP4 go with the report.
+      await deleteBlobs(files);
       return { id: report.id };
     }),
 
@@ -311,6 +346,80 @@ export const reportRouter = createTRPCRouter({
           message: "Couldn't rewrite that right now. Try again shortly.",
         });
       }
+    }),
+
+  /** Writes (or rewrites) the map video's script and voiceover. */
+  generateVideo: protectedProcedure
+    .input(z.object({ id: z.string().uuid(), travelMode }))
+    .mutation(async ({ ctx, input }) => {
+      const report = await reportStore.findForUser(input.id, ctx.userId);
+      if (!report) throw new TRPCError({ code: "NOT_FOUND" });
+      if (report.property?.latitude == null) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "The video needs the property's location first.",
+        });
+      }
+      const video = getVideoSection(report);
+      if (isVideoWorking(video)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "The video is already being made.",
+        });
+      }
+      if (isRenderActive(video)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Wait for the MP4 export to finish before rewriting.",
+        });
+      }
+      const limit = videoLimiter.check(ctx.userId);
+      if (!limit.success) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: `Too many videos. Try again in ${Math.ceil(limit.retryAfterMs / 60_000)} min.`,
+        });
+      }
+      await queueReportVideo(report.id, input.travelMode);
+      return { ok: true };
+    }),
+
+  /** Exports the current video to an MP4 (rendered in the background). */
+  renderVideo: protectedProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const report = await reportStore.findForUser(input.id, ctx.userId);
+      if (!report) throw new TRPCError({ code: "NOT_FOUND" });
+      const video = getVideoSection(report);
+      if (!video?.script || video.status !== "ready") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Create the video before exporting it.",
+        });
+      }
+      if (!blobConfigured()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Exporting needs file storage, which isn't set up yet.",
+        });
+      }
+      if (isRenderActive(video)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "The MP4 is already being exported.",
+        });
+      }
+      // Already exported for this script: nothing to do.
+      if (currentRender(video)?.status === "ready") return { ok: true };
+      const limit = renderLimiter.check(ctx.userId);
+      if (!limit.success) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: `Too many exports. Try again in ${Math.ceil(limit.retryAfterMs / 60_000)} min.`,
+        });
+      }
+      await queueVideoRender(report.id, video);
+      return { ok: true };
     }),
 
   /** Re-runs one step: a failed section, or regenerating the AI copy. */

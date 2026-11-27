@@ -75,6 +75,7 @@ import { CalculatorsTab } from "./calculators/calculators-tab";
 import { StickyNote } from "./sticky-note";
 import { savedCalculatorsSchema } from "@/lib/finance/scenario";
 import { SchoolsTab } from "./schools-tab";
+import { VideoTab } from "./video-tab";
 import { SectionGate } from "./section-gate";
 import {
   AmenitiesSkeleton,
@@ -870,6 +871,8 @@ export function ReportDashboard({
                     onGenerate={regenerate}
                   />
                 )}
+
+                {t.id === "video" && <VideoTab report={report} data={data} />}
 
                 {t.id === "playbook" && (
                   <PlaybookPanel
