@@ -10,7 +10,7 @@ const STEPS = [
   },
   {
     title: "Get on with your day",
-    text: "Plotwise gathers the location data, times every trip and writes the copy. Most reports are ready in a few minutes, and you can watch each section arrive.",
+    text: "Areaview gathers the location data, times every trip and writes the copy. Most reports are ready in a few minutes, and you can watch each section arrive.",
   },
   {
     title: "Present, post and share",

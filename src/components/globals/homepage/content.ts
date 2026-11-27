@@ -1,5 +1,5 @@
 export const site = {
-  name: "Plotwise",
+  name: "Areaview",
   tagline: "AI property reports for real estate agents",
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
 };

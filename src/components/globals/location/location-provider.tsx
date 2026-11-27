@@ -22,8 +22,8 @@ type LocationContextValue = {
   dismissBanner: () => void;
 };
 
-const PROMPTED_KEY = "plotwise.location.prompted";
-const DISMISSED_KEY = "plotwise.location.banner-dismissed";
+const PROMPTED_KEY = "areaview.location.prompted";
+const DISMISSED_KEY = "areaview.location.banner-dismissed";
 
 const read = (storage: () => Storage, key: string) => {
   try {
