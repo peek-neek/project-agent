@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "../../generated/prisma/client";
 import { parseCsvRecords } from "../csv";
 import { db } from "../db";
+import { BULK_TRANSACTION } from "./bulk";
 
 export const ONTARIO_BUILDS_SOURCE = "Ontario Builds";
 
@@ -108,9 +109,12 @@ export async function importOntarioBuilds() {
   }
 
   // Only this source's rows: Alberta and BC projects share the table.
-  await db.$transaction([
-    db.infrastructureProject.deleteMany({ where: { source: ONTARIO_BUILDS_SOURCE } }),
-    db.infrastructureProject.createMany({ data: projects }),
-  ]);
+  await db.$transaction(
+    async (tx) => {
+      await tx.infrastructureProject.deleteMany({ where: { source: ONTARIO_BUILDS_SOURCE } });
+      await tx.infrastructureProject.createMany({ data: projects });
+    },
+    BULK_TRANSACTION,
+  );
   return { source: url, projects: projects.length };
 }

@@ -9,6 +9,7 @@
 import { readSheet } from "read-excel-file/node";
 import type { Prisma } from "../../generated/prisma/client";
 import { db } from "../db";
+import { BULK_TRANSACTION } from "./bulk";
 
 export const SOURCE_URL =
   "https://data.ontario.ca/dataset/d85f68c5-fcb0-4b4d-aec5-3047db47dcd5/resource/f75540ed-59eb-49ab-ac43-976d563b3a65/download/new_sif_data_2024_25_final_en_oct_2026.xlsx";
@@ -159,9 +160,12 @@ export async function importOntarioSchools(workbook?: Buffer) {
     throw new Error("The school file had no usable rows; kept the existing data.");
   }
 
-  await db.$transaction([
-    db.school.deleteMany(),
-    db.school.createMany({ data: schools }),
-  ]);
+  await db.$transaction(
+    async (tx) => {
+      await tx.school.deleteMany();
+      await tx.school.createMany({ data: schools });
+    },
+    BULK_TRANSACTION,
+  );
   return { imported: schools.length, skipped, dataYear: DATA_YEAR };
 }

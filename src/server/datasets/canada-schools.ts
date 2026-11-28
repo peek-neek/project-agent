@@ -16,6 +16,7 @@ import { unzipSync } from "fflate";
 import type { Prisma } from "../../generated/prisma/client";
 import { parseCsvRecords } from "../csv";
 import { db } from "../db";
+import { BULK_TRANSACTION } from "./bulk";
 
 export const SOURCE_URL =
   "https://www150.statcan.gc.ca/n1/en/pub/37-26-0001/2022001/ODEF_v2.1.zip";
@@ -254,10 +255,13 @@ export async function importCanadaSchools(csvText?: string) {
     throw new Error("The school file had no usable rows; kept the existing data.");
   }
 
-  await db.$transaction([
-    db.canadaSchool.deleteMany(),
-    db.canadaSchool.createMany({ data: schools }),
-  ]);
+  await db.$transaction(
+    async (tx) => {
+      await tx.canadaSchool.deleteMany();
+      await tx.canadaSchool.createMany({ data: schools });
+    },
+    BULK_TRANSACTION,
+  );
   return {
     imported: schools.length,
     geocoded: schools.filter((s) => s.geocoded).length,

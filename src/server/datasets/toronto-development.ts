@@ -4,6 +4,7 @@ import proj4 from "proj4";
 import type { Prisma } from "../../generated/prisma/client";
 import { parseCsvRecords } from "../csv";
 import { db } from "../db";
+import { BULK_TRANSACTION } from "./bulk";
 
 const DUMP_URL =
   "https://ckan0.cf.opendata.inter.prod-toronto.ca/datastore/dump/8907d8ed-c515-4ce9-b674-9f8c6eefcf0d";
@@ -67,9 +68,12 @@ export async function importTorontoDevelopment() {
   }
 
   const applications = [...byApplication.values()];
-  await db.$transaction([
-    db.developmentApplication.deleteMany(),
-    db.developmentApplication.createMany({ data: applications }),
-  ]);
+  await db.$transaction(
+    async (tx) => {
+      await tx.developmentApplication.deleteMany();
+      await tx.developmentApplication.createMany({ data: applications });
+    },
+    BULK_TRANSACTION,
+  );
   return { applications: applications.length };
 }

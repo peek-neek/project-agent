@@ -21,6 +21,7 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "../../generated/prisma/client";
 import type { ProjectCategory } from "../../lib/report-sections";
 import { db } from "../db";
+import { BULK_TRANSACTION } from "./bulk";
 import { MAINTENANCE } from "./ontario-builds";
 
 export const ALBERTA_SOURCE = "Alberta Major Projects";
@@ -42,10 +43,13 @@ async function replaceSource(source: string, projects: Prisma.InfrastructureProj
   if (projects.length === 0) {
     throw new Error(`${source}: no projects found; kept the existing data.`);
   }
-  await db.$transaction([
-    db.infrastructureProject.deleteMany({ where: { source } }),
-    db.infrastructureProject.createMany({ data: projects }),
-  ]);
+  await db.$transaction(
+    async (tx) => {
+      await tx.infrastructureProject.deleteMany({ where: { source } });
+      await tx.infrastructureProject.createMany({ data: projects });
+    },
+    BULK_TRANSACTION,
+  );
   return { source, projects: projects.length };
 }
 

@@ -20,6 +20,7 @@ import tls from "node:tls";
 import type { Prisma } from "../../generated/prisma/client";
 import type { ProjectCategory } from "../../lib/report-sections";
 import { db } from "../db";
+import { BULK_TRANSACTION } from "./bulk";
 import { MAINTENANCE } from "./ontario-builds";
 
 export const FEDERAL_SOURCE = "Infrastructure Canada";
@@ -172,9 +173,12 @@ export async function importFederalProjects() {
     throw new Error("Infrastructure Canada projects: none kept; kept the existing data.");
   }
 
-  await db.$transaction([
-    db.federalProject.deleteMany(),
-    db.federalProject.createMany({ data: projects, skipDuplicates: true }),
-  ]);
+  await db.$transaction(
+    async (tx) => {
+      await tx.federalProject.deleteMany();
+      await tx.federalProject.createMany({ data: projects, skipDuplicates: true });
+    },
+    BULK_TRANSACTION,
+  );
   return { source: FEDERAL_SOURCE, projects: projects.length };
 }
