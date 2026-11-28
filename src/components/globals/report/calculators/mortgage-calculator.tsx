@@ -38,7 +38,11 @@ import {
 import type { PurchaseState } from "./calculators-tab";
 
 const chartConfig = {
-  principal: { label: "Principal", color: "#1c1917" },
+  // Near-black vanishes on the dark card, so a lighter zinc there.
+  principal: {
+    label: "Principal",
+    theme: { light: "#1c1917", dark: "#a1a1aa" },
+  },
   interest: { label: "Interest", color: "#c4161c" },
 } satisfies ChartConfig;
 

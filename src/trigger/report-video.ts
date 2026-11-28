@@ -1,6 +1,6 @@
 import { AbortTaskRunError, logger, schemaTask } from "@trigger.dev/sdk";
 import { z } from "zod";
-import { generateVideoScript } from "../server/ai/video-script";
+import { fetchScriptRoutes, generateVideoScript } from "../server/ai/video-script";
 import { speak, VoiceoverUnavailableError } from "../server/ai/voiceover";
 import { reportStore } from "../server/report-store";
 import {
@@ -33,11 +33,15 @@ export const reportVideoTask = schemaTask({
     await saveVideo(reportId, { status: "writing", travelMode, error: null });
     const { script, generatedBy } = await generateVideoScript(report, travelMode);
     logger.info("Video script written", { scenes: script.scenes.length, generatedBy });
+    // Street routes for the progress bars (best effort: curved lines if not).
+    const routes = await fetchScriptRoutes(report, script, travelMode);
+    logger.info("Routes", { found: routes ? Object.keys(routes).length : 0 });
 
     if (!blobConfigured()) {
       await saveVideo(reportId, {
         status: "ready",
         script,
+        routes,
         generatedBy,
         audio: null,
         audioNote: "Voiceover needs file storage, which isn't set up yet.",
@@ -45,7 +49,13 @@ export const reportVideoTask = schemaTask({
       return { scenes: script.scenes.length, voiced: false };
     }
 
-    await saveVideo(reportId, { status: "voicing", script, generatedBy, audio: null });
+    await saveVideo(reportId, {
+      status: "voicing",
+      script,
+      routes,
+      generatedBy,
+      audio: null,
+    });
     try {
       const clips = await Promise.all(
         script.scenes.map(async (scene, i) => {

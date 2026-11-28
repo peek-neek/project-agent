@@ -1,5 +1,6 @@
 import {
   isMapScene,
+  isStatScene,
   sceneStops,
   VIDEO,
   type VideoDestination,
@@ -8,7 +9,10 @@ import {
   type VideoSection,
   type VideoStop,
 } from "../lib/video";
+import type { Branding } from "../lib/branding";
+import { decodePolyline } from "../lib/polyline";
 import type { ListingData } from "../lib/report-sections";
+import type { VideoStats } from "../lib/video-stats";
 import { TRAVEL_MODES, type TravelMode } from "../lib/travel";
 
 // Turns a report's saved video script into the composition's props. Pure,
@@ -36,7 +40,14 @@ export type PropertyVideoProps = {
   /** "walk" | "drive": the word after each time. */
   verb: (typeof TRAVEL_MODES)[TravelMode]["verb"];
   scenes: VideoScene[];
+  /** The closing card: the Pro agent's branding, else Areaview's. */
+  branding: Branding;
+  /** Figures for the overview, safety and neighbourhood cards; upside pins. */
+  stats: VideoStats;
 };
+
+/** The brand card that closes every video (see scenes/brand-scene.tsx). */
+export const BRAND_FRAMES = Math.round(3.5 * VIDEO.fps);
 
 /** Frames two scenes overlap while one fades into the next. */
 export const TRANSITION_FRAMES = 12;
@@ -45,9 +56,13 @@ export const TRANSITION_FRAMES = 12;
 const WORDS_PER_SECOND = 2.6;
 const MIN_SECONDS: Record<VideoSceneKind, number> = {
   intro: 3.5,
+  overview: 6,
   amenities: 5,
   commute: 5,
   schools: 5,
+  safety: 6,
+  neighbourhood: 5.5,
+  upside: 5.5,
   outro: 4,
 };
 /** Breathing room after the voiceover ends, longer than the transition. */
@@ -62,15 +77,20 @@ function sceneFrames(
   stops: number,
 ) {
   const spoken = audioSec ?? wordCount(voiceover) / WORDS_PER_SECOND;
-  // Map scenes also need time to draw every line.
-  const drawing = isMapScene(kind) ? 1.2 + stops * 0.9 : 0;
+  // Map scenes need time to draw every route; stat cards to fill their bars.
+  const drawing = isMapScene(kind)
+    ? 1.2 + stops * 0.9
+    : kind === "upside"
+      ? 1.2 + stops * 0.5
+      : 0;
   const seconds = Math.max(MIN_SECONDS[kind], drawing, spoken + TAIL_SECONDS);
   return Math.ceil(seconds * VIDEO.fps);
 }
 
+/** The whole video: the scenes, then the brand card, minus the overlaps. */
 export function totalFrames(scenes: Pick<VideoScene, "durationInFrames">[]) {
-  const sum = scenes.reduce((n, s) => n + s.durationInFrames, 0);
-  return Math.max(1, sum - TRANSITION_FRAMES * Math.max(0, scenes.length - 1));
+  const sum = scenes.reduce((n, s) => n + s.durationInFrames, 0) + BRAND_FRAMES;
+  return Math.max(1, sum - TRANSITION_FRAMES * scenes.length);
 }
 
 const money = (n: number) =>
@@ -99,6 +119,8 @@ export function buildVideoProps({
   places,
   video,
   audioSrc,
+  branding,
+  stats,
 }: {
   property: {
     latitude: number | null;
@@ -115,6 +137,8 @@ export function buildVideoProps({
   places: VideoPlaces;
   video: VideoSection | null;
   audioSrc: (sceneIndex: number) => string;
+  branding: Branding;
+  stats: VideoStats;
 }): PropertyVideoProps | null {
   if (property?.latitude == null || property.longitude == null) return null;
   if (!video?.script) return null;
@@ -128,7 +152,12 @@ export function buildVideoProps({
 
   const scenes = video.script.scenes
     .map((scene, i) => {
-      const stops = sceneStops(places, scene.kind, scene.placeIds);
+      const stops = sceneStops(places, scene.kind, scene.placeIds).map((s) => {
+        const encoded = video.routes?.[s.id];
+        const path = encoded ? decodePolyline(encoded) : [];
+        // A usable route has a start and an end; else the curved line.
+        return path.length >= 2 ? { ...s, path } : s;
+      });
       const clip = video.audio?.[i] ?? null;
       return {
         kind: scene.kind,
@@ -140,12 +169,21 @@ export function buildVideoProps({
           scene.kind,
           scene.voiceover,
           clip?.durationSec ?? null,
-          stops.length,
+          scene.kind === "upside"
+            ? (stats.upside?.pins.length ?? 0)
+            : stops.length,
         ),
       };
     })
-    // A map scene whose places are all gone (data refreshed) has nothing to draw.
-    .filter((s) => !isMapScene(s.kind) || s.stops.length > 0);
+    // A scene whose places or figures are gone (data refreshed) has nothing
+    // to show.
+    .filter((s) =>
+      isMapScene(s.kind)
+        ? s.stops.length > 0
+        : isStatScene(s.kind) || s.kind === "upside"
+          ? stats[s.kind] != null
+          : true,
+    );
 
   if (scenes.length === 0) return null;
 
@@ -157,5 +195,7 @@ export function buildVideoProps({
     destinations: places.destinations,
     verb: TRAVEL_MODES[video.travelMode].verb,
     scenes,
+    branding,
+    stats,
   };
 }

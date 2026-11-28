@@ -114,7 +114,7 @@ export function SafetyPage({ d, n }: { d: PdfData; n: number }) {
   const flood = FLOOD[sf.flood.status];
 
   return (
-    <ReportPage section="Safety & environment" address={d.address}>
+    <ReportPage section="Safety & environment" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="safety"
@@ -501,7 +501,7 @@ export function NeighbourhoodPage({ d, n }: { d: PdfData; n: number }) {
   const colWidth = (PAGE.content - 14) / 2;
 
   return (
-    <ReportPage section="Neighbourhood" address={d.address}>
+    <ReportPage section="Neighbourhood" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="neighbourhood"
@@ -609,7 +609,7 @@ export function UpsidePage({
   const dev = u.development;
 
   return (
-    <ReportPage section="Future upside" address={d.address}>
+    <ReportPage section="Future upside" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="upside"
@@ -875,7 +875,7 @@ export function MarketingPage({ d, n }: { d: PdfData; n: number }) {
   const m = d.marketing;
   if (!m) return null;
   return (
-    <ReportPage section="Marketing kit" address={d.address}>
+    <ReportPage section="Marketing kit" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="marketing"
@@ -935,7 +935,7 @@ export function CampaignPage({ d, n }: { d: PdfData; n: number }) {
   const c = d.campaign;
   if (!c) return null;
   return (
-    <ReportPage section="Listing campaign" address={d.address}>
+    <ReportPage section="Listing campaign" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="campaign"
@@ -1090,7 +1090,7 @@ export function PlaybookPage({ d, n }: { d: PdfData; n: number }) {
   const sh = d.showing;
   if (!pb && !sh) return null;
   return (
-    <ReportPage section="Showing playbook" address={d.address}>
+    <ReportPage section="Showing playbook" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="playbook"
@@ -1352,7 +1352,7 @@ export function DetailsPage({ d, n }: { d: PdfData; n: number }) {
   ].filter(Boolean) as { label: string; source: string; at: string }[];
 
   return (
-    <ReportPage section="Property details" address={d.address}>
+    <ReportPage section="Property details" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="details"

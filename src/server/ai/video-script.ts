@@ -1,19 +1,26 @@
 // Writes the map video's script. Shared by Next.js and Trigger.dev tasks
 // (no "server-only" import).
 import type { z } from "zod";
+import type { Branding } from "../../lib/branding";
 import {
   amenitiesSchema,
   commuteSchema,
+  demographicsSchema,
   insightsSchema,
   listingSchema,
   SECTION_KEYS,
+  safetySchema,
   schoolsSchema,
+  upsideSchema,
 } from "../../lib/report-sections";
+import { type VideoStats, videoStats } from "../../lib/video-stats";
 import { TRAVEL_MODES, type TravelMode } from "../../lib/travel";
 import {
   isMapScene,
+  isStatScene,
   MAX_STOPS,
   type MapSceneKind,
+  sceneStops,
   VIDEO_SCENE_KINDS,
   type VideoPlaces,
   type VideoScript,
@@ -23,6 +30,7 @@ import {
 } from "../../lib/video";
 import { buildVideoProps } from "../../video/props";
 import { SYSTEM_PROMPT } from "../extractors/ai-insights";
+import { routePolyline } from "../google-routes";
 import type { reportStore } from "../report-store";
 import { generateStructured } from "./generate-structured";
 
@@ -48,11 +56,30 @@ export function reportVideoPlaces(report: Report, mode: TravelMode) {
   );
 }
 
+/** The figures behind the stat scenes and the upside pins. */
+export function reportVideoStats(report: Report, mode: TravelMode) {
+  return videoStats(
+    {
+      amenities: section(report, SECTION_KEYS.amenities, amenitiesSchema),
+      commute: section(report, SECTION_KEYS.commute, commuteSchema),
+      schools: section(report, SECTION_KEYS.schools, schoolsSchema),
+      safety: section(report, SECTION_KEYS.safety, safetySchema),
+      demographics: section(report, SECTION_KEYS.demographics, demographicsSchema),
+      upside: section(report, SECTION_KEYS.upside, upsideSchema),
+      listPrice: section(report, SECTION_KEYS.listing, listingSchema)?.listPrice ?? null,
+      city: report.property?.city ?? null,
+      province: report.property?.province ?? null,
+    },
+    mode,
+  );
+}
+
 /** The composition's props for this report's saved video (see buildVideoProps). */
 export function reportVideoProps(
   report: Report,
   video: VideoSection,
   audioSrc: (sceneIndex: number) => string,
+  branding: Branding,
 ) {
   return buildVideoProps({
     property: report.property,
@@ -61,6 +88,8 @@ export function reportVideoProps(
     places: reportVideoPlaces(report, video.travelMode),
     video,
     audioSrc,
+    branding,
+    stats: reportVideoStats(report, video.travelMode),
   });
 }
 
@@ -76,17 +105,21 @@ const PREFIX: Record<MapSceneKind, string> = {
   schools: "s",
 };
 
-const TASK = `Write the voiceover script for a 30–40 second vertical (9:16) location video for social media. Each scene shows a map: a line is drawn from the home to each place you pick, labelled with its name and travel time, while your line is spoken and shown as captions.
+const TASK = `Write the voiceover script for a 50–75 second vertical (9:16) location video for social media. Every scene shows the map around the home. Route scenes draw the street route from the home to each place you pick, labelled with its name and travel time; stat scenes show the figures in <scene_facts> as cards; the upside scene pins projects on the map. Your line is spoken and shown as captions.
 
-Scenes, in this order (leave out commute or schools if its candidate list is empty):
+Scenes, in this order. Leave out any scene marked missing in <scene_facts>, and commute or schools when its candidate list is empty:
 - intro: a hook about the home's location. Title like "Life on Maple Avenue" (use the street name). No placeIds.
+- overview: the sell / rent ease level and one or two of the strongest section scores, from <scene_facts>.overview. Title like "At a glance".
 - amenities: pick 3–4 everyday places from different categories.
 - commute: pick 1–3 transit stops, rapid transit first. The voiceover may also use one commute destination time.
 - schools: pick 2–3 schools, nearest first. Say only how near they are, and end with a reminder to confirm catchment with the school board.
+- safety: state the facts in <scene_facts>.safety plainly (crime severity compared with the province, flood regulation, distance to highways or rail, air quality). Never call the area "safe", "dangerous" or similar; name the source type ("police-reported data") instead of judging.
+- neighbourhood: only the housing mix and the share of owners and renters from <scene_facts>.neighbourhood. Never describe who lives there or who the area suits (age, families, income, ethnicity, religion, or any other personal trait).
+- upside: name one or two of the projects pinned on the map from <scene_facts>.upside, with their status. Don't promise they'll raise property values.
 - outro: invite viewers to book a showing. No placeIds.
 
 Voiceover rules:
-- 14–28 words per scene, about 90–120 words in total. Spoken, warm and specific.
+- 12–24 words per scene, about 140–190 words in total. Spoken, warm and specific.
 - Mention only the places picked for that scene, with their times exactly as given (say "about" when a time says "about"), in the travel mode given.
 - Write times the way people say them ("a six-minute walk").
 - No hashtags, emoji or URLs.
@@ -142,13 +175,33 @@ export async function generateVideoScript(report: Report, mode: TravelMode) {
     })),
   };
 
+  // What the stat and upside scenes will show: the voiceover may use only these.
+  const stats = reportVideoStats(report, mode);
+  const sceneFacts = {
+    overview: stats.overview
+      ? {
+          sellRentEase: stats.overview.label,
+          sectionScoresOutOf5: stats.overview.rows,
+        }
+      : "missing",
+    safety: stats.safety?.items ?? "missing",
+    neighbourhood: stats.neighbourhood
+      ? {
+          mostCommonHomeTypesPercent: stats.neighbourhood.homes,
+          ownersPercent: stats.neighbourhood.owners,
+          rentersPercent: stats.neighbourhood.renters,
+        }
+      : "missing",
+    upside: stats.upside?.pins.map((p) => ({ name: p.name, about: p.label })) ?? "missing",
+  };
+
   const { output, generatedBy } = await generateStructured({
     schema: videoScriptSchema,
     instructions: SYSTEM_PROMPT,
-    prompt: `<fact_sheet>\n${JSON.stringify(facts, null, 2)}\n</fact_sheet>\n\n<candidates>\n${JSON.stringify(candidates, null, 2)}\n</candidates>\n\n<task>\n${TASK}\n</task>`,
-    timeoutMs: 60_000,
+    prompt: `<fact_sheet>\n${JSON.stringify(facts, null, 2)}\n</fact_sheet>\n\n<scene_facts>\n${JSON.stringify(sceneFacts, null, 2)}\n</scene_facts>\n\n<candidates>\n${JSON.stringify(candidates, null, 2)}\n</candidates>\n\n<task>\n${TASK}\n</task>`,
+    timeoutMs: 90_000,
   });
-  return { script: resolveScript(output, alias, places), generatedBy };
+  return { script: resolveScript(output, alias, places, stats), generatedBy };
 }
 
 /**
@@ -160,6 +213,7 @@ function resolveScript(
   script: VideoScript,
   alias: Map<string, string>,
   places: VideoPlaces,
+  stats: VideoStats,
 ): VideoScript {
   const seen = new Set<string>();
   const scenes = script.scenes.flatMap((scene) => {
@@ -170,6 +224,10 @@ function resolveScript(
       title: scene.title.trim().replace(/[.!]+$/, ""),
       voiceover: scene.voiceover.trim(),
     };
+    // A stat or upside scene with nothing to show is dropped.
+    if ((isStatScene(scene.kind) || scene.kind === "upside") && !stats[scene.kind]) {
+      return [];
+    }
     if (!isMapScene(scene.kind)) return [{ ...base, placeIds: [] }];
     const pool = places[scene.kind];
     let ids = [
@@ -192,4 +250,42 @@ function resolveScript(
   );
   if (scenes.length === 0) throw new Error("The AI returned an empty video script.");
   return { scenes };
+}
+
+/**
+ * The street route from the home to every place the script shows, in its
+ * travel mode, as encoded polylines by place ID. A route that can't be had
+ * is left out (the video draws a curved line instead); null when none can
+ * (e.g. the Routes API isn't enabled), so the video still gets made.
+ */
+export async function fetchScriptRoutes(
+  report: Report,
+  script: VideoScript,
+  mode: TravelMode,
+): Promise<Record<string, string> | null> {
+  const lat = report.property?.latitude;
+  const lng = report.property?.longitude;
+  if (lat == null || lng == null) return null;
+  const places = reportVideoPlaces(report, mode);
+  const stops = [
+    ...new Map(
+      script.scenes
+        .flatMap((s) => sceneStops(places, s.kind, s.placeIds))
+        .map((s) => [s.id, s]),
+    ).values(),
+  ];
+  const travel = mode === "walk" ? "WALK" : "DRIVE";
+  const found = await Promise.all(
+    stops.map(async (s) => {
+      try {
+        const encoded = await routePolyline({ lat, lng }, s, travel);
+        return encoded ? ([s.id, encoded] as const) : null;
+      } catch (error) {
+        console.warn("[video routes]", s.name, error instanceof Error ? error.message : error);
+        return null;
+      }
+    }),
+  );
+  const routes = Object.fromEntries(found.filter((r) => r != null));
+  return Object.keys(routes).length > 0 ? routes : null;
 }

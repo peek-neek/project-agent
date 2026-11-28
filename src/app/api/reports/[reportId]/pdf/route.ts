@@ -1,5 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
+import { parsePdfSections } from "@/lib/pdf-sections";
 import { parseTravelMode } from "@/lib/travel";
+import { brandingFor, readLogo } from "@/server/branding";
+import type { PdfBrand } from "@/server/pdf/primitives";
 import { pdfFileName, renderReportPdf } from "@/server/pdf/render";
 import { reportStore } from "@/server/report-store";
 
@@ -18,9 +21,20 @@ export async function GET(
   const report = await reportStore.findForUser(reportId, userId);
   if (!report) return new Response("Not found", { status: 404 });
 
-  const mode = parseTravelMode(new URL(request.url).searchParams.get("mode"));
+  const query = new URL(request.url).searchParams;
+  const mode = parseTravelMode(query.get("mode"));
+  // ?sections=a,b,c: only those (the download dialog); absent: everything.
+  const sections = parsePdfSections(query.get("sections"));
+  if (sections?.size === 0) {
+    return new Response("Choose at least one section", { status: 400 });
+  }
   try {
-    const pdf = await renderReportPdf(report, mode);
+    const pdf = await renderReportPdf(
+      report,
+      mode,
+      sections,
+      await pdfBrand(userId),
+    );
     const street = (
       report.property?.formattedAddress ?? report.inputAddress
     ).split(",")[0];
@@ -35,4 +49,21 @@ export async function GET(
     console.error("[pdf]", error);
     return new Response("Couldn't create the PDF", { status: 500 });
   }
+}
+
+/**
+ * The footer brand: the Pro agent's (logo loaded from Blob; a missing or
+ * unreadable logo just leaves it out), else Areaview's.
+ */
+async function pdfBrand(userId: string): Promise<PdfBrand> {
+  const branding = await brandingFor(userId, (pathname) => pathname);
+  if (branding.kind === "areaview") return branding;
+  const { logoSrc, ...details } = branding;
+  const logo = logoSrc ? await readLogo(logoSrc) : null;
+  return {
+    ...details,
+    logo: logo
+      ? { data: logo.data, format: logo.contentType === "image/png" ? "png" : "jpg" }
+      : undefined,
+  };
 }

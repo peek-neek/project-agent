@@ -52,30 +52,44 @@ const withoutPois = (style: StyleSpecification | string) =>
  * A MapLibre map with a fixed camera framing `points` ([lng, lat], home
  * first). Moving the live camera every frame shimmers in renders, so the
  * camera never moves: the push-in is a CSS scale of the whole plate.
- * `children` gets each point's position in the frame (null until loaded).
+ * `children` gets each point's position in the frame (null until loaded),
+ * and each of `paths` (street routes, [lng, lat]) projected the same way.
+ * Routes are framed too, so a detour off the straight line stays in view.
  */
 export function MapPlate({
   points,
+  paths = [],
   fit,
   scale,
   children,
 }: {
   points: [number, number][];
+  paths?: [number, number][][];
   fit: PlateFit;
   scale: number;
-  children: (screen: ScreenPoint[] | null) => ReactNode;
+  children: (
+    screen: ScreenPoint[] | null,
+    screenPaths: ScreenPoint[][] | null,
+  ) => ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { delayRender, continueRender, cancelRender } = useDelayRender();
   const [handle] = useState(() => delayRender("Loading map"));
   const [projected, setProjected] = useState<ScreenPoint[] | null>(null);
+  const [projectedPaths, setProjectedPaths] = useState<ScreenPoint[][] | null>(
+    null,
+  );
   const { isRendering } = useRemotionEnvironment();
-  const key = JSON.stringify([points, fit]);
+  const key = JSON.stringify([points, fit, paths]);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const [pts, f] = JSON.parse(key) as [[number, number][], PlateFit];
+    const [pts, f, routes] = JSON.parse(key) as [
+      [number, number][],
+      PlateFit,
+      [number, number][][],
+    ];
     let map: MapLibre | null = null;
     let cancelled = false;
 
@@ -89,7 +103,7 @@ export function MapPlate({
       left: offX + f.side / MAX_PLATE_SCALE,
       right: offX + f.side / MAX_PLATE_SCALE,
     };
-    const bounds = pts.reduce(
+    const bounds = [...pts, ...routes.flat()].reduce(
       (b, p) => b.extend(p),
       new LngLatBounds(pts[0], pts[0]),
     );
@@ -115,6 +129,7 @@ export function MapPlate({
           map!.once("idle", () => {
             if (cancelled) return;
             setProjected(pts.map((p) => map!.project(p)));
+            setProjectedPaths(routes.map((r) => r.map((p) => map!.project(p))));
             continueRender(handle);
           });
         });
@@ -130,10 +145,12 @@ export function MapPlate({
   }, [key, handle, continueRender, cancelRender, isRendering]);
 
   // Plate pixels → frame pixels under the current scale.
-  const screen = projected?.map((p) => ({
+  const toFrame = (p: ScreenPoint) => ({
     x: VIDEO.width / 2 + (p.x - PW / 2) * scale,
     y: VIDEO.height / 2 + (p.y - PH / 2) * scale,
-  }));
+  });
+  const screen = projected?.map(toFrame);
+  const screenPaths = projectedPaths?.map((r) => r.map(toFrame));
 
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
@@ -148,7 +165,7 @@ export function MapPlate({
           scale,
         }}
       />
-      {children(screen ?? null)}
+      {children(screen ?? null, screenPaths ?? null)}
     </AbsoluteFill>
   );
 }

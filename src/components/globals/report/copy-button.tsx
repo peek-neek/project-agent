@@ -31,7 +31,7 @@ export function CopyButton({
       ) : (
         <CopyIcon data-icon="inline-start" />
       )}
-      {!iconOnly && (copied ? "Copied" : label)}
+      {/* {!iconOnly && (copied ? "Copied" : label)} */}
     </Button>
   );
 }

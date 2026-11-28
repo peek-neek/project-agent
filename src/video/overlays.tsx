@@ -284,20 +284,65 @@ export function stopStarts(count: number, durationInFrames: number, fps: number)
   return Array.from({ length: count }, (_, i) => Math.round(first + i * Math.max(gap, 0.5 * fps)));
 }
 
+/** A quadratic curve as a polyline, so every route is drawn the same way. */
+function arcPoints(from: ScreenPoint, to: ScreenPoint, bend: number) {
+  const cx = (from.x + to.x) / 2 - (to.y - from.y) * bend;
+  const cy = (from.y + to.y) / 2 + (to.x - from.x) * bend;
+  return Array.from({ length: 25 }, (_, i) => {
+    const t = i / 24;
+    const u = 1 - t;
+    return {
+      x: u * u * from.x + 2 * u * t * cx + t * t * to.x,
+      y: u * u * from.y + 2 * u * t * cy + t * t * to.y,
+    };
+  });
+}
+
+/** The point `share` (0–1) of the way along a polyline, by length. */
+function pointAlong(line: ScreenPoint[], share: number): ScreenPoint {
+  const lengths = line.slice(1).map((p, i) => Math.hypot(p.x - line[i]!.x, p.y - line[i]!.y));
+  let left = lengths.reduce((a, b) => a + b, 0) * share;
+  for (let i = 0; i < lengths.length; i++) {
+    const len = lengths[i]!;
+    if (left <= len && len > 0) {
+      const a = line[i]!;
+      const b = line[i + 1]!;
+      return { x: a.x + ((b.x - a.x) * left) / len, y: a.y + ((b.y - a.y) * left) / len };
+    }
+    left -= len;
+  }
+  return line[line.length - 1]!;
+}
+
+/** How long a route takes to fill: street routes are longer, so slower. */
+const drawSeconds = (street: boolean) => (street ? 1.1 : 0.75);
+
 /**
- * Lines from the home to each stop, drawn one after another, each ending in
- * a pin and a label with the travel time.
+ * Routes from the home to each stop, one after another, each like a
+ * progress bar: the whole route appears as a faint track (along the
+ * streets when there's a route, else a gentle curve), then fills from the
+ * home to the place with a dot at its leading edge, ending in a pin and a
+ * label with the travel time.
  */
 export function Routes({
   home,
   points,
+  paths,
   stops,
   verb,
   area,
   durationInFrames,
+  lines = true,
+  subtitles,
 }: {
   home: ScreenPoint;
   points: ScreenPoint[];
+  /** Each stop's street route on screen (empty or missing: a curve). */
+  paths?: ScreenPoint[][] | null;
+  /** False: pins and labels only (places that aren't trips, e.g. projects). */
+  lines?: boolean;
+  /** Label second lines; default "6 min walk · Groceries". */
+  subtitles?: string[];
   stops: VideoStop[];
   verb: string;
   /** Vertical band the labels must stay in. */
@@ -308,16 +353,26 @@ export function Routes({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const starts = stopStarts(stops.length, durationInFrames, fps);
-  const subs = stops.map(
-    (s) => `${s.estimated ? "~" : ""}${s.minutes} min ${verb} · ${s.label}`,
-  );
+  const subs =
+    subtitles ??
+    stops.map(
+      (s) => `${s.estimated ? "~" : ""}${s.minutes} min ${verb} · ${s.label}`,
+    );
   const chips = layoutChips(
     points,
     stops.map((s, i) => chipWidth(s.name, subs[i]!)),
     home,
     area,
   );
-  const drawFrames = 0.75 * fps;
+  const routes = stops.map((_, i) => {
+    const street = paths?.[i];
+    return street && street.length >= 2
+      ? { line: street, street: true }
+      : { line: arcPoints(home, points[i]!, i % 2 === 0 ? 0.18 : -0.18), street: false };
+  });
+  const drawFrames = routes.map((l) =>
+    (lines ? drawSeconds(l.street) : 0.3) * fps,
+  );
 
   return (
     <AbsoluteFill>
@@ -325,47 +380,64 @@ export function Routes({
         {stops.map((stop, i) => {
           const p = points[i]!;
           const t0 = starts[i]!;
-          const progress = interpolate(frame, [t0, t0 + drawFrames], [0, 1], {
+          const { line } = routes[i]!;
+          const draw = drawFrames[i]!;
+          const progress = interpolate(frame, [t0, t0 + draw], [0, 1], {
             ...clamp,
             easing: Easing.bezier(0.65, 0, 0.35, 1),
           });
-          // A gentle arc: the control point sits off the midpoint.
-          const mx = (home.x + p.x) / 2;
-          const my = (home.y + p.y) / 2;
-          const dx = p.x - home.x;
-          const dy = p.y - home.y;
-          const bend = i % 2 === 0 ? 0.18 : -0.18;
-          const d = `M ${home.x} ${home.y} Q ${mx - dy * bend} ${my + dx * bend} ${p.x} ${p.y}`;
+          // The empty bar shows the whole route just before it fills.
+          const track = interpolate(frame, [t0 - 6, t0 + 4], [0, 1], clamp);
+          const d = `M ${line.map((q) => `${q.x} ${q.y}`).join(" L ")}`;
+          const head = pointAlong(line, progress);
           const pin = spring({
             frame,
             fps,
-            delay: t0 + drawFrames - 4,
+            delay: t0 + draw - 4,
             config: { damping: 12, mass: 0.6 },
           });
+          const stroke = {
+            fill: "none",
+            strokeLinecap: "round",
+            strokeLinejoin: "round",
+          } as const;
           return (
             <g key={stop.id}>
-              {progress > 0 && (
-                <>
+              {lines && track > 0 && (
+                <g opacity={track}>
+                  {/* The track: a white casing with a pale fill. */}
+                  <path d={d} {...stroke} stroke="#fff" strokeWidth={24} />
                   <path
                     d={d}
-                    fill="none"
-                    stroke="#fff"
-                    strokeWidth={18}
-                    strokeLinecap="round"
-                    pathLength={1}
-                    strokeDasharray="1 1"
-                    strokeDashoffset={1 - progress}
-                  />
-                  <path
-                    d={d}
-                    fill="none"
+                    {...stroke}
                     stroke={stop.color}
-                    strokeWidth={9}
-                    strokeLinecap="round"
+                    strokeOpacity={0.22}
+                    strokeWidth={13}
+                  />
+                </g>
+              )}
+              {lines && progress > 0 && (
+                <>
+                  {/* The bar filling from the home to the place. */}
+                  <path
+                    d={d}
+                    {...stroke}
+                    stroke={stop.color}
+                    strokeWidth={13}
                     pathLength={1}
                     strokeDasharray="1 1"
                     strokeDashoffset={1 - progress}
                   />
+                  {progress < 1 && (
+                    <circle
+                      cx={head.x}
+                      cy={head.y}
+                      r={13}
+                      fill="#fff"
+                      stroke={stop.color}
+                      strokeWidth={6}
+                    />
+                  )}
                 </>
               )}
               <circle
@@ -383,7 +455,7 @@ export function Routes({
 
       {stops.map((stop, i) => {
         const chip = chips[i]!;
-        const t0 = starts[i]! + drawFrames - 2;
+        const t0 = starts[i]! + drawFrames[i]! - 2;
         return (
           <div
             key={stop.id}

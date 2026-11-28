@@ -191,13 +191,17 @@ const ALL: readonly Calc[] = GROUPS.flatMap((g): readonly Calc[] => g.items);
  */
 export function CalculatorsTab({
   reportId,
+  storageKey,
   listPrice,
   city,
   province,
   propertyType,
   saved,
 }: {
-  reportId: string;
+  /** The report to autosave to; omitted on the standalone page. */
+  reportId?: string;
+  /** Standalone page: autosave to this localStorage key instead. */
+  storageKey?: string;
   listPrice: number | null;
   city: string | null;
   province: string | null;
@@ -231,33 +235,42 @@ export function CalculatorsTab({
   const dirty = useRef(false);
   const [savedAt, setSavedAt] = useState<string | null>(saved?.savedAt ?? null);
   useEffect(() => {
-    if (!dirty.current) return;
+    if (!dirty.current || (!reportId && !storageKey)) return;
     const timer = setTimeout(() => {
       dirty.current = false;
-      saveInputs(
-        {
-          id: reportId,
-          inputs: {
-            purchase,
-            afford,
-            refi,
-            closing,
-            seller,
-            comm,
-            own,
-            rental,
-            rvb,
-            prepay,
-            bridge,
-            tax,
-          },
-        },
-        { onSuccess: (r) => setSavedAt(r.savedAt) },
-      );
+      const inputs = {
+        purchase,
+        afford,
+        refi,
+        closing,
+        seller,
+        comm,
+        own,
+        rental,
+        rvb,
+        prepay,
+        bridge,
+        tax,
+      };
+      if (reportId) {
+        saveInputs(
+          { id: reportId, inputs },
+          { onSuccess: (r) => setSavedAt(r.savedAt) },
+        );
+      } else if (storageKey) {
+        const at = new Date().toISOString();
+        try {
+          localStorage.setItem(storageKey, JSON.stringify({ ...inputs, savedAt: at }));
+          setSavedAt(at);
+        } catch {
+          // Storage blocked or full: the figures still work, just unsaved.
+        }
+      }
     }, SAVE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [
     reportId,
+    storageKey,
     saveInputs,
     purchase,
     afford,
@@ -291,6 +304,15 @@ export function CalculatorsTab({
   const resetAll = () => {
     dirty.current = false;
     setAll(defaultInputs(context));
+    if (!reportId) {
+      if (storageKey) {
+        try {
+          localStorage.removeItem(storageKey);
+        } catch {}
+      }
+      setSavedAt(null);
+      return;
+    }
     saveInputs(
       { id: reportId, inputs: {} },
       { onSuccess: () => setSavedAt(null) },
@@ -400,15 +422,17 @@ export function CalculatorsTab({
       </nav>
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="text-sm text-foreground/60">
+        {/* <p className="text-sm text-foreground/60">
           <span className="font-semibold text-foreground">
             {current.label}:
           </span>{" "}
           {current.description}.
-          {listPrice == null
-            ? " No list price yet, so these start from an example; add it in the home details above and every calculator updates."
-            : ""}
-        </p>
+          {!reportId
+            ? " These start from an example; your changes stay in this browser."
+            : listPrice == null
+              ? " No list price yet, so these start from an example; add it in the home details above and every calculator updates."
+              : ""}
+        </p> */}
         {/* Fixed-height status, so saving never shifts the layout. */}
         <div className="flex h-8 items-center gap-2 text-xs text-foreground/55">
           {saving ? (
@@ -419,10 +443,13 @@ export function CalculatorsTab({
           ) : savedAt ? (
             <span className="flex items-center gap-1.5">
               <CheckIcon aria-hidden className="size-3.5 text-emerald-600" />
-              Saved to this report, used in the PDF and chat
+              {reportId
+                ? "Saved to this report, used in the PDF and chat"
+                : "Saved in this browser"}
             </span>
           ) : null}
-          {savedAt ? (
+          {/* Standalone: nothing is saved, so reset is always on offer. */}
+          {savedAt || !reportId ? (
             <Button
               variant="ghost"
               size="sm"

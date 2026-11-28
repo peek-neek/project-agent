@@ -685,7 +685,7 @@ export function FinancePage({ d, n }: { d: PdfData; n: number }) {
   const downText = downLabel(price)(baseDown);
 
   return (
-    <ReportPage section="Financial scenarios" address={d.address}>
+    <ReportPage section="Financial scenarios" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="finance"

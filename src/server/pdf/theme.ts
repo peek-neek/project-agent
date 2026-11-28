@@ -73,8 +73,8 @@ export const s = StyleSheet.create({
     alignItems: "flex-end",
     justifyContent: "space-between",
   },
-  /** Reserved, bottom left of every page, for the brand (added later). */
-  brandSlot: { width: 150, height: 28 },
+  /** Bottom left of every page: Areaview's brand, or the Pro agent's. */
+  brandSlot: { width: 300, height: 28 },
   pageNumber: { fontSize: 7.5, color: C.faint },
 
   eyebrow: {

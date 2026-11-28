@@ -3,11 +3,19 @@ import { linearTiming, TransitionSeries } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
 import type { ReactElement } from "react";
 import { AbsoluteFill, Html5Audio, useVideoConfig } from "remotion";
-import { isMapScene } from "../lib/video";
-import { type PropertyVideoProps, TRANSITION_FRAMES, type VideoScene } from "./props";
+import { isMapScene, isStatScene } from "../lib/video";
+import {
+  BRAND_FRAMES,
+  type PropertyVideoProps,
+  TRANSITION_FRAMES,
+  type VideoScene,
+} from "./props";
+import { BrandScene } from "./scenes/brand-scene";
 import { IntroScene } from "./scenes/intro-scene";
 import { MapScene } from "./scenes/map-scene";
 import { OutroScene } from "./scenes/outro-scene";
+import { StatScene } from "./scenes/stat-scene";
+import { UpsideScene } from "./scenes/upside-scene";
 import { COLORS } from "./theme";
 
 const { fontFamily } = loadFont("normal", {
@@ -47,6 +55,22 @@ export function PropertyVideo(props: PropertyVideoProps) {
     );
   });
 
+  // Every video signs off with whose it is (the agent's on Pro).
+  children.push(
+    <TransitionSeries.Transition
+      key="fade-brand"
+      presentation={fade()}
+      timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+    />,
+    <TransitionSeries.Sequence
+      key="brand"
+      name="brand"
+      durationInFrames={BRAND_FRAMES}
+    >
+      <BrandScene branding={props.branding} />
+    </TransitionSeries.Sequence>,
+  );
+
   return (
     <AbsoluteFill style={{ fontFamily, background: COLORS.paper }}>
       <TransitionSeries>{children}</TransitionSeries>
@@ -80,6 +104,18 @@ function SceneView({
         facts={video.facts}
       />
     );
+  }
+  if (isStatScene(scene.kind)) {
+    return (
+      <StatScene
+        scene={scene as VideoScene & { kind: typeof scene.kind }}
+        home={video.home}
+        stats={video.stats}
+      />
+    );
+  }
+  if (scene.kind === "upside") {
+    return <UpsideScene scene={scene} home={video.home} stats={video.stats} />;
   }
   if (isMapScene(scene.kind)) {
     return (

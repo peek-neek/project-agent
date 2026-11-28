@@ -2,6 +2,7 @@
 
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
+  CalculatorIcon,
   FileTextIcon,
   GitCompareArrowsIcon,
   MoreVerticalIcon,
@@ -18,7 +19,7 @@ import {
 } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createContext, use, useRef, useState } from "react";
+import { createContext, Suspense, use, useRef, useState } from "react";
 import { Logo } from "@/components/globals/homepage/logo";
 import { FadeImg } from "@/components/globals/report/fade-img";
 import { startNavigationProgress } from "@/components/globals/top-progress";
@@ -493,6 +494,49 @@ export function ReportHistory() {
   );
 }
 
+/** The sidebar's Calculators link: icon and label centred, icon only collapsed. */
+function CalculatorsLink({
+  active = false,
+  onNavigate,
+}: {
+  active?: boolean;
+  onNavigate: () => void;
+}) {
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip="Calculators"
+        isActive={active}
+        render={
+          <Link
+            href="/calculators"
+            onClick={onNavigate}
+            onNavigate={startNavigationProgress}
+          />
+        }
+        className="flex h-10 items-center justify-center px-4"
+      >
+        <CalculatorIcon />
+        {/* Removed when collapsed: its gap would push the icon off-centre. */}
+        <span className="group-data-[collapsible=icon]:hidden">
+          Calculators
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+/** Highlighted on /calculators; reads the path, so render it in Suspense. */
+function CalculatorsLinkLive({ onNavigate }: { onNavigate: () => void }) {
+  const pathname = usePathname();
+  return (
+    <CalculatorsLink
+      active={pathname === "/calculators"}
+      onNavigate={onNavigate}
+    />
+  );
+}
+
 /**
  * `history` is a slot rendered by the (server) dashboard layout, so the
  * report list can be prefetched on the server and streamed in.
@@ -534,6 +578,12 @@ export function DashboardSidebar({ history }: { history: React.ReactNode }) {
               </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {/* Every calculator, without opening a report. */}
+          {/* The path is runtime data, so it streams in; until then the same
+              link, just not highlighted (no layout shift). */}
+          <Suspense fallback={<CalculatorsLink onNavigate={closeOnMobile} />}>
+            <CalculatorsLinkLive onNavigate={closeOnMobile} />
+          </Suspense>
           {/* Collapsed only: expand and jump straight into search. */}
           <SidebarMenuItem className="hidden group-data-[collapsible=icon]:block">
             <SidebarMenuButton

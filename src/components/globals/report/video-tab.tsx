@@ -4,8 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircleIcon,
   ClapperboardIcon,
-  DownloadIcon,
-  FileVideoIcon,
   MapPinOffIcon,
   MicOffIcon,
   RefreshCwIcon,
@@ -30,23 +28,16 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  Progress,
-  ProgressLabel,
-  ProgressValue,
-} from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { checkCompliance } from "@/lib/compliance";
 import { JOB_KINDS } from "@/lib/report-sections";
 import { TRAVEL_MODES } from "@/lib/travel";
 import {
-  currentRender,
   isMapScene,
   isRenderActive,
   isVideoWorking,
   sceneStops,
-  type VideoSection,
   videoVersion,
   VIDEO_SECTION_KEY,
   type VideoSceneKind,
@@ -54,7 +45,10 @@ import {
   videoSectionSchema,
 } from "@/lib/video";
 import { useTRPC } from "@/trpc/client";
+import type { Branding } from "@/lib/branding";
+import { videoStats } from "@/lib/video-stats";
 import { buildVideoProps } from "@/video/props";
+import { VideoDownload } from "./video-download";
 import { ComplianceBadge, FlaggedText } from "./copy-block";
 import { DashCard } from "./dash-card";
 import type { ReportData } from "./report-format";
@@ -69,13 +63,20 @@ const VideoPlayer = dynamic(() => import("./video-player"), {
 
 const SCENE_LABELS: Record<VideoSceneKind, string> = {
   intro: "Intro",
+  overview: "Overview",
   amenities: "Essentials",
   commute: "Commute",
   schools: "Schools",
+  safety: "Safety",
+  neighbourhood: "Neighbourhood",
+  upside: "Future upside",
   outro: "Call to action",
 };
 
 const MODE_WORDS = { walk: "walking", drive: "driving" } as const;
+
+/** Until the agent's branding loads (and for everyone not on Pro). */
+const AREAVIEW_BRANDING: Branding = { kind: "areaview" };
 
 /** The Video tab: a map tour of the location, previewed in the browser. */
 export function VideoTab({
@@ -121,6 +122,10 @@ export function VideoTab({
     .some((kind) => isJobActive(getJob(report, kind)));
   const mode = video?.travelMode ?? travel.mode;
 
+  // The closing card previews what an export would show (Pro: the agent's).
+  const { data: brandingData } = useQuery(trpc.branding.get.queryOptions());
+  const branding = brandingData?.applied ?? AREAVIEW_BRANDING;
+
   const places = useMemo(
     () =>
       videoPlaces(
@@ -128,6 +133,25 @@ export function VideoTab({
         mode,
       ),
     [data.amenities, data.commute, data.schools, mode],
+  );
+  // Same figures as the export (see reportVideoStats on the server).
+  const stats = useMemo(
+    () =>
+      videoStats(
+        {
+          amenities: data.amenities,
+          commute: data.commute,
+          schools: data.schools,
+          safety: data.safety,
+          demographics: data.demographics,
+          upside: data.upside,
+          listPrice: data.listing?.listPrice ?? null,
+          city: report.property?.city ?? null,
+          province: report.property?.province ?? null,
+        },
+        mode,
+      ),
+    [data, report.property?.city, report.property?.province, mode],
   );
   const props = useMemo(
     () =>
@@ -140,8 +164,10 @@ export function VideoTab({
         // The version busts the browser cache when the voiceover is redone.
         audioSrc: (i) =>
           `/api/reports/${report.id}/video/audio/${i}?v=${version ?? ""}`,
+        branding,
+        stats,
       }),
-    [report.property, report.inputAddress, report.id, data.listing, places, video, version],
+    [report.property, report.inputAddress, report.id, data.listing, places, video, version, branding, stats],
   );
 
   if (!located) {
@@ -239,7 +265,7 @@ export function VideoTab({
           )}
         </div>
         {props && !working && parsed && (
-          <ExportControls reportId={report.id} video={parsed} />
+          <VideoDownload reportId={report.id} video={parsed} />
         )}
       </DashCard>
 
@@ -331,94 +357,6 @@ export function VideoTab({
             contributors. Review the script before sharing.
           </p>
         </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Export to MP4 (rendered in the background), then download. An export is
- * tied to the script it was made from: rewriting asks for a new one.
- */
-function ExportControls({
-  reportId,
-  video,
-}: {
-  reportId: string;
-  /** The live section (not memoized), so progress updates show. */
-  video: VideoSection;
-}) {
-  const trpc = useTRPC();
-  const queryClient = useQueryClient();
-  const exportVideo = useMutation(
-    trpc.report.renderVideo.mutationOptions({
-      onSettled: () =>
-        queryClient.invalidateQueries({
-          queryKey: trpc.report.byId.queryKey({ id: reportId }),
-        }),
-    }),
-  );
-  const current = currentRender(video);
-  const render = video.render;
-
-  if (isRenderActive(video) || exportVideo.isPending) {
-    return (
-      <div className="mx-auto mt-4 flex w-full max-w-[22rem] flex-col gap-1.5">
-        <Progress value={Math.round((render?.progress ?? 0) * 100)}>
-          <ProgressLabel className="flex items-center gap-1.5">
-            <Spinner className="size-3.5" />
-            Exporting MP4…
-          </ProgressLabel>
-          <ProgressValue />
-        </Progress>
-        <p className="text-xs text-muted-foreground">
-          Usually 2 to 4 minutes. You can leave this page.
-        </p>
-      </div>
-    );
-  }
-
-  if (current?.status === "ready") {
-    return (
-      <div className="mx-auto mt-4 flex w-full max-w-[22rem] flex-col gap-1.5">
-        <Button
-          className="w-full"
-          nativeButton={false}
-          render={<a href={`/api/reports/${reportId}/video/download`} />}
-        >
-          <DownloadIcon data-icon="inline-start" />
-          Download MP4
-        </Button>
-        <p className="text-center text-xs text-muted-foreground tabular-nums">
-          {current.sizeBytes != null &&
-            `${(current.sizeBytes / 1e6).toFixed(1)} MB · `}
-          1080 × 1920 · 30 fps
-        </p>
-      </div>
-    );
-  }
-
-  const failed = render?.status === "failed" && render.version === videoVersion(video);
-  const outdated = render?.status === "ready" && !current;
-  return (
-    <div className="mx-auto mt-4 flex w-full max-w-[22rem] flex-col gap-1.5">
-      <Button
-        variant="outline"
-        className="w-full"
-        onClick={() => exportVideo.mutate({ id: reportId })}
-      >
-        <FileVideoIcon data-icon="inline-start" />
-        {failed ? "Try the export again" : "Export MP4"}
-      </Button>
-      {(exportVideo.error || failed) && (
-        <p className="text-xs text-destructive">
-          {exportVideo.error?.message ?? render?.error}
-        </p>
-      )}
-      {outdated && !exportVideo.error && (
-        <p className="text-xs text-muted-foreground">
-          The script changed since the last export.
-        </p>
       )}
     </div>
   );

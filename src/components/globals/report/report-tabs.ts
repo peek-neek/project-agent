@@ -55,6 +55,7 @@ export const REPORT_TABS = [
   },
   // Works from the list price alone: no background step to wait for.
   { id: "calculators", label: "Calculators", icon: CalculatorIcon, kinds: [] },
+  { id: "video", label: "Video", icon: ClapperboardIcon, kinds: [] },
   {
     id: "marketing",
     label: "Marketing",
@@ -62,7 +63,6 @@ export const REPORT_TABS = [
     kinds: [JOB_KINDS.ai],
   },
   // Made on demand: its progress lives in the "video" section, not a job.
-  { id: "video", label: "Video", icon: ClapperboardIcon, kinds: [] },
   {
     id: "playbook",
     label: "Playbook",

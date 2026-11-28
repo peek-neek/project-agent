@@ -285,13 +285,13 @@ export function PlaybookTab({
   );
 
   return (
-    <div className="grid gap-4 lg:grid-cols-12">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
       {/* Fast facts: exact answers from the report, in the travel mode. */}
       <DashCard
         title="Fast facts"
         icon={ZapIcon}
         action={<CopyButton text={factsText} label="Copy cheat sheet" />}
-        className="lg:col-span-7"
+        className="min-w-0 lg:col-span-7"
         bodyClassName="py-1"
       >
         <dl className="divide-y">
@@ -322,7 +322,7 @@ export function PlaybookTab({
       <DashCard
         title="Neighbourhood tour"
         icon={MapIcon}
-        className="lg:col-span-5"
+        className="min-w-0 lg:col-span-5"
         bodyClassName="p-0"
       >
         {home && pins.length > 0 ? (
@@ -457,7 +457,7 @@ export function PlaybookTab({
             label="Copy all"
           />
         }
-        className="lg:col-span-5"
+        className="min-w-0 lg:col-span-5"
       >
         <ol className="divide-y">
           {playbook.talkingPoints.map((point, i) => (
@@ -474,7 +474,7 @@ export function PlaybookTab({
       <DashCard
         title="Tough questions"
         icon={MessageCircleQuestionIcon}
-        className="lg:col-span-7"
+        className="min-w-0 lg:col-span-7"
         bodyClassName="py-0"
       >
         <Accordion>
@@ -549,7 +549,7 @@ export function PlaybookTab({
               </Button>
             )
           }
-          className="lg:col-span-7"
+          className="min-w-0 lg:col-span-7"
         >
           <div className="mb-3 flex items-center gap-3">
             <Progress

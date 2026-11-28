@@ -7,6 +7,7 @@ import { AbortTaskRunError, logger, schemaTask } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { videoVersion } from "../lib/video";
 import { reportVideoProps } from "../server/ai/video-script";
+import { brandingFor, brandingVersion } from "../server/branding";
 import { reportStore } from "../server/report-store";
 import {
   deleteBlobs,
@@ -67,7 +68,18 @@ export const reportVideoRenderTask = schemaTask({
     const clipUrls = await Promise.all(
       (video.audio ?? []).map((clip) => presignedUrl(clip.pathname)),
     );
-    const inputProps = reportVideoProps(report, video, (i) => clipUrls[i]!);
+    // The closing card: the agent's branding if they're on Pro. The logo is
+    // private, so the renderer gets a signed URL; the key uses its pathname.
+    const [branding, brand] = await Promise.all([
+      brandingFor(report.userId, (pathname) => presignedUrl(pathname)),
+      brandingVersion(report.userId),
+    ]);
+    const inputProps = reportVideoProps(
+      report,
+      video,
+      (i) => clipUrls[i]!,
+      branding,
+    );
     if (!inputProps) throw new AbortTaskRunError("Nothing to render for this report");
 
     await ensureBrowser({
@@ -132,6 +144,7 @@ export const reportVideoRenderTask = schemaTask({
       const pathname = await putVideoFile(reportId, fileName(inputProps.street), file);
       await saveRender(reportId, {
         status: "ready",
+        brand,
         progress: 1,
         pathname,
         sizeBytes: file.length,

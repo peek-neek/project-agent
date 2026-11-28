@@ -210,9 +210,9 @@ export function UpsideTab({
         />
       </TileGrid>
 
-      <div className="grid gap-4 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         {hasMap && (
-          <div className="lg:col-span-5">
+          <div className="min-w-0 lg:col-span-5">
             <div className="space-y-4 lg:sticky lg:top-32">
               <div
                 ref={mapRef}
@@ -244,7 +244,7 @@ export function UpsideTab({
 
         <div
           className={
-            hasMap ? "space-y-4 lg:col-span-7" : "space-y-4 lg:col-span-12"
+            hasMap ? "min-w-0 space-y-4 lg:col-span-7" : "min-w-0 space-y-4 lg:col-span-12"
           }
         >
           <DashCard

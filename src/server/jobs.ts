@@ -154,7 +154,11 @@ export async function queueReportVideo(reportId: string, travelMode: TravelMode)
  * Exports the video's current script to an MP4. The render keeps the
  * previous file's pathname until it finishes, so that file can be deleted.
  */
-export async function queueVideoRender(reportId: string, video: VideoSection) {
+export async function queueVideoRender(
+  reportId: string,
+  video: VideoSection,
+  brand: string,
+) {
   const version = videoVersion(video);
   if (!process.env.TRIGGER_SECRET_KEY) {
     await saveRender(reportId, { status: "failed", version, error: NOT_CONFIGURED });
@@ -164,6 +168,7 @@ export async function queueVideoRender(reportId: string, video: VideoSection) {
     await saveRender(reportId, {
       status: "rendering",
       version,
+      brand,
       progress: 0,
       error: null,
       startedAt: new Date().toISOString(),

@@ -17,14 +17,24 @@ export const VIDEO = { fps: 30, width: 1080, height: 1920 } as const;
 
 export const VIDEO_SECTION_KEY = "video";
 
+/** Every scene, in the order the video plays them. */
 export const VIDEO_SCENE_KINDS = [
   "intro",
+  "overview",
   "amenities",
   "commute",
   "schools",
+  "safety",
+  "neighbourhood",
+  "upside",
   "outro",
 ] as const;
 export type VideoSceneKind = (typeof VIDEO_SCENE_KINDS)[number];
+
+/** Scenes that show the report's figures as cards over the map. */
+export type StatSceneKind = "overview" | "safety" | "neighbourhood";
+export const isStatScene = (kind: VideoSceneKind): kind is StatSceneKind =>
+  kind === "overview" || kind === "safety" || kind === "neighbourhood";
 
 /** Scenes that draw lines from the home to places. */
 export type MapSceneKind = "amenities" | "commute" | "schools";
@@ -51,12 +61,12 @@ export const videoScriptSchema = z.object({
         placeIds: z
           .array(z.string())
           .describe(
-            "IDs from this scene's candidate list (2–4). Empty for intro and outro.",
+            "IDs from this scene's candidate list (2–4) for amenities, commute and schools. Empty for every other scene.",
           ),
       }),
     )
     .describe(
-      "Scenes in this order: intro, amenities, commute, schools, outro. Leave out commute or schools when their candidate list is empty.",
+      "Scenes in this order: intro, overview, amenities, commute, schools, safety, neighbourhood, upside, outro. Leave out any scene whose facts or candidates are missing.",
     ),
 });
 export type VideoScript = z.infer<typeof videoScriptSchema>;
@@ -69,6 +79,8 @@ export const videoRenderSchema = z.object({
   status: z.enum(["rendering", "ready", "failed"]),
   /** videoVersion() of the script and voiceover it was rendered from. */
   version: z.string(),
+  /** brandingKey() of the closing card it was rendered with. */
+  brand: z.string().default(""),
   /** 0–1 while rendering. */
   progress: z.number().default(0),
   pathname: z.string().nullable().default(null),
@@ -97,6 +109,12 @@ export const videoSectionSchema = z.object({
     .nullable()
     .default(null),
   render: videoRenderSchema.nullable().default(null),
+  /**
+   * Street routes from the home to each place in the script (place ID →
+   * Google encoded polyline), drawn as progress bars along the streets.
+   * Missing ones fall back to a curved line.
+   */
+  routes: z.record(z.string(), z.string()).nullable().default(null),
   updatedAt: z.string(),
 });
 export type VideoSection = z.infer<typeof videoSectionSchema>;
@@ -117,9 +135,16 @@ export const isRenderActive = (video: VideoSection | null, now = Date.now()) =>
  * rewrite changes it. (FNV-1a: short, stable, same on server and client.)
  */
 export function videoVersion(
-  video: Pick<VideoSection, "script" | "audio" | "travelMode">,
+  video: Pick<VideoSection, "script" | "audio" | "travelMode"> &
+    Partial<Pick<VideoSection, "routes">>,
 ) {
-  const text = JSON.stringify([video.travelMode, video.script, video.audio]);
+  const text = JSON.stringify([
+    video.travelMode,
+    video.script,
+    video.audio,
+    // Only when present, so videos made before routes keep their version.
+    ...(video.routes ? [video.routes] : []),
+  ]);
   let hash = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) {
     hash ^= text.charCodeAt(i);
@@ -150,6 +175,8 @@ export type VideoStop = {
   minutes: number;
   estimated: boolean;
   color: string;
+  /** The street route from the home, [lng, lat]; absent: a curved line. */
+  path?: [number, number][];
 };
 
 export type VideoDestination = {

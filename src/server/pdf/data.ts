@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type { PdfBrand } from "./primitives";
 import { marketScore } from "@/lib/market-score";
 import {
   amenitiesSchema,
@@ -156,6 +157,8 @@ export function pdfData(report: PdfReport, copyMode: TravelMode) {
     market,
     /** Set on the first layout pass to learn where sections start. */
     recordPage: undefined as ((id: string, page: number) => void) | undefined,
+    /** Footer brand (bottom left of every page); set by renderReportPdf. */
+    brand: { kind: "areaview" } as PdfBrand,
   };
 }
 

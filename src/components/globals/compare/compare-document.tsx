@@ -10,7 +10,39 @@ import Link from "next/link";
 import { cn } from "cn";
 import { motion, AnimatePresence } from "motion/react";
 import { notFound, useSearchParams } from "next/navigation";
-import { useMemo, useRef } from "react";
+import { type RefObject, useLayoutEffect, useMemo, useRef, useState } from "react";
+
+/** Horizontal gap between the heading blocks and "vs" (gap-x-3). */
+const HEADING_GAP_PX = 12;
+
+/**
+ * Whether the A block, "vs" and the B block fit on one line of `row`.
+ * The blocks are content-width in both layouts, so their widths don't
+ * change with the answer (no flip-flopping); re-checked when the row or a
+ * block resizes (window, sidebar, edited details). Starts false: stacked
+ * never looks broken, so it's the safe first paint.
+ */
+function useFitsOneLine(row: RefObject<HTMLElement | null>) {
+  const [fits, setFits] = useState(false);
+  useLayoutEffect(() => {
+    const el = row.current;
+    if (!el) return;
+    const blocks = [...el.querySelectorAll<HTMLElement>("[data-heading-block]")];
+    const vs = el.querySelector<HTMLElement>("[data-heading-vs]");
+    const check = () => {
+      const needed =
+        blocks.reduce((w, b) => w + b.scrollWidth, 0) +
+        (vs ? vs.scrollWidth + 2 * HEADING_GAP_PX : 0);
+      setFits(needed <= el.clientWidth);
+    };
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    for (const b of blocks) observer.observe(b);
+    return () => observer.disconnect();
+  }, [row]);
+  return fits;
+}
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import {
   Alert,
@@ -112,6 +144,9 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
     window.scrollTo({ top: 0, behavior: "instant" });
   };
 
+  const headingRow = useRef<HTMLDivElement>(null);
+  const sideBySide = useFitsOneLine(headingRow);
+
   // Which properties are ticked: both (the comparison) or one (its report).
   const shown = { a: view !== "b", b: view !== "a" };
   const toggle = (side: Side, checked: boolean) => {
@@ -137,7 +172,17 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
           <h1 className="sr-only">
             {props.a.street} vs {props.b.street}
           </h1>
-          <div className="flex flex-col gap-y-2 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-x-3 md:gap-y-3">
+          {/* Side by side (B at the right edge) only when both blocks fit on
+              one line; otherwise B stacks under A and reads like A, as on
+              phones. A wrapped, right-aligned B left a ragged gap. */}
+          <div
+            ref={headingRow}
+            className={cn(
+              "flex flex-col items-start gap-y-2",
+              sideBySide &&
+                "md:flex-row md:justify-between md:gap-x-3 md:gap-y-3",
+            )}
+          >
             {SIDES.map((side, i) => {
               const checked = shown[side];
               // At least one stays ticked: the last one can't be unticked.
@@ -147,7 +192,12 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
                   {i > 0 && (
                     <span
                       aria-hidden
-                      className="flex h-8 items-center self-center text-base font-medium text-foreground/40 sm:h-9 sm:text-lg md:self-auto"
+                      data-heading-vs
+                      className={cn(
+                        "flex h-8 items-center self-center text-base font-medium text-foreground/40 sm:h-9 sm:text-lg md:self-auto",
+                        // Stacked on desktop: under A's street, not centred.
+                        !sideBySide && "md:pl-8",
+                      )}
                     >
                       vs
                     </span>
@@ -157,9 +207,10 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
                       screens B's block lines up at the end (right edge); stacked
                       under A on phones it reads like A. */}
                   <div
+                    data-heading-block
                     className={cn(
-                      "flex min-w-0 flex-col gap-1",
-                      side === "b" && "md:items-end",
+                      "flex max-w-full min-w-0 flex-col gap-1",
+                      side === "b" && sideBySide && "md:items-end",
                     )}
                   >
                     <span className="flex max-w-full min-w-0 items-center gap-2">
@@ -207,14 +258,17 @@ export function CompareDocument({ comparisonId }: { comparisonId: string }) {
                     <span
                       className={cn(
                         "max-w-full truncate pl-8 text-sm text-foreground/60",
-                        side === "b" && "md:pl-0 md:text-right",
+                        side === "b" && sideBySide && "md:pl-0 md:text-right",
                       )}
                     >
                       {props[side].place}
                     </span>
                     {/* The property's details (type, price, beds…), editable. */}
                     <div
-                      className={cn("pt-1.5 pl-8", side === "b" && "md:pl-0")}
+                      className={cn(
+                        "pt-1.5 pl-8",
+                        side === "b" && sideBySide && "md:pl-0",
+                      )}
                     >
                       <HomeFacts
                         report={props[side].report}

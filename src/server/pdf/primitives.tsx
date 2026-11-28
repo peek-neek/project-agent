@@ -23,9 +23,69 @@ import {
 } from "lucide-react";
 import type { Style } from "@react-pdf/stylesheet";
 import { cloneElement, isValidElement, type ReactNode } from "react";
+import {
+  type AgentBrandingInput,
+  AREAVIEW,
+  contactLines,
+} from "@/lib/branding";
 import { estimateMinutes, type TravelMode } from "@/lib/travel";
 import type { PdfImage } from "./data";
 import { C, PAGE, s } from "./theme";
+
+// ---------------------------------------------------------------------------
+// Branding (bottom left of every page)
+// ---------------------------------------------------------------------------
+
+/** Whose brand the footer carries, with the agent's logo already loaded. */
+export type PdfBrand =
+  | { kind: "areaview" }
+  | ({ kind: "agent"; logo: PdfImage | undefined } & AgentBrandingInput);
+
+/**
+ * Agent (Pro): small logo, the brokerage, one line of contacts. Areaview:
+ * the house mark and name with its tagline.
+ */
+function BrandFooter({ brand }: { brand: PdfBrand }) {
+  if (brand.kind === "areaview") {
+    return (
+      <View style={[s.brandSlot, s.row, { alignItems: "center", gap: 5 }]}>
+        <Svg viewBox="0 0 24 24" style={{ width: 13, height: 13 }}>
+          <Path fill={C.accent} d={AREAVIEW.markPath} />
+        </Svg>
+        <View>
+          <Text style={{ fontSize: 8, fontWeight: 700, color: C.ink }}>
+            {AREAVIEW.name}
+          </Text>
+          <Text style={{ fontSize: 6, color: C.faint }}>{AREAVIEW.tagline}</Text>
+        </View>
+      </View>
+    );
+  }
+  const contacts = contactLines(brand).join("  ·  ");
+  return (
+    <View style={[s.brandSlot, s.row, { alignItems: "center", gap: 5 }]}>
+      {brand.logo && (
+        // eslint-disable-next-line jsx-a11y/alt-text -- PDF image, no alt prop
+        <Image
+          src={{ data: brand.logo.data, format: brand.logo.format }}
+          style={{ width: 20, height: 20, objectFit: "contain" }}
+        />
+      )}
+      <View style={{ flexShrink: 1 }}>
+        {/* One line each: a long email or website ends in "…" instead of
+            spilling out of the footer. */}
+        <Text style={{ fontSize: 7.5, fontWeight: 700, color: C.ink, maxLines: 1, textOverflow: "ellipsis" }}>
+          {brand.brokerage}
+        </Text>
+        {contacts !== "" && (
+          <Text style={{ fontSize: 6, color: C.faint, maxLines: 1, textOverflow: "ellipsis" }}>
+            {contacts}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Colour helpers
@@ -276,10 +336,13 @@ export function Chip({
 export function ReportPage({
   section,
   address,
+  brand,
   children,
 }: {
   section: string;
   address: string;
+  /** Bottom left of the page: Areaview's, or the Pro agent's (PdfData.brand). */
+  brand: PdfBrand;
   children: ReactNode;
 }) {
   return (
@@ -293,8 +356,7 @@ export function ReportPage({
       </View>
       {children}
       <View style={s.footer} fixed>
-        {/* Brand space: intentionally empty for now. */}
-        <View style={s.brandSlot} />
+        <BrandFooter brand={brand} />
         <Text
           style={s.pageNumber}
           render={({ pageNumber, totalPages }) =>

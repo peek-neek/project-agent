@@ -16,6 +16,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { cloneElement, type ReactElement } from "react";
+import type { PdfSectionId } from "@/lib/pdf-sections";
 import type { TravelMode } from "@/lib/travel";
 import { staticMapUrl } from "../static-maps";
 import { satelliteImage } from "../satellite";
@@ -48,6 +49,7 @@ import {
   type TocEntry,
 } from "./sections-location";
 import { FinancePage } from "./sections-finance";
+import type { PdfBrand } from "./primitives";
 import { registerFonts } from "./theme";
 
 async function toImage(res: Response | null): Promise<PdfImage | undefined> {
@@ -103,7 +105,10 @@ function placePhoto(name: string) {
  * photo per school. Fetched in parallel with a cap; anything missing falls
  * back to an icon tile.
  */
-async function loadImages(d: PdfData): Promise<PdfImages> {
+async function loadImages(
+  d: PdfData,
+  include: (id: PdfSectionId) => boolean,
+): Promise<PdfImages> {
   const { report } = d;
   const lat = report.property?.latitude;
   const lng = report.property?.longitude;
@@ -111,7 +116,13 @@ async function loadImages(d: PdfData): Promise<PdfImages> {
   if (lat == null || lng == null) return empty;
 
   const views = ["home", "street", "block", "area"] as const;
-  const maps = ["overview", "transit", "schools", "upside"] as const;
+  // The overview map also backs the cover; the others belong to one section
+  // each, so a left-out section's map isn't fetched.
+  const maps = (["overview", "transit", "schools", "upside"] as const).filter(
+    (m) =>
+      m === "overview" ||
+      include(m === "transit" ? "commute" : m),
+  );
   // Google bills every place photo, so only the nearest place in each
   // amenity category and the nearest few transit stops get one; the other
   // cards show their category icon.
@@ -123,16 +134,21 @@ async function loadImages(d: PdfData): Promise<PdfImages> {
       .filter((p) => p.photo)
       .sort((x, y) => x.distanceMeters - y.distanceMeters)
       .slice(0, count);
+  // Billed photos only for the sections in this PDF.
   const places = [
-    ...Object.values(d.amenities?.categories ?? {}).flatMap((list) =>
-      nearest(list, PDF_PHOTOS_PER_CATEGORY),
-    ),
-    ...nearest(d.commute?.stations ?? [], PDF_STATION_PHOTOS),
+    ...(include("amenities")
+      ? Object.values(d.amenities?.categories ?? {}).flatMap((list) =>
+          nearest(list, PDF_PHOTOS_PER_CATEGORY),
+        )
+      : []),
+    ...(include("commute")
+      ? nearest(d.commute?.stations ?? [], PDF_STATION_PHOTOS)
+      : []),
   ].filter((p, i, all) => all.findIndex((x) => x.id === p.id) === i);
   console.log("[pdf] place photos", { reportId: report.id, count: places.length });
   const schools = Array.from(
     new Map(
-      (d.schools?.systems ?? [])
+      (include("schools") ? (d.schools?.systems ?? []) : [])
         .flatMap((x) => [...x.elementary, ...x.secondary])
         .map((x) => [x.id, x]),
     ).values(),
@@ -182,11 +198,15 @@ async function loadImages(d: PdfData): Promise<PdfImages> {
 }
 
 type Section = TocEntry & {
+  id: PdfSectionId;
   show: boolean;
   page: (n: number, imgs: PdfImages) => ReactElement;
 };
 
-function sectionsFor(d: PdfData): Section[] {
+function sectionsFor(
+  d: PdfData,
+  include: (id: PdfSectionId) => boolean,
+): Section[] {
   const all: Section[] = [
     {
       id: "scores",
@@ -311,7 +331,7 @@ function sectionsFor(d: PdfData): Section[] {
       page: (n) => <DetailsPage d={d} n={n} />,
     },
   ];
-  return all.filter((x) => x.show);
+  return all.filter((x) => x.show && include(x.id));
 }
 
 /**
@@ -319,18 +339,30 @@ function sectionsFor(d: PdfData): Section[] {
  * the headline and scores, the selling story, then convenience (amenities,
  * commute, schools), safety and the area, and finally the marketing toolkit.
  * Every section starts on a new page; the contents page links to each.
+ * `sections` limits it to the agent's choice (null: everything available).
  */
-export async function renderReportPdf(report: PdfReport, copyMode: TravelMode) {
+export async function renderReportPdf(
+  report: PdfReport,
+  copyMode: TravelMode,
+  sections: ReadonlySet<PdfSectionId> | null = null,
+  brand: PdfBrand = { kind: "areaview" },
+) {
   registerFonts();
-  const d = pdfData(report, copyMode);
-  const images = await loadImages(d);
+  const include = (id: PdfSectionId) => !sections || sections.has(id);
+  // Every page's footer reads the brand from the data (no React context:
+  // route handlers run where createContext isn't available).
+  const d = { ...pdfData(report, copyMode), brand };
+  const images = await loadImages(d, include);
 
   const document = (
     dd: PdfData,
     pages: Record<string, number>,
     imgs: PdfImages,
   ) => {
-    const sections = sectionsFor(dd);
+    const chosen = sectionsFor(dd, include);
+    // The first section shares the opening with the cover (usually the
+    // scores); the rest follow the contents page. With none, cover only.
+    const [first, ...rest] = chosen;
     return (
       <Document
         title={`Property report: ${dd.address}`}
@@ -339,11 +371,11 @@ export async function renderReportPdf(report: PdfReport, copyMode: TravelMode) {
       >
         {/* Page 1 photos and details, page 2 the scores, then contents. */}
         <CoverPage d={dd} images={imgs} />
-        {sections[0]!.page(1, imgs)}
-        <ContentsPage d={dd} entries={sections} pages={pages} />
-        {sections
-          .slice(1)
-          .map((x, i) => cloneElement(x.page(i + 2, imgs), { key: x.id }))}
+        {first?.page(1, imgs)}
+        {rest.length > 0 && (
+          <ContentsPage d={dd} entries={chosen} pages={pages} />
+        )}
+        {rest.map((x, i) => cloneElement(x.page(i + 2, imgs), { key: x.id }))}
       </Document>
     );
   };

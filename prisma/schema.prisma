@@ -366,3 +366,21 @@ model ReportUsage {
 
   @@index([userId, createdAt])
 }
+
+/// The agent's own branding for PDFs and videos. Used only while the agent
+/// is on the Pro plan; everyone else gets Areaview's (see src/server/branding.ts).
+model AgentBranding {
+  /// Clerk user ID.
+  userId    String   @id
+  name      String?
+  /// e.g. "Sales Representative"
+  title     String?
+  brokerage String?
+  phone     String?
+  email     String?
+  website   String?
+  /// Private Blob pathname of the logo or headshot (PNG or JPEG).
+  logoPath  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

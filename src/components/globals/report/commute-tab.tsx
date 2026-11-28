@@ -320,8 +320,8 @@ export function CommuteTab({
             }))}
           />
 
-          <div className="grid gap-4 lg:grid-cols-12">
-            <div className="lg:col-span-5">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            <div className="min-w-0 lg:col-span-5">
               <div className="lg:sticky lg:top-32">
                 <div
                   ref={mapRef}
@@ -358,7 +358,7 @@ export function CommuteTab({
               </div>
             </div>
 
-            <ol key={stopFilter} className="space-y-2 lg:col-span-7">
+            <ol key={stopFilter} className="min-w-0 space-y-2 lg:col-span-7">
               {stops.map((s, i) => {
                 const kind = TRANSIT_KINDS[s.kind];
                 return (

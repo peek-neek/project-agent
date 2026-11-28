@@ -18,7 +18,6 @@ import {
   RotateCcwIcon,
   RouteIcon,
   SearchIcon,
-  SparklesIcon,
   SquareIcon,
   SquarePenIcon,
 } from "lucide-react";
@@ -41,7 +40,6 @@ import {
 } from "@/components/ui/input-group";
 import {
   Message,
-  MessageAvatar,
   MessageContent,
   MessageFooter,
 } from "@/components/ui/message";
@@ -166,11 +164,19 @@ function Sources({ parts }: { parts: Part[] }) {
 const textOf = (m: UIMessage) =>
   m.parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("\n\n");
 
-function AssistantAvatar() {
+/** Three bouncing dots while the answer hasn't started yet. */
+function TypingDots() {
   return (
-    <MessageAvatar className="size-8 bg-primary text-primary-foreground">
-      <SparklesIcon aria-hidden className="size-4" />
-    </MessageAvatar>
+    <div role="status" className="flex h-6 items-center gap-1">
+      <span className="sr-only">Thinking…</span>
+      {["[animation-delay:-0.3s]", "[animation-delay:-0.15s]", ""].map((d) => (
+        <span
+          key={d}
+          aria-hidden
+          className={`size-2 animate-bounce rounded-full bg-foreground/50 motion-reduce:animate-none ${d}`}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -185,7 +191,12 @@ function ChatMessage({
     return (
       <Message align="end">
         <MessageContent>
-          <Bubble align="end">
+          {/* Light bubble in both themes: dark text in dark mode to stay readable. */}
+          <Bubble
+            align="end"
+            variant="muted"
+            className="*:data-[slot=bubble-content]:bg-zinc-200 dark:*:data-[slot=bubble-content]:bg-zinc-300 dark:*:data-[slot=bubble-content]:text-zinc-900"
+          >
             <BubbleContent className="rounded-none whitespace-pre-wrap">
               {textOf(message)}
             </BubbleContent>
@@ -198,8 +209,9 @@ function ChatMessage({
   const text = textOf(message);
   return (
     <Message>
-      <AssistantAvatar />
       <MessageContent className="gap-3">
+        {/* Stream open but nothing written yet: keep the dots up. */}
+        {streaming && tools.length === 0 && !text && <TypingDots />}
         {tools.length > 0 && (
           <Trace>
             {tools.map((p, i) => (
@@ -258,10 +270,7 @@ function EmptyState({
   return (
     // m-auto: centred both ways in the (full-height, flex) conversation area.
     <div className="m-auto flex w-full max-w-3xl flex-col items-center px-4 py-10 text-center">
-      <span className="grid size-11 place-items-center bg-primary text-primary-foreground">
-        <SparklesIcon aria-hidden className="size-5" />
-      </span>
-      <h2 className="mt-4 text-xl font-semibold tracking-tight text-balance">
+      <h2 className="text-xl font-semibold tracking-tight text-balance">
         {intro.title}
       </h2>
       <p className="mt-1.5 max-w-lg text-sm text-foreground/60">
@@ -503,13 +512,8 @@ export function ChatSession({
               {status === "submitted" && (
                 <MessageScrollerItem>
                   <Message>
-                    <AssistantAvatar />
                     <MessageContent>
-                      <Trace>
-                        <TraceLine status="running">
-                          <TraceTitle>Thinking…</TraceTitle>
-                        </TraceLine>
-                      </Trace>
+                      <TypingDots />
                     </MessageContent>
                   </Message>
                 </MessageScrollerItem>

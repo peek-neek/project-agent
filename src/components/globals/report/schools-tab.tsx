@@ -327,8 +327,8 @@ export function SchoolsTab({
         })}
       </ToggleGroup>
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        <div className="lg:col-span-5">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="min-w-0 lg:col-span-5">
           <div className="space-y-4 lg:sticky lg:top-32">
             <div
               ref={mapRef}
@@ -373,7 +373,7 @@ export function SchoolsTab({
           </div>
         </div>
 
-        <div className="space-y-5 lg:col-span-7">
+        <div className="min-w-0 space-y-5 lg:col-span-7">
           {byLevel.map(
             ({ level, schools: list }) =>
               list.length > 0 && (

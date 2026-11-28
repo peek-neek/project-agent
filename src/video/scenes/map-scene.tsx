@@ -56,6 +56,7 @@ export function MapScene({
     <AbsoluteFill style={{ background: COLORS.paper }}>
       <MapPlate
         points={points}
+        paths={scene.stops.map((s) => s.path ?? [])}
         fit={{
           top: HEADER_BOTTOM + 60,
           bottom: VIDEO.height - contentBottom + 80,
@@ -69,11 +70,12 @@ export function MapScene({
           clamp,
         )}
       >
-        {(screen) =>
+        {(screen, screenPaths) =>
           screen && (
             <Routes
               home={screen[0]!}
               points={screen.slice(1)}
+              paths={screenPaths}
               stops={scene.stops}
               verb={verb}
               area={{ top: HEADER_BOTTOM + 20, bottom: contentBottom - 24 }}

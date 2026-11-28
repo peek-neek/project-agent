@@ -46,6 +46,7 @@ export async function saveVideo(
     audioNote: null,
     generatedBy: null,
     render: null,
+    routes: null,
     ...current,
     ...patch,
     updatedAt: new Date().toISOString(),

@@ -151,3 +151,28 @@ export async function routeToAddress(
   const s = seconds(route?.duration);
   return s == null ? null : { seconds: s, meters: route?.distanceMeters ?? 0 };
 }
+
+/**
+ * The route's shape on the streets, as Google's encoded polyline (decode
+ * with lib/polyline). Null when there's no route. Used to draw the video's
+ * routes along real streets.
+ */
+export async function routePolyline(
+  origin: LatLng,
+  destination: LatLng,
+  mode: "WALK" | "DRIVE",
+) {
+  const data = await routesFetch<{
+    routes?: { polyline?: { encodedPolyline?: string } }[];
+  }>(
+    "https://routes.googleapis.com/directions/v2:computeRoutes",
+    "routes.polyline.encodedPolyline",
+    {
+      origin: waypoint(origin),
+      destination: waypoint(destination),
+      travelMode: mode,
+      polylineQuality: "OVERVIEW",
+    },
+  );
+  return data.routes?.[0]?.polyline?.encodedPolyline ?? null;
+}

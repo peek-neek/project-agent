@@ -212,7 +212,7 @@ export function CoverPage({ d, images }: { d: PdfData; images: PdfImages }) {
   const hero = images.aerial.home ?? images.maps.overview;
 
   return (
-    <ReportPage section="Property report" address={d.address}>
+    <ReportPage section="Property report" address={d.address} brand={d.brand}>
       <View id="cover" style={[s.row, { alignItems: "center", gap: 6 }]}>
         <View style={{ width: 18, height: 3, backgroundColor: C.accent }} />
         <Text style={s.eyebrow}>Property report</Text>
@@ -365,7 +365,7 @@ export function ScoresPage({ d, n }: { d: PdfData; n: number }) {
     );
 
   return (
-    <ReportPage section="Scores" address={d.address}>
+    <ReportPage section="Scores" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="scores"
@@ -595,7 +595,7 @@ export function ContentsPage({
   pages: Record<string, number>;
 }) {
   return (
-    <ReportPage section="Contents" address={d.address}>
+    <ReportPage section="Contents" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="contents"
@@ -715,7 +715,7 @@ export function OverviewPage({ d, n }: { d: PdfData; n: number }) {
   }
 
   return (
-    <ReportPage section="Overview" address={d.address}>
+    <ReportPage section="Overview" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="overview"
@@ -900,7 +900,7 @@ export function StoryPage({ d, n }: { d: PdfData; n: number }) {
   const i = d.insights;
   if (!i) return null;
   return (
-    <ReportPage section="Neighbourhood story" address={d.address}>
+    <ReportPage section="Neighbourhood story" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="story"
@@ -1004,7 +1004,7 @@ export function AmenitiesPage({
   const within10 = all.filter((p) => p.walkMinutes <= 10).length;
 
   return (
-    <ReportPage section="Amenities" address={d.address}>
+    <ReportPage section="Amenities" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="amenities"
@@ -1120,7 +1120,7 @@ export function CommutePage({
   const downtown = destinations.find((x) => x.kind === "downtown");
 
   return (
-    <ReportPage section="Commute & transit" address={d.address}>
+    <ReportPage section="Commute & transit" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="commute"
@@ -1372,7 +1372,7 @@ export function SchoolsPage({
   };
 
   return (
-    <ReportPage section="Schools" address={d.address}>
+    <ReportPage section="Schools" address={d.address} brand={d.brand}>
       <SectionHead
         record={d.recordPage}
         id="schools"

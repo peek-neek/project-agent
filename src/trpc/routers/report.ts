@@ -16,6 +16,7 @@ import {
   queueReportVideo,
   queueVideoRender,
 } from "@/server/jobs";
+import { brandingVersion } from "@/server/branding";
 import { blobConfigured, deleteBlobs } from "@/server/video-store";
 import {
   currentRender,
@@ -409,8 +410,12 @@ export const reportRouter = createTRPCRouter({
           message: "The MP4 is already being exported.",
         });
       }
-      // Already exported for this script: nothing to do.
-      if (currentRender(video)?.status === "ready") return { ok: true };
+      // Already exported for this script and this branding: just download.
+      const brand = await brandingVersion(ctx.userId);
+      const current = currentRender(video);
+      if (current?.status === "ready" && current.brand === brand) {
+        return { ok: true, ready: true };
+      }
       const limit = renderLimiter.check(ctx.userId);
       if (!limit.success) {
         throw new TRPCError({
@@ -418,8 +423,8 @@ export const reportRouter = createTRPCRouter({
           message: `Too many exports. Try again in ${Math.ceil(limit.retryAfterMs / 60_000)} min.`,
         });
       }
-      await queueVideoRender(report.id, video);
-      return { ok: true };
+      await queueVideoRender(report.id, video, brand);
+      return { ok: true, ready: false };
     }),
 
   /** Re-runs one step: a failed section, or regenerating the AI copy. */
