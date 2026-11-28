@@ -203,7 +203,7 @@ export function CompareUpside({
             b={b}
             rows={categoryRows}
             states={states}
-            footer="Ontario Builds projects within each kind's reach of the home."
+            footer="Public projects within each kind's reach of the home."
           />
         )}
       </div>

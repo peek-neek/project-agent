@@ -28,6 +28,7 @@ import {
   DEVELOPMENT_RADIUS_M,
   PROJECT_CATEGORIES,
   type ProjectCategory,
+  projectSources,
   type UpsideData,
 } from "@/lib/report-sections";
 import { MapsLink } from "./amenities-tab";
@@ -233,8 +234,8 @@ export function UpsideTab({
                 <InfoIcon />
                 <AlertDescription className="text-foreground/65">
                   New transit and buildings can bring amenities and demand, and
-                  also construction. Plans change: confirm status with the City
-                  or Metrolinx before quoting dates to buyers.
+                  also construction. Plans change: confirm status with the
+                  municipality or project owner before quoting dates to buyers.
                 </AlertDescription>
               </Alert>
             </div>
@@ -329,6 +330,70 @@ export function UpsideTab({
               </ul>
             )}
           </DashCard>
+
+          {upside.federal && (
+            <DashCard
+              title={`Federally funded in ${upside.federal.municipality}`}
+              icon={LandmarkIcon}
+              bodyClassName="py-1"
+            >
+              {upside.federal.projects.length === 0 ? (
+                <p className="py-3 text-sm text-foreground/60">
+                  No federally funded transit, road, school, health or
+                  community projects of $5M or more are planned or underway in{" "}
+                  {upside.federal.municipality}.
+                </p>
+              ) : (
+                <>
+                  <ul className="divide-y">
+                    {upside.federal.projects.map((p) => {
+                      const c = projectCategory(p.category);
+                      return (
+                        <li key={p.id} className="py-3">
+                          <p className="text-sm font-semibold">{p.title}</p>
+                          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground/65">
+                            <Badge
+                              variant="outline"
+                              style={{ borderColor: c.color, color: c.color }}
+                            >
+                              {c.label}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={
+                                p.status === "Under construction"
+                                  ? "border-amber-500/40 bg-amber-500/10 text-amber-800"
+                                  : "text-foreground/70"
+                              }
+                            >
+                              {p.status}
+                            </Badge>
+                            <span className="flex items-center gap-1">
+                              <CalendarClockIcon
+                                aria-hidden
+                                className="size-3.5"
+                              />
+                              {p.targetCompletion ?? "Date to be determined"}
+                            </span>
+                            {p.totalCost != null && (
+                              <span className="tabular-nums">
+                                {budgetLabel(p.totalCost)} total
+                              </span>
+                            )}
+                          </p>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="pb-3 text-xs text-foreground/50">
+                    Somewhere in {upside.federal.municipality}: Infrastructure
+                    Canada lists each project&apos;s municipality, not its
+                    exact site.
+                  </p>
+                </>
+              )}
+            </DashCard>
+          )}
 
           <DashCard
             title={`Development applications · ${formatDistance(DEVELOPMENT_RADIUS_M)}`}
@@ -433,10 +498,20 @@ export function UpsideTab({
           </DashCard>
 
           <p className="text-xs leading-relaxed text-foreground/50">
-            Sources: Ontario Builds (Government of Ontario) and{" "}
-            {upside.development?.source ?? "City of Toronto"} development
-            applications, both open data. Unit and storey counts are read from
-            application data or descriptions where stated.
+            Sources:{" "}
+            {[
+              ...(upside.projects.length
+                ? projectSources(upside).map((s) => `${s} (projects)`)
+                : []),
+              upside.federal?.projects.length &&
+                "Infrastructure Canada (federally funded projects)",
+              upside.development &&
+                `${upside.development.source} (development applications)`,
+            ]
+              .filter(Boolean)
+              .join(", ") || "Public open data"}
+            . Unit and storey counts are read from application data or
+            descriptions where stated.
           </p>
         </div>
       </div>

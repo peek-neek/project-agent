@@ -842,6 +842,8 @@ export const upsideSchema = z.object({
       lat: z.number(),
       lng: z.number(),
       distanceMeters: z.number(),
+      /** Dataset, e.g. "Ontario Builds"; older reports lack it (Ontario Builds). */
+      source: z.string().optional(),
     }),
   ),
   /** Null where the municipality's applications aren't connected. */
@@ -874,9 +876,40 @@ export const upsideSchema = z.object({
   developmentNote: z.string().nullable(),
   /** Why the project list is empty for reasons other than "none nearby". */
   projectsNote: z.string().nullable().optional(),
+  /**
+   * Outside Ontario: federally funded projects in the property's
+   * municipality (Infrastructure Canada lists municipalities, not
+   * locations). Null in Ontario (Ontario Builds covers them, located) or
+   * when the municipality is unknown; older reports lack it.
+   */
+  federal: z
+    .object({
+      municipality: z.string(),
+      projects: z.array(
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          category: z.string(),
+          status: z.string(),
+          targetCompletion: z.string().nullable(),
+          federalContribution: z.number().nullable(),
+          totalCost: z.number().nullable(),
+        }),
+      ),
+    })
+    .nullable()
+    .optional(),
   fetchedAt: z.string(),
 });
 export type UpsideData = z.infer<typeof upsideSchema>;
+
+/**
+ * Datasets behind a report's projects, for source lines ("Ontario Builds",
+ * "Alberta Major Projects"…). Older reports' projects are all Ontario Builds.
+ */
+export function projectSources(upside: UpsideData) {
+  return [...new Set(upside.projects.map((p) => p.source ?? "Ontario Builds"))];
+}
 
 /** Map markers: applications numbered 1–9, projects lettered A–Z. */
 export function upsideMapLabels(data: UpsideData) {

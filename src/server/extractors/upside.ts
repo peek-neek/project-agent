@@ -11,6 +11,7 @@ import {
   type UpsideData,
 } from "../../lib/report-sections";
 import { municipalityAt } from "../census-geo";
+import { municipalityKey } from "../datasets/federal-projects";
 import { db } from "../db";
 import {
   developmentSourceFor,
@@ -19,6 +20,47 @@ import {
 } from "../development-sources";
 import { distanceMeters } from "../geo";
 import { reportStore } from "../report-store";
+
+/** Provinces with located public projects (Ontario Builds, Alberta, BC). */
+const PROJECT_PROVINCES = new Set(["ON", "AB", "BC"]);
+/** Federally funded projects listed for the municipality (outside Ontario). */
+const MAX_FEDERAL = 8;
+
+/**
+ * Outside Ontario: federally funded projects in the property's municipality,
+ * largest first, one per title (some projects have several agreements).
+ * Ontario's are in Ontario Builds already, with locations.
+ */
+export async function federalProjects(
+  province: string | null | undefined,
+  city: string | null | undefined,
+): Promise<UpsideData["federal"]> {
+  if (!province || province === "ON" || !city) return null;
+  const rows = await db.federalProject.findMany({
+    where: { province, municipalityKeys: { has: municipalityKey(city) } },
+    orderBy: { totalCost: "desc" },
+    take: 40,
+  });
+  const seen = new Set<string>();
+  const projects = rows
+    .filter((p) => {
+      const key = p.title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, MAX_FEDERAL)
+    .map((p) => ({
+      id: p.id,
+      title: p.title,
+      category: p.category,
+      status: p.status,
+      targetCompletion: p.targetCompletion,
+      federalContribution: p.federalContribution,
+      totalCost: p.totalCost,
+    }));
+  return { municipality: city, projects };
+}
 
 const MAX_PROJECTS = 14;
 const MAX_APPLICATIONS = 15;
@@ -68,11 +110,12 @@ export async function extractUpside(reportId: string) {
   }
   const origin = { lat, lng };
 
-  const [projectCount, applicationCount] = await Promise.all([
+  const [projectCount, applicationCount, federalCount] = await Promise.all([
     db.infrastructureProject.count(),
     db.developmentApplication.count(),
+    db.federalProject.count(),
   ]);
-  if (projectCount === 0 && applicationCount === 0) {
+  if (projectCount === 0 && applicationCount === 0 && federalCount === 0) {
     throw new Error(
       "Upside data hasn't been loaded yet. Run `npm run data:projects` and `npm run data:development`.",
     );
@@ -119,6 +162,7 @@ export async function extractUpside(reportId: string) {
       lat: p.latitude,
       lng: p.longitude,
       distanceMeters: meters,
+      source: p.source,
     }));
 
   // Development applications. Toronto: the imported table (inside the city
@@ -200,13 +244,20 @@ export async function extractUpside(reportId: string) {
   }
 
   const province = report?.property?.province;
+  const federal = await federalProjects(province, report?.property?.city).catch(
+    (error) => {
+      console.error("[upside] federal projects", error);
+      return null;
+    },
+  );
   const data: UpsideData = {
     projects,
+    federal,
     development,
     developmentNote,
     projectsNote:
-      province && province !== "ON"
-        ? "Public infrastructure projects come from Ontario's capital plan (Ontario Builds) and cover Ontario only so far."
+      province && !PROJECT_PROVINCES.has(province)
+        ? "Public infrastructure projects with locations are published for Ontario, Alberta and British Columbia so far."
         : null,
     fetchedAt: new Date().toISOString(),
   };

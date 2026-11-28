@@ -214,6 +214,9 @@ model CanadaSchool {
 model InfrastructureProject {
   /// Stable hash of name + location (the source has no IDs).
   id               String   @id
+  /// Which dataset it came from ("Ontario Builds", "Alberta Major Projects",
+  /// "BC Major Projects Inventory"); each import replaces only its own rows.
+  source           String   @default("Ontario Builds")
   /// e.g. "Transit", "Health care", "Education".
   category         String
   name             String
@@ -232,6 +235,36 @@ model InfrastructureProject {
   updatedAt        DateTime @updatedAt
 
   @@index([latitude, longitude])
+  @@index([source])
+}
+
+/// Federally funded infrastructure projects (Infrastructure Canada / Housing,
+/// Infrastructure and Communities Canada, Open Government Licence – Canada),
+/// planned or underway. The source gives each project's municipality, not a
+/// location, so reports list them by municipality. Refreshed weekly by the
+/// refresh-federal-projects task.
+model FederalProject {
+  /// Infrastructure Canada project number.
+  id                  String   @id
+  title               String
+  /// Report category, e.g. "Transit", "Health care" (PROJECT_CATEGORIES).
+  category            String
+  program             String?
+  /// "Planning" or "Under construction".
+  status              String
+  /// Display label, e.g. "2028"; null when not forecast.
+  targetCompletion    String?
+  /// The source's municipality text, e.g. "Saskatoon" or "Moncton, Dieppe".
+  municipalities      String
+  /// Normalized municipality names, for matching (see federal-projects.ts).
+  municipalityKeys    String[]
+  /// Two-letter province code, e.g. "SK".
+  province            String
+  federalContribution Float?
+  totalCost           Float?
+  updatedAt           DateTime @updatedAt
+
+  @@index([province])
 }
 
 /// City of Toronto community planning applications (rezonings, site plans,

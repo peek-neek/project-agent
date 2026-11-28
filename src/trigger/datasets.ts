@@ -1,6 +1,11 @@
 import { logger, schedules } from "@trigger.dev/sdk";
 import { importOntarioBuilds } from "../server/datasets/ontario-builds";
 import { importCanadaSchools } from "../server/datasets/canada-schools";
+import { importFederalProjects } from "../server/datasets/federal-projects";
+import {
+  importAlbertaProjects,
+  importBcProjects,
+} from "../server/datasets/provincial-projects";
 import { importOntarioSchools } from "../server/datasets/ontario-schools";
 import { importTorontoDevelopment } from "../server/datasets/toronto-development";
 
@@ -60,6 +65,45 @@ export const importCanadaSchoolsTask = schedules.task({
   run: async () => {
     const result = await importCanadaSchools();
     logger.info("Canada schools imported", result);
+    return result;
+  },
+});
+
+/** Alberta's Major Projects (live site feed), weekly like Ontario Builds. */
+export const refreshAlbertaProjects = schedules.task({
+  id: "refresh-alberta-projects",
+  cron: { pattern: "15 6 * * 1", timezone: "America/Toronto" },
+  maxDuration: 300,
+  retry: { maxAttempts: 3 },
+  run: async () => {
+    const result = await importAlbertaProjects();
+    logger.info("Alberta projects refreshed", result);
+    return result;
+  },
+});
+
+/** BC Major Projects Inventory; picks up the layer if it's ever refreshed. */
+export const refreshBcProjects = schedules.task({
+  id: "refresh-bc-projects",
+  cron: { pattern: "30 6 * * 1", timezone: "America/Toronto" },
+  maxDuration: 300,
+  retry: { maxAttempts: 3 },
+  run: async () => {
+    const result = await importBcProjects();
+    logger.info("BC projects refreshed", result);
+    return result;
+  },
+});
+
+/** Federally funded projects (Infrastructure Canada updates weekly). */
+export const refreshFederalProjects = schedules.task({
+  id: "refresh-federal-projects",
+  cron: { pattern: "45 6 * * 1", timezone: "America/Toronto" },
+  maxDuration: 300,
+  retry: { maxAttempts: 3 },
+  run: async () => {
+    const result = await importFederalProjects();
+    logger.info("Federal projects refreshed", result);
     return result;
   },
 });

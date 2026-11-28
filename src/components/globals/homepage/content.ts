@@ -29,6 +29,8 @@ export const dataSources = [
   "North American Rail Network (US DOT, with Transport Canada)",
   "Conservation authority flood regulation mapping",
   "Ontario school data and EQAO results",
+  "Ontario Builds, Alberta Major Projects, BC Major Projects Inventory",
+  "Infrastructure Canada (federally funded projects)",
   "Municipal open data (development applications)",
 ];
 
@@ -221,8 +223,8 @@ export const reportSections: ReportSection[] = [
       },
       {
         label: "Planned transit and infrastructure projects",
-        source: "City and transit sources",
-        available: false,
+        source: "Ontario Builds, Alberta and BC major projects, Infrastructure Canada",
+        available: true,
       },
     ],
   },
@@ -290,11 +292,11 @@ export const faqs = [
   },
   {
     q: "Which areas do you cover?",
-    a: "Addresses anywhere in Canada. Amenities, commute, crime severity, census figures, schools, air quality and the calculators cover every province and territory. Some details are Ontario-only for now (EQAO results, flood regulation, infrastructure projects and development applications), and Toronto adds neighbourhood crime rates. Each section says where its data came from.",
+    a: "Addresses anywhere in Canada. Amenities, commute, crime severity, census figures, schools, air quality and the calculators cover every province and territory. Some details vary by province: EQAO results and flood regulation are Ontario-only for now; infrastructure projects are mapped in Ontario, Alberta and BC and listed by municipality elsewhere (federally funded); development applications cover Toronto and several Ontario cities so far; and Toronto adds neighbourhood crime rates. Each section says where its data came from.",
   },
   {
     q: "Where does the data come from?",
-    a: "Google Maps Platform (Places, Routes, Street View and Air Quality), Statistics Canada (the 2021 Census, crime severity for every police service, and schools outside Ontario), Toronto Police Service, Land Information Ontario, conservation authority flood mapping, Ontario school data with EQAO results, and municipal open data.",
+    a: "Google Maps Platform (Places, Routes, Street View and Air Quality), Statistics Canada (the 2021 Census, crime severity for every police service, and schools outside Ontario), Toronto Police Service, Land Information Ontario, Transport Canada, Ontario Builds, Alberta and BC major projects, Infrastructure Canada, conservation authority flood mapping, Ontario school data with EQAO results, and municipal open data.",
   },
   {
     q: "Is the marketing copy safe to post?",

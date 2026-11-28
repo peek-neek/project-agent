@@ -5,6 +5,8 @@ import type { Prisma } from "../../generated/prisma/client";
 import { parseCsvRecords } from "../csv";
 import { db } from "../db";
 
+export const ONTARIO_BUILDS_SOURCE = "Ontario Builds";
+
 const PACKAGE_URL =
   "https://data.ontario.ca/api/3/action/package_show?id=ontario-builds-key-infrastructure-projects";
 const ACTIVE = new Set(["Planning", "Under construction"]);
@@ -13,8 +15,8 @@ const ACTIVE = new Set(["Planning", "Under construction"]);
  * upgrades, servicing): real work, but not something that changes what a
  * buyer gets nearby, so it's left out.
  */
-const MAINTENANCE =
-  /\b(?:HIRF|CIRF)\b|\bgrant\b|waterproof|remediation|\brepairs?\b|\bupgrades?\b|\brenewal\b|\breplacement\b|\bservicing\b|\bretrofit|\brehabilitation\b|\bAODA\b|\bparking\b/i;
+export const MAINTENANCE =
+  /\b(?:HIRF|CIRF)\b|\bgrant\b|waterproof|remediation|\brepairs?\b|\bupgrades?\b|\brenewal\b|\breplacement\b|\bservicing\b|\bretrofit|\brehabilitation\b|\bAODA\b|\bparking\b|\b(?:re)?paving\b|\bresurfacing\b|\boverlay\b/i;
 
 const MONTHS = [
   "Jan",
@@ -89,6 +91,7 @@ export async function importOntarioBuilds() {
     const budget = Number(r["Estimated Total Budget ($)"]);
     projects.push({
       id,
+      source: ONTARIO_BUILDS_SOURCE,
       category: r["Category"] || "Other",
       name: r["Project"].replace(/\s+/g, " ").trim(),
       status: r["Status"],
@@ -104,8 +107,9 @@ export async function importOntarioBuilds() {
     });
   }
 
+  // Only this source's rows: Alberta and BC projects share the table.
   await db.$transaction([
-    db.infrastructureProject.deleteMany(),
+    db.infrastructureProject.deleteMany({ where: { source: ONTARIO_BUILDS_SOURCE } }),
     db.infrastructureProject.createMany({ data: projects }),
   ]);
   return { source: url, projects: projects.length };

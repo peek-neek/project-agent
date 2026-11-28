@@ -888,7 +888,7 @@ export function ReportDashboard({
 
       <p className="pb-6 text-xs leading-relaxed text-foreground/50">
         Data from Google Maps, Statistics Canada, Ontario Ministry of Education,
-        Ontario Builds, the Ontario Road and Railway Networks, Transport Canada, the North American Rail Network, municipal open
+        Ontario Builds, Alberta Major Projects, the BC Major Projects Inventory, Infrastructure Canada, the Ontario Road and Railway Networks, Transport Canada, the North American Rail Network, municipal open
         data, Toronto Police Service and TRCA. AI copy may contain errors:
         review before sharing. Full sources are listed in the PDF.
       </p>

@@ -24,6 +24,7 @@ import {
   CRIME_TYPES,
   PROJECT_CATEGORIES,
   type ProjectCategory,
+  projectSources,
   upsideMapLabels,
 } from "@/lib/report-sections";
 import type { PdfData, PdfImages } from "./data";
@@ -783,9 +784,39 @@ export function UpsidePage({
       ) : (
         <Text style={s.p}>{u.projectsNote ?? "No public projects listed nearby."}</Text>
       )}
+      {u.federal && u.federal.projects.length > 0 ? (
+        <View style={{ marginTop: 10, gap: 6 }}>
+          <Text style={[s.strong, { fontSize: 10 }]}>
+            {`Federally funded in ${u.federal.municipality}`}
+          </Text>
+          {u.federal.projects.map((p) => {
+            const cat = PROJECT_CATEGORIES[p.category as ProjectCategory];
+            return (
+              <View key={p.id} wrap={false}>
+                <Card style={{ padding: 7 }}>
+                  <View style={[s.row, { justifyContent: "space-between", gap: 6 }]}>
+                    <Text style={[s.strong, { fontSize: 9, flex: 1 }]}>{p.title}</Text>
+                    <Chip color={cat?.color}>{cat?.label ?? p.category}</Chip>
+                  </View>
+                  <View style={[s.row, { gap: 4, flexWrap: "wrap", marginTop: 4 }]}>
+                    <Chip>{p.status}</Chip>
+                    {p.targetCompletion ? <Chip>{`Target ${p.targetCompletion}`}</Chip> : null}
+                    {p.totalCost != null ? <Chip>{`${money(p.totalCost)} total`}</Chip> : null}
+                  </View>
+                </Card>
+              </View>
+            );
+          })}
+          <Text style={{ fontSize: 7.5, color: C.muted }}>
+            {`Somewhere in ${u.federal.municipality}: Infrastructure Canada lists each project's municipality, not its exact site.`}
+          </Text>
+        </View>
+      ) : null}
       <Note>
-        Projects from Ontario&apos;s infrastructure map; applications from
-        municipal open data. Updated {date(u.fetchedAt)}.
+        {`Projects from ${[
+          ...projectSources(u),
+          ...(u.federal?.projects.length ? ["Infrastructure Canada"] : []),
+        ].join(", ") || "public infrastructure data"}; applications from municipal open data. Updated ${date(u.fetchedAt)}.`}
       </Note>
     </ReportPage>
   );
@@ -1313,7 +1344,7 @@ export function DetailsPage({ d, n }: { d: PdfData; n: number }) {
     },
     d.upside && {
       label: "Future upside",
-      source: ["Ontario infrastructure projects", d.upside.development?.source]
+      source: [...projectSources(d.upside), d.upside.development?.source]
         .filter(Boolean)
         .join("; "),
       at: d.upside.fetchedAt,

@@ -588,9 +588,11 @@ export function OverviewTab({
             !upside.development?.applications.length ? (
               <div className="py-3">
                 <Muted>
-                  {upside.projectsNote
-                    ? "Project and development data cover Ontario only so far."
-                    : "Nothing major planned close by."}
+                  {upside.federal?.projects.length
+                    ? `${upside.federal.projects.length} federally funded project${upside.federal.projects.length === 1 ? "" : "s"} in ${upside.federal.municipality}: see Future upside.`
+                    : upside.projectsNote
+                      ? "Located projects are published for Ontario, Alberta and BC so far."
+                      : "Nothing major planned close by."}
                 </Muted>
               </div>
             ) : (
