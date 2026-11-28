@@ -16,7 +16,7 @@ import { unzipSync } from "fflate";
 import type { Prisma } from "../../generated/prisma/client";
 import { parseCsvRecords } from "../csv";
 import { db } from "../db";
-import { BULK_TRANSACTION } from "./bulk";
+import { BULK_TRANSACTION, chunks } from "./bulk";
 
 export const SOURCE_URL =
   "https://www150.statcan.gc.ca/n1/en/pub/37-26-0001/2022001/ODEF_v2.1.zip";
@@ -258,7 +258,10 @@ export async function importCanadaSchools(csvText?: string) {
   await db.$transaction(
     async (tx) => {
       await tx.canadaSchool.deleteMany();
-      await tx.canadaSchool.createMany({ data: schools });
+      // In slices: one huge INSERT needs too much memory on a small machine.
+      for (const slice of chunks(schools)) {
+        await tx.canadaSchool.createMany({ data: slice });
+      }
     },
     BULK_TRANSACTION,
   );

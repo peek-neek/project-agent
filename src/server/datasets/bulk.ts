@@ -8,3 +8,13 @@
  * longer than 5 s. The rows are still swapped all or nothing.
  */
 export const BULK_TRANSACTION = { maxWait: 30_000, timeout: 300_000 } as const;
+
+/** Rows per INSERT: keeps each query (and the memory to build it) small. */
+export const INSERT_CHUNK = 1_000;
+
+/** `rows` in slices of INSERT_CHUNK, for createMany one slice at a time. */
+export function chunks<T>(rows: T[], size = INSERT_CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
+  return out;
+}

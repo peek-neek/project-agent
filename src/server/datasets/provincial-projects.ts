@@ -21,7 +21,7 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "../../generated/prisma/client";
 import type { ProjectCategory } from "../../lib/report-sections";
 import { db } from "../db";
-import { BULK_TRANSACTION } from "./bulk";
+import { BULK_TRANSACTION, chunks } from "./bulk";
 import { MAINTENANCE } from "./ontario-builds";
 
 export const ALBERTA_SOURCE = "Alberta Major Projects";
@@ -46,7 +46,10 @@ async function replaceSource(source: string, projects: Prisma.InfrastructureProj
   await db.$transaction(
     async (tx) => {
       await tx.infrastructureProject.deleteMany({ where: { source } });
-      await tx.infrastructureProject.createMany({ data: projects });
+      // In slices: one huge INSERT needs too much memory on a small machine.
+      for (const slice of chunks(projects)) {
+        await tx.infrastructureProject.createMany({ data: slice });
+      }
     },
     BULK_TRANSACTION,
   );

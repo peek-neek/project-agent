@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "../../generated/prisma/client";
 import { parseCsvRecords } from "../csv";
 import { db } from "../db";
-import { BULK_TRANSACTION } from "./bulk";
+import { BULK_TRANSACTION, chunks } from "./bulk";
 
 export const ONTARIO_BUILDS_SOURCE = "Ontario Builds";
 
@@ -112,7 +112,10 @@ export async function importOntarioBuilds() {
   await db.$transaction(
     async (tx) => {
       await tx.infrastructureProject.deleteMany({ where: { source: ONTARIO_BUILDS_SOURCE } });
-      await tx.infrastructureProject.createMany({ data: projects });
+      // In slices: one huge INSERT needs too much memory on a small machine.
+      for (const slice of chunks(projects)) {
+        await tx.infrastructureProject.createMany({ data: slice });
+      }
     },
     BULK_TRANSACTION,
   );

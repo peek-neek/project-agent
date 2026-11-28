@@ -20,7 +20,7 @@ import tls from "node:tls";
 import type { Prisma } from "../../generated/prisma/client";
 import type { ProjectCategory } from "../../lib/report-sections";
 import { db } from "../db";
-import { BULK_TRANSACTION } from "./bulk";
+import { BULK_TRANSACTION, chunks } from "./bulk";
 import { MAINTENANCE } from "./ontario-builds";
 
 export const FEDERAL_SOURCE = "Infrastructure Canada";
@@ -176,7 +176,10 @@ export async function importFederalProjects() {
   await db.$transaction(
     async (tx) => {
       await tx.federalProject.deleteMany();
-      await tx.federalProject.createMany({ data: projects, skipDuplicates: true });
+      // In slices: one huge INSERT needs too much memory on a small machine.
+      for (const slice of chunks(projects)) {
+        await tx.federalProject.createMany({ data: slice, skipDuplicates: true });
+      }
     },
     BULK_TRANSACTION,
   );

@@ -13,6 +13,8 @@ import { importTorontoDevelopment } from "../server/datasets/toronto-development
 export const refreshTorontoDevelopment = schedules.task({
   id: "refresh-toronto-development",
   cron: { pattern: "30 6 * * *", timezone: "America/Toronto" },
+  // Imports peak around 400 MB; the default machine (0.5 GB) runs out.
+  machine: "small-2x",
   maxDuration: 300,
   retry: { maxAttempts: 3 },
   run: async () => {
@@ -26,6 +28,7 @@ export const refreshTorontoDevelopment = schedules.task({
 export const refreshOntarioBuilds = schedules.task({
   id: "refresh-ontario-builds",
   cron: { pattern: "0 6 * * 1", timezone: "America/Toronto" },
+  machine: "small-2x",
   maxDuration: 300,
   retry: { maxAttempts: 3 },
   run: async () => {
@@ -43,6 +46,7 @@ export const refreshOntarioBuilds = schedules.task({
 export const importOntarioSchoolsTask = schedules.task({
   id: "import-ontario-schools",
   cron: { pattern: "0 5 1 * *", timezone: "America/Toronto" },
+  machine: "small-2x",
   maxDuration: 300,
   retry: { maxAttempts: 3 },
   run: async () => {
@@ -60,6 +64,7 @@ export const importOntarioSchoolsTask = schedules.task({
 export const importCanadaSchoolsTask = schedules.task({
   id: "import-canada-schools",
   cron: { pattern: "0 5 2 * *", timezone: "America/Toronto" },
+  machine: "small-2x",
   maxDuration: 600,
   retry: { maxAttempts: 2 },
   run: async () => {
@@ -73,6 +78,7 @@ export const importCanadaSchoolsTask = schedules.task({
 export const refreshAlbertaProjects = schedules.task({
   id: "refresh-alberta-projects",
   cron: { pattern: "15 6 * * 1", timezone: "America/Toronto" },
+  machine: "small-2x",
   maxDuration: 300,
   retry: { maxAttempts: 3 },
   run: async () => {
@@ -86,6 +92,7 @@ export const refreshAlbertaProjects = schedules.task({
 export const refreshBcProjects = schedules.task({
   id: "refresh-bc-projects",
   cron: { pattern: "30 6 * * 1", timezone: "America/Toronto" },
+  machine: "small-2x",
   maxDuration: 300,
   retry: { maxAttempts: 3 },
   run: async () => {
@@ -99,6 +106,7 @@ export const refreshBcProjects = schedules.task({
 export const refreshFederalProjects = schedules.task({
   id: "refresh-federal-projects",
   cron: { pattern: "45 6 * * 1", timezone: "America/Toronto" },
+  machine: "small-2x",
   maxDuration: 300,
   retry: { maxAttempts: 3 },
   run: async () => {
