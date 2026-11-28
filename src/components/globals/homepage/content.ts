@@ -22,7 +22,7 @@ export const exampleAddresses = [
 /** Every source the reports actually read from. */
 export const dataSources = [
   "Google Maps Platform (Places, Routes, Street View, Air Quality)",
-  "Statistics Canada (2021 Census, crime severity)",
+  "Statistics Canada (2021 Census, crime severity, school list)",
   "Toronto Police Service open data",
   "Land Information Ontario (road and rail networks)",
   "Transport Canada National Highway System",
@@ -294,7 +294,7 @@ export const faqs = [
   },
   {
     q: "Where does the data come from?",
-    a: "Google Maps Platform (Places, Routes, Street View and Air Quality), Statistics Canada (the 2021 Census and crime severity for every police service), Toronto Police Service, Land Information Ontario, conservation authority flood mapping, Ontario school data with EQAO results, and municipal open data.",
+    a: "Google Maps Platform (Places, Routes, Street View and Air Quality), Statistics Canada (the 2021 Census, crime severity for every police service, and schools outside Ontario), Toronto Police Service, Land Information Ontario, conservation authority flood mapping, Ontario school data with EQAO results, and municipal open data.",
   },
   {
     q: "Is the marketing copy safe to post?",

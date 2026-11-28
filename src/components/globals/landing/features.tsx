@@ -60,7 +60,7 @@ const CHAPTERS = [
     id: "schools",
     name: "Schools",
     title: "The nearest schools, on one page.",
-    body: "The closest elementary and secondary schools with walk and drive times. In Ontario, every board (English and French, public and Catholic) with EQAO results against the provincial average.",
+    body: "The closest elementary and secondary schools in every school system (English and French, public and Catholic), with walk and drive times, anywhere in Canada. In Ontario, EQAO results against the provincial average too.",
     points: [
       { lead: "Every board", text: "in Ontario, not just the one closest to the listing." },
       {

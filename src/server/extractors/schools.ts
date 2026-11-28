@@ -1,7 +1,8 @@
 // Runs inside the Trigger.dev "schools" task. Ontario: reads the School
-// table (imported with `npm run data:schools`: boards and EQAO results), so
-// no external API calls except travel times. Elsewhere in Canada: the
-// nearest schools from Google Maps, without boards or test results.
+// table (ministry data: boards and EQAO results). Elsewhere in Canada: the
+// CanadaSchool table (Statistics Canada: public and Catholic schools by
+// board and language, no test results). Both need no external calls except
+// travel times. Where neither has schools nearby: Google Maps.
 import {
   EQAO_FIELDS,
   type EqaoFieldId,
@@ -78,6 +79,109 @@ const LIMITS = {
   English: { Elementary: 3, Secondary: 2, radiusKm: 6 },
   French: { Elementary: 1, Secondary: 1, radiusKm: 30 },
 } as const;
+/** Rural fallback (outside Ontario): the nearest one within this distance. */
+const RURAL_RADIUS_KM = 30;
+
+type CanadaSchoolRow = Awaited<ReturnType<typeof db.canadaSchool.findMany>>[number];
+
+/**
+ * Outside Ontario: the nearest public and Catholic schools per system, from
+ * Statistics Canada's list. A system with none within its usual radius
+ * (rural areas) shows its nearest within RURAL_RADIUS_KM. Null when the
+ * list has no school nearby at all (or isn't imported).
+ */
+export async function canadaSchools(origin: LatLng): Promise<SchoolsData | null> {
+  const dLat = RURAL_RADIUS_KM / 111;
+  const dLng = RURAL_RADIUS_KM / (111 * Math.cos((origin.lat * Math.PI) / 180));
+  const candidates = await db.canadaSchool.findMany({
+    where: {
+      latitude: { gte: origin.lat - dLat, lte: origin.lat + dLat },
+      longitude: { gte: origin.lng - dLng, lte: origin.lng + dLng },
+    },
+  });
+  if (candidates.length === 0) return null;
+
+  const withDistance = candidates
+    .map((school) => ({
+      school,
+      meters: distanceMeters(origin, { lat: school.latitude, lng: school.longitude }),
+    }))
+    .filter((c) => c.meters <= RURAL_RADIUS_KM * 1000)
+    .sort((a, b) => a.meters - b.meters);
+  if (withDistance.length === 0) return null;
+
+  const picked = SCHOOL_SYSTEMS.filter((system) => system.id !== "nearby").map((system) => {
+    const limits = LIMITS[system.language as keyof typeof LIMITS];
+    const pick = (level: "Elementary" | "Secondary") => {
+      const inSystem = withDistance.filter(
+        ({ school }) =>
+          school.language === system.language &&
+          school.type === system.type &&
+          (level === "Elementary" ? school.elementary : school.secondary),
+      );
+      const near = inSystem.filter(({ meters }) => meters <= limits.radiusKm * 1000);
+      return (near.length ? near.slice(0, limits[level]) : inSystem.slice(0, 1)).map(
+        ({ school }) => school,
+      );
+    };
+    return { system, elementary: pick("Elementary"), secondary: pick("Secondary") };
+  });
+
+  // A K–12 school can be in both lists: time it once.
+  const unique = new Map<string, CanadaSchoolRow>();
+  for (const p of picked) for (const s of [...p.elementary, ...p.secondary]) unique.set(s.id, s);
+  if (unique.size === 0) return null;
+  const timed = await withTravelTimes(
+    origin,
+    [...unique.values()].map((s) => ({
+      id: s.id,
+      name: s.name,
+      lat: s.latitude,
+      lng: s.longitude,
+      address: s.street,
+      rating: null,
+      ratingCount: null,
+      primaryType: null,
+    })),
+  );
+  const timeById = new Map(timed.map((t) => [t.id, t]));
+
+  const toSchool = (s: CanadaSchoolRow, level: "Elementary" | "Secondary") => {
+    const t = timeById.get(s.id)!;
+    return {
+      id: `ca:${s.id}`,
+      name: s.name,
+      board: s.boardName ?? "",
+      boardWebsite: null,
+      website: null,
+      level,
+      gradeRange: null,
+      enrolment: null,
+      address: [s.street, s.city].filter(Boolean).join(", ") || null,
+      lat: s.latitude,
+      lng: s.longitude,
+      distanceMeters: t.distanceMeters,
+      walkMinutes: t.walkMinutes,
+      // Placed at its town (a rural box address): times are rough.
+      walkEstimated: t.walkEstimated || s.approximate,
+      driveMinutes: t.driveMinutes,
+      driveEstimated: Boolean(t.driveEstimated) || s.approximate,
+      results: {},
+    };
+  };
+
+  return {
+    systems: picked.map((p) => ({
+      id: p.system.id,
+      elementary: p.elementary.map((s) => toSchool(s, "Elementary")),
+      secondary: p.secondary.map((s) => toSchool(s, "Secondary")),
+    })),
+    coverage: "canada",
+    provincialAverage: {},
+    dataYear: candidates[0].dataYear,
+    fetchedAt: new Date().toISOString(),
+  };
+}
 
 const eqaoSelect = Object.fromEntries(
   EQAO_FIELDS.map((f) => [f.id, true]),
@@ -94,6 +198,15 @@ export async function extractSchools(reportId: string) {
   // Ontario's school data (boards, EQAO) covers Ontario only.
   const province = report?.property?.province;
   if (province && province !== "ON") {
+    const canada = await canadaSchools(origin);
+    if (canada) {
+      await reportStore.setSection(reportId, SECTION_KEYS.schools, canada);
+      const count = new Set(
+        canada.systems.flatMap((s) => [...s.elementary, ...s.secondary].map((x) => x.id)),
+      ).size;
+      return { schools: count, source: "canada" };
+    }
+    // Nothing in Statistics Canada's list nearby: Google Maps instead.
     const { elementary, secondary } = await nearbySchools(origin);
     const data: SchoolsData = {
       systems: [{ id: "nearby", elementary, secondary }],

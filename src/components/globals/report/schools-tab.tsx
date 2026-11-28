@@ -266,6 +266,8 @@ export function SchoolsTab({
   ];
   const average = schools.provincialAverage;
   const nearby = schools.coverage === "nearby";
+  // Statistics Canada's list: boards and languages, but no test results.
+  const canada = schools.coverage === "canada";
   // Only the systems this report has (Ontario's four, or "Nearby schools").
   const systems = SCHOOL_SYSTEMS.filter((system) =>
     schools.systems.some((x) => x.id === system.id),
@@ -347,7 +349,7 @@ export function SchoolsTab({
               <InfoIcon />
               <AlertTitle>Nearest isn&apos;t always assigned</AlertTitle>
               <AlertDescription className="text-foreground/65">
-                {nearby
+                {nearby || canada
                   ? "Confirm catchment with the local school district or board."
                   : "Confirm catchment with each board\u2019s school locator."}
                 {boards.length > 0 && (
@@ -391,7 +393,7 @@ export function SchoolsTab({
                         label={labels.get(school.id)}
                         index={order.get(school.id) ?? 0}
                         average={average}
-                        showResults={!nearby}
+                        showResults={!nearby && !canada}
                         selected={selectedId === school.id}
                         onSelect={() => {
                           setSelectedId(school.id);
@@ -412,6 +414,13 @@ export function SchoolsTab({
                 Nearest schools from Google Maps: public, Catholic,
                 French-language and private schools alike. Test results are
                 shown for Ontario schools only for now.
+              </>
+            ) : canada ? (
+              <>
+                Public and Catholic schools in each school system, from
+                Statistics Canada&apos;s school list ({schools.dataYear}).
+                Private schools aren&apos;t listed, and test results are shown
+                for Ontario schools only for now.
               </>
             ) : (
               <>

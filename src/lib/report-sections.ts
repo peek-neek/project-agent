@@ -461,10 +461,12 @@ export const schoolsSchema = z.object({
   ),
   /**
    * "ontario": Ontario's school list with boards and EQAO results.
-   * "nearby": outside Ontario, nearest schools from Google Maps (no boards
-   * or test results). Older reports lack it (Ontario).
+   * "canada": outside Ontario, Statistics Canada's public and Catholic
+   * schools by board and language (no test results).
+   * "nearby": nearest schools from Google Maps (no boards or test results),
+   * where neither list has schools nearby. Older reports lack it (Ontario).
    */
-  coverage: z.enum(["ontario", "nearby"]).optional(),
+  coverage: z.enum(["ontario", "canada", "nearby"]).optional(),
   /** Unweighted average across Ontario schools, for context. */
   provincialAverage: eqaoSchema,
   dataYear: z.string(),

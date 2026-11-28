@@ -172,6 +172,42 @@ model School {
   @@index([latitude, longitude])
 }
 
+/// Public and Catholic K–12 schools outside Ontario, from Statistics Canada's
+/// Open Database of Educational Facilities (Open Government Licence –
+/// Canada). Ontario uses School (ministry data with EQAO). Replaced whole by
+/// the "import-canada-schools" task.
+model CanadaSchool {
+  /// ODEF record index.
+  id           String  @id
+  name         String
+  boardName    String?
+  /// "Public" or "Catholic".
+  type         String
+  /// "English" or "French".
+  language     String
+  /// Teaches the elementary grades (a K–12 school is both).
+  elementary   Boolean
+  /// Teaches the secondary grades (junior high included).
+  secondary    Boolean
+  street       String?
+  city         String?
+  /// Two-letter code, e.g. "BC".
+  province     String
+  postalCode   String?
+  latitude     Float
+  longitude    Float
+  /// True when placed from its address (Google Geocoding) rather than the
+  /// source's own coordinates.
+  geocoded     Boolean  @default(false)
+  /// Rough position (a rural box address placed at its town).
+  approximate  Boolean  @default(false)
+  /// Release of the source data, e.g. "ODEF 2.1 (2022)".
+  dataYear     String
+  updatedAt    DateTime @updatedAt
+
+  @@index([latitude, longitude])
+}
+
 /// Provincial infrastructure projects in planning or under construction,
 /// from Ontario's "Ontario Builds" open data. Refreshed weekly by the
 /// refresh-ontario-builds Trigger.dev schedule (or npm run data:projects).

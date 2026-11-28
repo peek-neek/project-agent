@@ -1379,7 +1379,13 @@ export function SchoolsPage({
         number={n}
         eyebrow="Schools"
         title="Schools nearby"
-        lede="Nearby schools in each of Ontario's four school systems, with EQAO results (share of students meeting the provincial standard)."
+        lede={
+          sc.coverage === "canada"
+            ? "Nearby public and Catholic schools in each school system (English and French), from Statistics Canada's school list. Test results are published for Ontario only."
+            : sc.coverage === "nearby"
+              ? "The nearest schools, from Google Maps."
+              : "Nearby schools in each of Ontario's four school systems, with EQAO results (share of students meeting the provincial standard)."
+        }
       />
       <Kpis
         items={[

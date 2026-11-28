@@ -233,7 +233,12 @@ function sectionsFor(d: PdfData): Section[] {
     {
       id: "schools",
       title: "Schools",
-      description: "All four school systems with EQAO results",
+      description:
+        d.schools?.coverage === "canada"
+          ? "Public and Catholic schools in each school system"
+          : d.schools?.coverage === "nearby"
+            ? "The nearest schools"
+            : "All four school systems with EQAO results",
       icon: GraduationCapIcon,
       show: Boolean(d.schools),
       page: (n, imgs) => <SchoolsPage d={d} images={imgs} n={n} />,

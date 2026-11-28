@@ -155,6 +155,7 @@ export function SchoolsSection({
   ];
   const average = (id: EqaoFieldId) => schools.provincialAverage[id];
   const nearby = schools.coverage === "nearby";
+  const canada = schools.coverage === "canada";
 
   if (systems.length === 0) {
     return (
@@ -236,6 +237,8 @@ export function SchoolsSection({
       <p className="text-xs leading-relaxed text-foreground/55">
         {nearby ? (
           "Nearest schools from Google Maps: public, Catholic, French-language and private schools alike. Test results are shown for Ontario schools only for now."
+        ) : canada ? (
+          `Public and Catholic schools in each school system, from Statistics Canada's school list (${schools.dataYear}). Private schools aren't listed, and test results are shown for Ontario schools only for now.`
         ) : (
           <>
             EQAO: share of students meeting the provincial standard,{" "}
@@ -257,7 +260,7 @@ export function SchoolsSection({
         <AlertDescription className="text-foreground/65">
           School boundaries don&apos;t follow distance, and some schools cap
           enrolment. Confirm which schools serve this address with{" "}
-          {nearby ? "the local school district or board" : "each board\u2019s school locator"}{" "}
+          {nearby || canada ? "the local school district or board" : "each board\u2019s school locator"}{" "}
           before quoting them to buyers.
           {boards.length > 0 && (
             <span className="mt-2 flex flex-wrap gap-x-4 gap-y-1">

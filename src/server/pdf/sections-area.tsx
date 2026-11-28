@@ -1285,7 +1285,12 @@ export function DetailsPage({ d, n }: { d: PdfData; n: number }) {
     },
     d.schools && {
       label: "Schools",
-      source: `Ontario Ministry of Education, EQAO ${d.schools.dataYear}; Google Street View`,
+      source:
+        d.schools.coverage === "canada"
+          ? `Statistics Canada, Open Database of Educational Facilities (${d.schools.dataYear}); Google Street View`
+          : d.schools.coverage === "nearby"
+            ? "Google Maps (Places); Google Street View"
+            : `Ontario Ministry of Education, EQAO ${d.schools.dataYear}; Google Street View`,
       at: d.schools.fetchedAt,
     },
     d.safety && {
