@@ -1,1 +1,2 @@
 video generation: 849 tokens; $0.08
+openai: $1.50

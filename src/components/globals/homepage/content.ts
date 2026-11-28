@@ -292,7 +292,7 @@ export const faqs = [
   },
   {
     q: "Which areas do you cover?",
-    a: "Addresses anywhere in Canada. Amenities, commute, crime severity, census figures, schools, air quality and the calculators cover every province and territory. Some details vary by province: EQAO results and flood regulation are Ontario-only for now; infrastructure projects are mapped in Ontario, Alberta and BC and listed by municipality elsewhere (federally funded); development applications cover Toronto and several Ontario cities so far; and Toronto adds neighbourhood crime rates. Each section says where its data came from.",
+    a: "Addresses anywhere in Canada. Amenities, commute, crime severity, census figures, schools, air quality and the calculators cover every province and territory. Some details vary by province: EQAO results and flood regulation are Ontario-only for now; infrastructure projects are mapped in Ontario, Alberta and BC and listed by municipality elsewhere (federally funded); development applications cover Toronto, Brampton, Mississauga and ten more Ontario municipalities, plus Calgary, Edmonton, Winnipeg, Vancouver (new buildings), Victoria and Halifax; and Toronto adds neighbourhood crime rates. Each section says where its data came from.",
   },
   {
     q: "Where does the data come from?",
