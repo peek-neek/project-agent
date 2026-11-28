@@ -101,7 +101,7 @@ type HistoryItem = {
   property: {
     formattedAddress: string | null;
     city: string | null;
-    /** For the Street View thumbnail. */
+    /** For the satellite thumbnail. */
     latitude?: number | null;
     longitude?: number | null;
     updatedAt?: Date | string;
@@ -179,8 +179,8 @@ const DAY = 86_400_000;
 
 /** Today / Previous 7 days / Previous 30 days / Older. */
 /**
- * The property's Street View photo, small and square; the document icon
- * when there's no location yet or no Street View there.
+ * The property's satellite photo, small and square; the document icon
+ * when there's no location yet.
  */
 function ReportThumb({ report }: { report: HistoryItem }) {
   const [failed, setFailed] = useState(false);
@@ -209,7 +209,7 @@ function StreetViewImg({
   const version = encodeURIComponent(String(report.property?.updatedAt ?? ""));
   return (
     <FadeImg
-      src={`/api/reports/${report.id}/street-view?size=thumb&v=${version}`}
+      src={`/api/reports/${report.id}/satellite?size=thumb&v=${version}`}
       alt=""
       loading="lazy"
       decoding="async"
@@ -220,7 +220,7 @@ function StreetViewImg({
 }
 
 /**
- * A comparison's thumbnail: both Street View photos, A on the left and B
+ * A comparison's thumbnail: both satellite photos, A on the left and B
  * on the right; the compare icon when neither has one.
  */
 function CompareThumb({ comparison }: { comparison: ComparisonItem }) {

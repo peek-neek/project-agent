@@ -56,7 +56,7 @@ export const reportSections: ReportSection[] = [
       "A branded first page with the property photo and your contact details.",
     items: [
       {
-        label: "Street View or satellite photo, address and report date",
+        label: "Satellite photo, address and report date",
         source: "Google",
         available: true,
       },
@@ -122,7 +122,7 @@ export const reportSections: ReportSection[] = [
   {
     id: "maps",
     title: "Maps and visuals",
-    summary: "Location, Street View and satellite imagery in one place.",
+    summary: "Location and satellite imagery in one place.",
     items: [
       {
         label: "Location map with nearby places pinned",
@@ -130,7 +130,7 @@ export const reportSections: ReportSection[] = [
         available: true,
       },
       {
-        label: "Street View and satellite images",
+        label: "Satellite images at four zoom levels",
         source: "Google",
         available: true,
       },

@@ -1,14 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
 import { reportStore } from "@/server/report-store";
-import { parseAngle, streetViewImage } from "@/server/street-view";
+import { parseSatelliteView, satelliteImage } from "@/server/satellite";
 
 /**
- * Street View photo of the property (?angle=, see STREET_VIEW_ANGLES;
- * ?size=thumb for the small square used in the report history).
+ * Satellite photo of the property (?view=, see SATELLITE_VIEWS; ?size=thumb
+ * for the small square used in the report history).
  */
 export async function GET(
   request: Request,
-  { params }: RouteContext<"/api/reports/[reportId]/street-view">,
+  { params }: RouteContext<"/api/reports/[reportId]/satellite">,
 ) {
   const { userId } = await auth();
   if (!userId) return new Response("Unauthorized", { status: 401 });
@@ -21,9 +21,9 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
   const search = new URL(request.url).searchParams;
-  return streetViewImage(
+  return satelliteImage(
     { lat, lng },
-    parseAngle(search.get("angle")),
+    parseSatelliteView(search.get("view")),
     search.get("size") === "thumb" ? "160x160" : undefined,
   );
 }

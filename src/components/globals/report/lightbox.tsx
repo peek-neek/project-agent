@@ -128,7 +128,7 @@ export function Lightbox({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         // minmax(0,1fr): the grid column never grows to fit its content
-        // (8 Street View thumbnails are wider than a phone), it scrolls.
+        // (a long strip of thumbnails is wider than a phone), it scrolls.
         className="grid-cols-[minmax(0,1fr)] gap-3 sm:max-w-4xl"
         onKeyDown={(e) => {
           if (!many) return;

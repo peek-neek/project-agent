@@ -26,7 +26,7 @@ const VIEWS = [
 ] as const;
 
 /**
- * The property's Street View photo in the Report button, fading in over the
+ * The property's satellite photo in the Report button, fading in over the
  * icon (same fixed-size slot, so nothing moves). Client-only, after
  * hydration: the server can't know the photo's version. Reads the history
  * the sidebar already loaded; never fetches. No photo: the icon stays.
@@ -64,7 +64,7 @@ function Photo({ reportId }: { reportId: string }) {
   if (failed || p?.latitude == null || p.longitude == null) return null;
   return (
     <FadeImg
-      src={`/api/reports/${reportId}/street-view?size=thumb&v=${encodeURIComponent(String(p.updatedAt ?? ""))}`}
+      src={`/api/reports/${reportId}/satellite?size=thumb&v=${encodeURIComponent(String(p.updatedAt ?? ""))}`}
       alt=""
       decoding="async"
       onError={() => setFailed(true)}
@@ -77,7 +77,7 @@ function Photo({ reportId }: { reportId: string }) {
  * Report | Chat switch in the app header, on reports and comparisons.
  * `base` (e.g. `/reports/<id>`) is null in the prerendered shell: it renders
  * identically, just without links yet, so nothing moves or changes when the
- * real one takes over. `photoReportId` puts that report's Street View photo
+ * real one takes over. `photoReportId` puts that report's satellite photo
  * in the Report button (reports only). `kind` picks the Report button's
  * icon (a plain string: server components render this too).
  */

@@ -7,6 +7,7 @@ import {
   ImagesIcon,
   LoaderCircleIcon,
   Maximize2Icon,
+  SatelliteIcon,
 } from "lucide-react";
 import { cn } from "cn";
 import { useState } from "react";
@@ -26,16 +27,12 @@ import { googleMapsUrl, type ReportData } from "./report-format";
 
 type View = "street" | "photos";
 
-/** Street View presets (server/street-view.ts), in display order. */
+/** Satellite zoom levels (server/satellite.ts), default first. */
 const ANGLES = [
-  { id: "front", label: "Front" },
-  { id: "closeUp", label: "Close-up" },
-  { id: "frontLeft", label: "Front left" },
-  { id: "frontRight", label: "Front right" },
-  { id: "left", label: "Up the street" },
-  { id: "right", label: "Down the street" },
-  { id: "across", label: "Across the street" },
-  { id: "wide", label: "Wide" },
+  { id: "home", label: "The home" },
+  { id: "street", label: "Street" },
+  { id: "block", label: "Block" },
+  { id: "area", label: "Neighbourhood" },
 ] as const;
 type Angle = (typeof ANGLES)[number]["id"];
 
@@ -124,7 +121,7 @@ export function LocationMedia({
   onOpenAmenities: () => void;
 }) {
   const [view, setView] = useState<View>("street");
-  const [angle, setAngle] = useState<Angle>("front");
+  const [angle, setAngle] = useState<Angle>("home");
   // The open lightbox: which list (street angles or place photos) and where.
   const [viewer, setViewer] = useState<{
     list: "street" | "photos";
@@ -135,7 +132,7 @@ export function LocationMedia({
   const property = report.property;
   const version = encodeURIComponent(String(property?.updatedAt ?? ""));
   const streetSrc = (a: Angle) =>
-    `/api/reports/${report.id}/street-view?angle=${a}&v=${version}`;
+    `/api/reports/${report.id}/satellite?view=${a}&v=${version}`;
   const address = property?.formattedAddress ?? report.inputAddress;
   const hasStreet = property?.latitude != null;
 
@@ -148,12 +145,12 @@ export function LocationMedia({
     : [];
   const hasPlacePhotos = tiles.length > 0;
 
-  // Lightbox lists: every Street View angle; every photo of every place.
+  // Lightbox lists: every satellite zoom level; every photo of every place.
   const streetItems: LightboxItem[] = ANGLES.map((a) => ({
     key: `street-${a.id}`,
     src: streetSrc(a.id),
     title: "The property",
-    subtitle: `Google Street View · ${a.label}`,
+    subtitle: `Satellite · ${a.label}`,
     icon: CameraIcon,
     group: "street",
   }));
@@ -180,7 +177,7 @@ export function LocationMedia({
     photoItems.findIndex((it) => it.group === placeId);
 
   const titles: Record<View, { title: string; icon: typeof CameraIcon }> = {
-    street: { title: "Street view", icon: CameraIcon },
+    street: { title: "Satellite view", icon: SatelliteIcon },
     photos: { title: "Photos", icon: ImagesIcon },
   };
 
@@ -190,7 +187,7 @@ export function LocationMedia({
       icon={titles[view].icon}
       action={
         <ToggleGroup
-          aria-label="Street view or photos"
+          aria-label="Satellite view or photos"
           value={[view]}
           onValueChange={(value) => {
             const next = value[0] as View | undefined;
@@ -198,8 +195,8 @@ export function LocationMedia({
           }}
           spacing={1}
         >
-          <ToggleGroupItem value="street" aria-label="Street view" size="sm">
-            <CameraIcon />
+          <ToggleGroupItem value="street" aria-label="Satellite view" size="sm">
+            <SatelliteIcon />
           </ToggleGroupItem>
           <ToggleGroupItem value="photos" aria-label="Photos" size="sm">
             <ImagesIcon />
@@ -223,23 +220,23 @@ export function LocationMedia({
                   index: ANGLES.findIndex((a) => a.id === angle),
                 })
               }
-              aria-label="View Street View photos full size"
+              aria-label="View satellite photos full size"
               className="group/sv relative block cursor-zoom-in text-left"
             >
               <MapImage
                 key={angle}
                 src={streetSrc(angle)}
-                alt={`Street View of ${address}, ${ANGLES.find((a) => a.id === angle)!.label.toLowerCase()}`}
-                fallback="No Street View photo here, or the Street View Static API isn't enabled for your Google key."
+                alt={`Satellite view of ${address}, ${ANGLES.find((a) => a.id === angle)!.label.toLowerCase()}`}
+                fallback="No satellite image here, or the Maps Static API isn't enabled for your Google key."
                 className="aspect-[16/10] ring-0 lg:aspect-auto lg:h-full"
               />
               <span className="pointer-events-none absolute right-2 bottom-2 flex items-center gap-1.5 bg-black/60 px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover/sv:opacity-100">
                 <Maximize2Icon aria-hidden className="size-3" />
-                View {ANGLES.length} angles
+                View {ANGLES.length} zoom levels
               </span>
             </button>
-            {/* Angles: 4 per row under the photo; 2 columns beside it on wide screens. */}
-            <div className="grid grid-cols-4 gap-px border-t bg-border lg:grid-cols-2 lg:grid-rows-4 lg:border-t-0 lg:border-l">
+            {/* Zoom levels: 4 in a row under the photo; a 2 × 2 grid beside it on wide screens. */}
+            <div className="grid grid-cols-4 gap-px border-t bg-border lg:grid-cols-2 lg:grid-rows-2 lg:border-t-0 lg:border-l">
               {ANGLES.map((a) => (
                 <button
                   key={a.id}
@@ -302,7 +299,7 @@ export function LocationMedia({
                     className="group relative block size-full min-h-28 cursor-zoom-in overflow-hidden bg-muted text-left"
                   >
                     <FadeImg
-                      src={streetSrc("front")}
+                      src={streetSrc("home")}
                       alt="The property"
                       loading="lazy"
                       className="absolute inset-0 size-full object-cover transition-[opacity,transform] duration-300 group-hover:scale-[1.03]"
@@ -314,7 +311,7 @@ export function LocationMedia({
                       <span className="flex items-center gap-1.5">
                         <CameraIcon aria-hidden className="size-3.5 shrink-0" />
                         <span className="truncate text-xs font-medium">
-                          The property · Street View
+                          The property · Satellite
                         </span>
                       </span>
                     </span>
@@ -379,8 +376,8 @@ export function LocationMedia({
       {view === "street" && (
         <p className="flex items-center gap-1.5 border-t px-4 py-2.5 text-xs text-foreground/55">
           <CameraIcon aria-hidden className="size-3.5 shrink-0" />
-          Google Street View: the nearest street-level photo, which may not show
-          the exact home or its current condition.
+          Satellite imagery from Google Maps, centred on the home (pin). Imagery
+          dates vary, so recent changes to the property may not show.
         </p>
       )}
 

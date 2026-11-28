@@ -18,6 +18,7 @@ import {
 import { cloneElement, type ReactElement } from "react";
 import type { TravelMode } from "@/lib/travel";
 import { staticMapUrl } from "../static-maps";
+import { satelliteImage } from "../satellite";
 import { streetViewImage } from "../street-view";
 import {
   type PdfData,
@@ -97,7 +98,7 @@ function placePhoto(name: string) {
 }
 
 /**
- * Street View angles, section maps, a photo for the nearest amenity in each
+ * Satellite views of the property, section maps, a photo for the nearest amenity in each
  * category and the nearest transit stops (Google Places), and a Street View
  * photo per school. Fetched in parallel with a cap; anything missing falls
  * back to an icon tile.
@@ -106,10 +107,10 @@ async function loadImages(d: PdfData): Promise<PdfImages> {
   const { report } = d;
   const lat = report.property?.latitude;
   const lng = report.property?.longitude;
-  const empty: PdfImages = { street: {}, maps: {}, places: {}, schools: {} };
+  const empty: PdfImages = { aerial: {}, maps: {}, places: {}, schools: {} };
   if (lat == null || lng == null) return empty;
 
-  const angles = ["front", "closeUp", "frontLeft", "frontRight"] as const;
+  const views = ["home", "street", "block", "area"] as const;
   const maps = ["overview", "transit", "schools", "upside"] as const;
   // Google bills every place photo, so only the nearest place in each
   // amenity category and the nearest few transit stops get one; the other
@@ -137,10 +138,10 @@ async function loadImages(d: PdfData): Promise<PdfImages> {
     ).values(),
   );
 
-  const [street, mapImages, placeImages, schoolImages] = await Promise.all([
+  const [aerial, mapImages, placeImages, schoolImages] = await Promise.all([
     Promise.all(
-      angles.map((a) =>
-        streetViewImage({ lat, lng }, a)
+      views.map((v) =>
+        satelliteImage({ lat, lng }, v)
           .then(toImage)
           .catch(() => undefined),
       ),
@@ -173,7 +174,7 @@ async function loadImages(d: PdfData): Promise<PdfImages> {
     ) as Record<string, PdfImage>;
 
   return {
-    street: Object.fromEntries(angles.map((a, i) => [a, street[i]])),
+    aerial: Object.fromEntries(views.map((v, i) => [v, aerial[i]])),
     maps: Object.fromEntries(maps.map((m, i) => [m, mapImages[i]])),
     places: byId(places, placeImages),
     schools: byId(schools, schoolImages),

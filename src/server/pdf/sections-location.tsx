@@ -206,10 +206,10 @@ export function CoverPage({ d, images }: { d: PdfData; images: PdfImages }) {
     p?.pin && { label: "Land Registry PIN", value: p.pin },
     p?.rollNumber && { label: "MPAC roll number", value: p.rollNumber },
   ].filter(Boolean) as { label: string; value: string }[];
-  const angles = (["closeUp", "frontLeft", "frontRight"] as const).filter(
-    (a) => images.street[a],
+  const angles = (["street", "block", "area"] as const).filter(
+    (a) => images.aerial[a],
   );
-  const hero = images.street.front ?? images.maps.overview;
+  const hero = images.aerial.home ?? images.maps.overview;
 
   return (
     <ReportPage section="Property report" address={d.address}>
@@ -229,15 +229,15 @@ export function CoverPage({ d, images }: { d: PdfData; images: PdfImages }) {
         <View style={[s.row, { gap: 6, marginTop: 6 }]}>
           {angles.map((a) => (
             <View key={a} style={{ flex: 1 }}>
-              <Picture image={images.street[a]} height={112} />
+              <Picture image={images.aerial[a]} height={112} />
             </View>
           ))}
         </View>
       )}
       {hero ? (
         <Text style={[s.small, { marginTop: 4 }]}>
-          Photos: Google Street View, which may not show the home&apos;s current
-          condition.
+          Satellite imagery: Google Maps, centred on the home. Imagery dates
+          vary, so recent changes to the property may not show.
         </Text>
       ) : null}
 

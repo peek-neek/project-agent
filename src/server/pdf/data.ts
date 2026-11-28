@@ -34,9 +34,8 @@ export type PdfReport = NonNullable<
 export type PdfImage = { data: Buffer; format: "png" | "jpg" };
 
 export type PdfImages = {
-  street: Partial<
-    Record<"front" | "closeUp" | "frontLeft" | "frontRight", PdfImage>
-  >;
+  /** Satellite photos of the property, by zoom level (server/satellite.ts). */
+  aerial: Partial<Record<"home" | "street" | "block" | "area", PdfImage>>;
   maps: Partial<
     Record<"overview" | "transit" | "schools" | "upside", PdfImage>
   >;
