@@ -130,8 +130,16 @@ export const isRenderActive = (video: VideoSection | null, now = Date.now()) =>
   now - Date.parse(video.render.startedAt) < RENDER_TIMEOUT_MS;
 
 /**
+ * The composition's look. Bump it when the video's design changes (new
+ * scenes, how routes are drawn, the end card) so MP4s exported in the old
+ * style count as outdated and are made again on the next download.
+ * 2: street routes as progress bars, stat and upside scenes, brand card.
+ */
+export const VIDEO_LOOK = 2;
+
+/**
  * Identifies what the video says and sounds like: the script, travel mode
- * and voiceover clips. An MP4 is current while its version matches; any
+ * and voiceover clips, and the composition's look. An MP4 is current while its version matches; any
  * rewrite changes it. (FNV-1a: short, stable, same on server and client.)
  */
 export function videoVersion(
@@ -139,6 +147,7 @@ export function videoVersion(
     Partial<Pick<VideoSection, "routes">>,
 ) {
   const text = JSON.stringify([
+    VIDEO_LOOK,
     video.travelMode,
     video.script,
     video.audio,

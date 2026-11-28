@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -23,6 +24,39 @@ import {
  */
 const SERVE_URL = path.join(process.cwd(), "build/remotion");
 const COMPOSITION_ID = "PropertyVideo";
+
+/** What the Remotion bundle is built from (see `npm run video:bundle`). */
+const COMPOSITION_SOURCES = [
+  "src/video",
+  "src/lib",
+  "src/components/globals/report/map-style.ts",
+];
+
+/** Latest modification time of a file, or of any file under a folder. */
+function newestMs(target: string): number {
+  if (!existsSync(target)) return 0;
+  const stat = statSync(target);
+  if (!stat.isDirectory()) return stat.mtimeMs;
+  return readdirSync(target).reduce(
+    (latest, name) => Math.max(latest, newestMs(path.join(target, name))),
+    stat.mtimeMs,
+  );
+}
+
+/**
+ * In development (`trigger dev`), renders use the bundle on disk, which is
+ * only built when the dev server starts: rebuild it if the video code has
+ * changed since, so an export never shows an older design. Deploys always
+ * build a fresh one (trigger.config.ts).
+ */
+function ensureFreshDevBundle() {
+  const cwd = process.cwd();
+  const built = newestMs(path.join(SERVE_URL, "bundle.js"));
+  const source = Math.max(...COMPOSITION_SOURCES.map((p) => newestMs(path.join(cwd, p))));
+  if (built >= source) return;
+  logger.info("Video code changed since the bundle was built: rebuilding it");
+  execSync("npm run video:bundle", { cwd, stdio: "inherit" });
+}
 
 /** "12-239 Gustin Crescent" → "12-239-gustin-crescent-map-video" */
 const fileName = (street: string) =>
@@ -49,7 +83,7 @@ export const reportVideoRenderTask = schemaTask({
   machine: "large-1x",
   maxDuration: 900,
   retry: { maxAttempts: 2 },
-  run: async ({ reportId, version }) => {
+  run: async ({ reportId, version }, { ctx }) => {
     const report = await reportStore.findWithDetails(reportId);
     if (!report) throw new AbortTaskRunError(`Report ${reportId} was deleted`);
     const video = await getVideo(reportId);
@@ -60,6 +94,7 @@ export const reportVideoRenderTask = schemaTask({
       });
       return { rendered: false };
     }
+    if (ctx.environment.type === "DEVELOPMENT") ensureFreshDevBundle();
     if (!existsSync(SERVE_URL)) {
       throw new Error("The Remotion bundle is missing: run `npm run video:bundle`.");
     }

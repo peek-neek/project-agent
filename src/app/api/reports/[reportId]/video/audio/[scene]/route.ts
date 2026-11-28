@@ -1,14 +1,16 @@
 import { auth } from "@clerk/nextjs/server";
 import { VIDEO_SECTION_KEY, videoSectionSchema } from "@/lib/video";
 import { reportStore } from "@/server/report-store";
+import { rangeResponse } from "@/server/http-range";
 import { readVoiceClip } from "@/server/video-store";
 
 /**
  * One scene's voiceover clip for the report owner's video Player. Clips
- * are private in Blob storage, so they're streamed through here.
+ * are private in Blob storage, so they're served through here, with byte
+ * ranges (Safari needs them to play audio at all).
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: RouteContext<"/api/reports/[reportId]/video/audio/[scene]">,
 ) {
   const { userId } = await auth();
@@ -25,12 +27,12 @@ export async function GET(
   if (!file || file.statusCode !== 200) {
     return new Response("Not found", { status: 404 });
   }
-  return new Response(file.stream, {
-    headers: {
-      "Content-Type": "audio/wav",
-      ...(file.blob.size != null && { "Content-Length": String(file.blob.size) }),
-      // Each new voiceover gets new pathnames; the URL carries a version.
-      "Cache-Control": "private, max-age=3600",
-    },
+  // Clips are small (a few hundred KB), so read the whole one and answer
+  // byte ranges from memory: Safari won't play audio without 206 responses.
+  const data = new Uint8Array(await new Response(file.stream).arrayBuffer());
+  return rangeResponse(request, data, {
+    "Content-Type": "audio/wav",
+    // Each new voiceover gets new pathnames; the URL carries a version.
+    "Cache-Control": "private, max-age=3600",
   });
 }
